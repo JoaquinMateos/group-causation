@@ -15,7 +15,7 @@ class DynotearsWrapper(MicroCausalDiscovery):
     def __init__(self, data: np.ndarray, min_lag: int, max_lag: int, **kwargs):
         super().__init__(data, **kwargs)
         
-        self.df = pd.DataFrame(self.data, columns=range(self.data.shape[1]))
+        self.df = pd.DataFrame(self._data, columns=range(self._data.shape[1]))
         self.min_lag = min_lag
         self.max_lag = max_lag
         self.kwargs = kwargs

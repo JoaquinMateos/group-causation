@@ -26,7 +26,7 @@ class ExhaustiveCausalGroupsExtractor(CausalGroupsExtractorBase): # Abstract cla
         Returns
             groups : list of sets with the variables that compound each group
         '''
-        all_posible_partitions = list(set_partitions(range(self.data.shape[1])))
+        all_posible_partitions = list(set_partitions(range(self._data.shape[1])))
         best_score = float('-inf')
         best_partition = None
         for partition in all_posible_partitions:

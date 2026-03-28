@@ -30,10 +30,10 @@ class DirectionExtractorBase(ABC): # Abstract class
                 We will suppose that the groups are known beforehand.
                 The index of a group will be considered as its position in groups list.
         '''
-        self.data = data
-        self.groups = groups
+        self._data = data
+        self._groups = groups
         # Create a dictionary with the set of data of each group
-        self.groups_data = {i: data[:, list(group)] for i, group in enumerate(groups)}
+        self._groups_data = {i: data[:, list(group)] for i, group in enumerate(groups)}
         # This graph will be a dictionary whose keys will be pairs of groups index and 
         # values are the direction of the edge between them
         self.directions_graph: dict = None
@@ -62,8 +62,8 @@ class DirectionExtractorBase(ABC): # Abstract class
         Returns:
             The direction of the edge in the causal graph
         '''
-        X = self.groups_data[X_index]
-        Y = self.groups_data[Y_index]
+        X = self._groups_data[X_index]
+        Y = self._groups_data[Y_index]
         
         return self.identify_causal_direction(X, Y, lag_X)
     
@@ -75,8 +75,8 @@ class DirectionExtractorBase(ABC): # Abstract class
             dict[int, EdgeDirection] : dictionary with the directions of the edges in the causal graph
         '''
         self.directions = {}
-        for i in range(len(self.groups)):
-            for j in range(i+1, len(self.groups)):
+        for i in range(len(self._groups)):
+            for j in range(i+1, len(self._groups)):
                 self.directions[(i, j)] = self.extract_direction(i, j)
                 self.directions[(j, i)] = _opposite_direction(self.directions[(i, j)])
 

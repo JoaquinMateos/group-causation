@@ -6,6 +6,7 @@ Module with the base class for causal discovery algorithms.
 import time
 import numpy as np
 from abc import ABC, abstractmethod
+from typing import Any, cast
 from memory_profiler import memory_usage
 
 
@@ -22,10 +23,10 @@ class CausalDiscovery(ABC): # Abstract class
     @abstractmethod
     def __init__(self, data: np.ndarray, standarize: bool=True, **kwargs):
         if standarize:
-            self.data = data - data.mean(axis=0)
+            self._data = data - data.mean(axis=0)
             if np.all((std:=data.std(axis=0))!=0): data /=std
         else:
-            self.data = data
+            self._data = data
     
     @abstractmethod
     def extract_parents(self) -> dict[int, list[int]]:
@@ -47,7 +48,12 @@ class CausalDiscovery(ABC): # Abstract class
             memory : volatile memory used by the process, in MB
         '''
         tic = time.time()
-        memory, parents = memory_usage( self.extract_parents, retval=True, include_children=True, multiprocess=True)
+        memory, parents = memory_usage(
+            cast(Any, self.extract_parents),
+            retval=True,
+            include_children=True,
+            multiprocess=True,
+        )
         toc = time.time()
         execution_time = toc - tic
         

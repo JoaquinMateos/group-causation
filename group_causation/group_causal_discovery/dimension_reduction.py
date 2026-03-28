@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.decomposition import PCA
-from typing import Any
+from typing import Any, Union
 
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.micro_causal_discovery.causal_discovery_causalnex import DynotearsWrapper
@@ -28,7 +28,7 @@ class DimensionReductionGroupCausalDiscovery(GroupCausalDiscovery):
                     groups: list[set[int]],
                     dimensionality_reduction: str = 'pca',
                     node_causal_discovery_alg: str = 'pcmci',
-                    node_causal_discovery_params: dict[Any] = None,
+                    node_causal_discovery_params: Union[dict[Any, Any], None] = None,
                     **kwargs):
         super().__init__(data, groups, **kwargs)
         
@@ -36,9 +36,9 @@ class DimensionReductionGroupCausalDiscovery(GroupCausalDiscovery):
         self.node_causal_discovery_params = node_causal_discovery_params if node_causal_discovery_params is not None else {}
         self.extra_args = kwargs
         
-        self.groups_data = self._prepare_groups_data(dimensionality_reduction)
+        self._groups_data = self._prepare_groups_data(dimensionality_reduction)
     
-    def _prepare_groups_data(self, dimensionality_reduction: str) -> list[np.ndarray]:
+    def _prepare_groups_data(self, dimensionality_reduction: str) -> np.ndarray:
         '''
         Execute the indicate dimensionality reduction algorithm to the groups of variables,
         in order to obtain a univariate time series for each group.
@@ -52,8 +52,8 @@ class DimensionReductionGroupCausalDiscovery(GroupCausalDiscovery):
                             of variables after the dimensionality reduction
         '''
         groups_data = []
-        for group in self.groups:
-            group_data = self.data[:, list(group)]
+        for group in self._groups:
+            group_data = self._data[:, list(group)]
             if dimensionality_reduction == 'pca':
                 pca = PCA(n_components=1)
                 group_data = pca.fit_transform(group_data)
@@ -89,10 +89,10 @@ class DimensionReductionGroupCausalDiscovery(GroupCausalDiscovery):
             causal_discovery_alg : function that will be used to discover the causal relationships
         '''
         if self.node_causal_discovery_alg == 'pcmci':
-            return PCMCIWrapper(data=self.groups_data, **self.node_causal_discovery_params)
+            return PCMCIWrapper(data=self._groups_data, **self.node_causal_discovery_params)
         elif self.node_causal_discovery_alg == 'pc-stable':
-            return PCStableWrapper(data=self.groups_data, **self.node_causal_discovery_params)
+            return PCStableWrapper(data=self._groups_data, **self.node_causal_discovery_params)
         elif self.node_causal_discovery_alg == 'dynotears':
-            return DynotearsWrapper(data=self.groups_data, **self.node_causal_discovery_params)
+            return DynotearsWrapper(data=self._groups_data, **self.node_causal_discovery_params)
         else:
             raise ValueError(f'Invalid node causal discovery algorithm: {self.node_causal_discovery_alg}')

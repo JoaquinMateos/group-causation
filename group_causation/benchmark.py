@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import copy
-from typing import Any, Iterator
+from typing import Any, Iterator, Mapping
 from tqdm import tqdm
 
 # Inner library imports
@@ -58,9 +58,9 @@ class BenchmarkBase(ABC):
     def benchmark_causal_discovery(self, 
                                 algorithms: dict[str, type[MicroCausalDiscovery]],
                                 parameters_iterator: Iterator[tuple[dict[str, Any], dict[str, Any]]],
+                                datasets_folder: str,
+                                results_folder: str,
                                 generate_toy_data: bool = False,
-                                datasets_folder: str = None,
-                                results_folder: str = None,
                                 n_executions: int = 3,
                                 verbose: int = 0,
                                 )        -> dict[str, list[ dict[str, Any] ]]:
@@ -169,7 +169,7 @@ class BenchmarkBase(ABC):
             
         return self.results
     
-    def benchmark_with_given_data(self, algorithms: dict[str, type[GroupCausalDiscovery]],
+    def benchmark_with_given_data(self, algorithms: Mapping[str, type[GroupCausalDiscovery]],
                                         parameters_iterator: Iterator[tuple[dict[str, Any], dict[str, Any]]],
                                         n_executions_per_data_param: int,
                                         datasets_folder: str,

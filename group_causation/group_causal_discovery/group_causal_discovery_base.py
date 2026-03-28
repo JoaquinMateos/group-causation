@@ -1,3 +1,5 @@
+from typing import Union
+
 import numpy as np
 from abc import abstractmethod
 
@@ -16,17 +18,17 @@ class GroupCausalDiscovery(CausalDiscovery): # Abstract class
                     By default, each variable is considered a group.
         standarize : bool indicating if the data should be standarized before applying the algorithm.
     '''
-    def __init__(self, data: np.ndarray, groups: list[set[int]]=None, 
+    def __init__(self, data: np.ndarray, groups: Union[list[set[int]], None] = None,
                  standarize: bool=True, **kwargs):
         if standarize:
-            self.data = data - data.mean(axis=0)
+            self._data = data - data.mean(axis=0)
             if np.all((std:=data.std(axis=0))!=0): data /=std
         else:
-            self.data = data
+            self._data = data
         if groups is None:
-            self.groups = [[i] for i in range(data.shape[1])]
+            self._groups = [[i] for i in range(data.shape[1])]
         else:
-            self.groups = [list(group) for group in groups]
+            self._groups = [list(group) for group in groups]
         self.extra_args = kwargs
 
     @abstractmethod

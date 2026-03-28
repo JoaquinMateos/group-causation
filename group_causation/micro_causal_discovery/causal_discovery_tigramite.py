@@ -14,7 +14,6 @@ from tigramite.lpcmci import LPCMCI
 from causalai.data.time_series import TimeSeriesData
 
 from group_causation.micro_causal_discovery.micro_causal_discovery_base import MicroCausalDiscovery
-from group_causation.micro_causal_discovery.modified_pcmci import PCMCI_Modified
 
 class PCMCIWrapper(MicroCausalDiscovery):
     '''
@@ -44,7 +43,7 @@ class PCMCIWrapper(MicroCausalDiscovery):
         self.pc_alpha = pc_alpha
         self.extra_args = kwargs
         
-        dataframe = convert_to_tigramite_dataframe(self.data)
+        dataframe = convert_to_tigramite_dataframe(self._data)
         self.pcmci = PCMCI(
             dataframe=dataframe,
             cond_ind_test=self.cond_ind_test,
@@ -63,42 +62,6 @@ class PCMCIWrapper(MicroCausalDiscovery):
                                                  val_matrix=results['val_matrix'],
                                                  include_lagzero_parents=True)
         return parents
-
-
-
-class PCMCIModifiedWrapper(PCMCIWrapper):
-    '''
-    Wrapper for PCMCI algorithm with some modifications to improve the performance.
-    
-    Args:
-        data: np.array with the data, shape (n_samples, n_features)
-        cond_ind_test: string with the name of the conditional independence test
-        min_lag: minimum lag to consider
-        max_lag: maximum lag to consider
-        pc_alpha: alpha value for the conditional independence test
-    '''
-    def __init__(self, data: np.ndarray, cond_ind_test='parcorr',
-                 min_lag=1, max_lag=3, pc_alpha: int = None, **kwargs):
-        '''
-        Initialize the PCMCI object
-        
-        '''
-        super().__init__(data, **kwargs)
-        
-        self.cond_ind_test = {'parcorr': RobustParCorr(significance='analytic'),
-                              'cmiknn': CMIknn(significance='shuffle test'),
-                              }[cond_ind_test]
-        self.min_lag = min_lag
-        self.max_lag = max_lag
-        self.pc_alpha = pc_alpha
-        self.extra_args = kwargs
-        
-        dataframe = convert_to_tigramite_dataframe(self.data)
-        self.pcmci = PCMCI_Modified(
-            dataframe=dataframe,
-            cond_ind_test=self.cond_ind_test,
-            verbosity=0,
-        )
 
 
 
@@ -127,7 +90,7 @@ class LPCMCIWrapper(MicroCausalDiscovery):
         self.max_lag = max_lag
         self.pc_alpha = pc_alpha
         
-        dataframe = convert_to_tigramite_dataframe(self.data)
+        dataframe = convert_to_tigramite_dataframe(self._data)
         self.lpcmci = LPCMCI(
             dataframe=dataframe,
             cond_ind_test=self.cond_ind_test,
@@ -170,7 +133,7 @@ class PCStableWrapper(MicroCausalDiscovery):
         self.max_lag = max_lag
         self.pc_alpha = pc_alpha
         
-        dataframe = convert_to_tigramite_dataframe(self.data)
+        dataframe = convert_to_tigramite_dataframe(self._data)
         self.pcmci = PCMCI(
             dataframe=dataframe,
             cond_ind_test=self.cond_ind_test,

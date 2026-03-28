@@ -17,7 +17,7 @@ from tigramite import plotting as tp
 from tigramite.graphs import Graphs
 
 
-def get_parents_dict(causal_process) -> dict[int, list[int]]:
+def get_parents_dict(causal_process) -> dict[int, list[tuple[int, int]]]:
     parents_dict = dict()
     for key in causal_process.keys():
         if key not in parents_dict:
@@ -37,9 +37,10 @@ class CausalDataset:
             groups : List of lists, where each list is a group of variables. Just is used in case of group-based datasets.
             max_value_threshold : Maximum value of the time series. If a value is greater than this, generation will be repeated.
         '''
-        self.time_series = time_series
-        self.parents_dict = parents_dict
-        self.groups = groups
+        self.time_series: Union[np.ndarray, None] = time_series
+        self.parents_dict: Union[dict[int, list[tuple[int, int]]], None] = parents_dict
+        self._groups: Union[list[list[int]], None] = groups
+        self.node_parents_dict: dict[int, list[tuple[int, int]]] = {}
         self.max_value_threshold = max_value_threshold
     
     dependency_funcs_dict = {
@@ -54,8 +55,8 @@ class CausalDataset:
                       confounders_density = 0, min_lag=1, max_lag=3, contemp_fraction=0,
                       dependency_funcs=['nonlinear'], datasets_folder = None, maximum_tries=100,
                       **kw_generation_args) \
-                            -> tuple[np.ndarray, dict[int, list[int]]]:
-        """
+                            -> tuple[np.ndarray, dict[int, list[tuple[int, int]]]]:
+        r"""
         Generate a toy dataset with a causal process and time series data.
         Node-level links are modeled as a linear combination of the parents, in the following way:
         
@@ -63,8 +64,6 @@ class CausalDataset:
         
         Where the scalar coefficients are takien from kw_generation_args 'dependency_coeffs' and 'auto_coeffs' parameters,
         and the noise :math:`\epsilon_i(t)` is taken from kw_generation_args 'noise_dists' and 'noise_sigmas' parameters.
-        
-
         
         Args:
             name : Name of the dataset
@@ -129,7 +128,9 @@ class CausalDataset:
             # Save the dataset
             self._save(name, datasets_folder)
                 
-        return self
+        assert self.time_series is not None
+        assert self.parents_dict is not None
+        return self.time_series, self.parents_dict
     
     def _save(self, name, dataset_folder):
         # Save the time series data to a csv file
@@ -147,8 +148,8 @@ class CausalDataset:
                                 dependency_coeffs=[-0.5, 0.5], auto_coeffs=[0.5, 0.7],
                                 noise_dists=['gaussian'], noise_sigmas=[0.5, 2],
                                 datasets_folder = None, maximum_tries=100, **kw_generation_args) \
-                            -> tuple[np.ndarray, dict[int, list[int]], dict[int, list[int]], list[list[int]]]:
-        '''
+                            -> tuple[np.ndarray, dict[int, list[tuple[int, int]]], list[list[int]], dict[int, list[tuple[int, int]]]]:
+        r'''
         Generate a toy dataset with a group based causal process and time series data.
         There will first be generated N_groups different groups of variables, each with between 2 and 
         N_vars - 2*N_groups variables. Then, there will be generated links between the groups,
@@ -187,13 +188,13 @@ class CausalDataset:
         
         # Try to generate data until there are no NaNs
         for it in range(1, maximum_tries+1):
-            self.groups = self._generate_groups(N_vars, N_groups)
+            self._groups = self._generate_groups(N_vars, N_groups)
             
             # Dictionary where keys will be the global index of the nodes, and values the causal processes
             groups_causal_processes = dict()
             
             # Generate inner causal processes
-            for index, group in enumerate(self.groups):
+            for index, group in enumerate(self._groups):
                 # Forcing crosslinks_density = L / (N + L)
                 L = int(len(group) * inner_group_crosslinks_density / (1 - inner_group_crosslinks_density))
                 L = int(L * (1+contemp_fraction))
@@ -247,9 +248,12 @@ class CausalDataset:
             # Save the dataset
             self._save_groups(name, datasets_folder)
         
-        return self.time_series, self.parents_dict, self.groups, self.node_parents_dict
+        assert self.time_series is not None
+        assert self.parents_dict is not None
+        assert self._groups is not None
+        return self.time_series, self.parents_dict, self._groups, self.node_parents_dict
     
-    def extract_group_parents(self, node_parents_dict: dict[int, list[tuple[tuple, int, Callable]]]) -> dict[int, list[tuple[tuple, int, Callable]]]:
+    def extract_group_parents(self, node_parents_dict: dict[int, list[tuple[int, int]]]) -> dict[int, list[tuple[int, int]]]:
         '''
         Given a dictionary with the parents of each node, return a dictionary with the parents of each group.
         
@@ -259,13 +263,14 @@ class CausalDataset:
         Returns:
             group_parents_dict: dictionary whose keys are each group, and values are the lists of parent groups, [... (i_group, -tau) ...].
         '''
-        group_parents_dict = {i: [] for i in range(len(self.groups))}
+        assert self._groups is not None
+        group_parents_dict: dict[int, list[tuple[int, int]]] = {i: [] for i in range(len(self._groups))}
         
         # Iterate over the nodes and their parents
         for son_node, parents in node_parents_dict.items():
-            [son_group] = [i for i, group in enumerate(self.groups) if son_node in group]
+            [son_group] = [i for i, group in enumerate(self._groups) if son_node in group]
             for parent, lag in parents:
-                [parent_group] = [i for i, group in enumerate(self.groups) if parent in group]
+                [parent_group] = [i for i, group in enumerate(self._groups) if parent in group]
                 # Add the parent group to the son group
                 group_parents_dict[son_group].append((parent_group, lag))
             
@@ -332,8 +337,8 @@ class CausalDataset:
         
         return new_causal_process
             
-    def _join_processes(self, outer_causal_process: dict[int, tuple[tuple, int, Callable]],
-                            groups_causal_processes: dict[ int, dict[int, tuple[tuple, int, Callable]] ],
+    def _join_processes(self, outer_causal_process: dict[int, list[tuple[tuple[int, int], float, Callable]]],
+                            groups_causal_processes: dict[int, dict[int, list[tuple[tuple[int, int], float, Callable]]]],
                             n_node_links_per_group_link) -> dict[int, list[tuple[tuple, int, Callable]]]:
         '''
         Join several causal processes into one. The outer_causal_process will be converted
@@ -352,16 +357,17 @@ class CausalDataset:
             global_causal_process : dictionary whose keys are the global index of the nodes, and values are the lists of tuples
                                 [ ((parent, lag), coeff, func), ... ]
         '''
-        global_causal_process = {i: [] for group in self.groups for i in group}
+        assert self._groups is not None
+        global_causal_process = {i: [] for group in self._groups for i in group}
         
         # Assign the outer links
         for son_group, group_parents in outer_causal_process.items():
             for (parent_group_index, lag), coeff, func in group_parents:
                 for _ in range(n_node_links_per_group_link):
                     # Choose a random node from each group
-                    origin_node = random.choice(self.groups[son_group])
+                    origin_node = random.choice(self._groups[son_group])
                     # Choose a random node from the parent group
-                    parent_node = random.choice(self.groups[parent_group_index])
+                    parent_node = random.choice(self._groups[parent_group_index])
                     # Assign the link
                     global_causal_process[origin_node].append( ((parent_node, lag), coeff, func) )
         
@@ -389,7 +395,7 @@ class CausalDataset:
         self._save(name, dataset_folder)
         # Save the groups to a txt file
         with open(f'{dataset_folder}/{name}_groups.txt', 'w') as f:
-            groups_representation = repr(self.groups)
+            groups_representation = repr(self._groups)
             f.write(groups_representation)
         # Save the groups parents to a txt file
         with open(f'{dataset_folder}/{name}_node_parents.txt', 'w') as f:

@@ -25,14 +25,14 @@ class GeneticCausalGroupsExtractor(CausalGroupsExtractorBase): # Abstract class
         self.scores_getter = get_scores_getter(data, scores)
         self.scores_weights = scores_weights
     
-    def extract_groups(self) -> tuple[list[set[int]]]:
+    def extract_groups(self) -> list[set[int]]:
         '''
         Get score over all possible partitions of dataset and return the optimal one
         
         Returns
             groups : list of sets with the variables that compound each group
         '''
-        best_partition = _run_genetic_algorithm(n_variables=self.data.shape[1],
+        best_partition = _run_genetic_algorithm(n_variables=self._data.shape[1],
                                                 scores_getter=self.scores_getter,
                                                 scores_weights=self.scores_weights)
         

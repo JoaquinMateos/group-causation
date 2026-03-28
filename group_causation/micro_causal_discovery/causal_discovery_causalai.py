@@ -25,7 +25,7 @@ class GrangerWrapper(MicroCausalDiscovery):
         self.min_lag = min_lag
         self.max_lag = max_lag
         
-        self.granger = Granger(TimeSeriesData(self.data), cv=cv, max_iter=1e5)
+        self.granger = Granger(TimeSeriesData(self._data), cv=cv, max_iter=1e5)
 
     def extract_parents(self) -> dict[int, list[int]]:
         '''
@@ -56,7 +56,7 @@ class VARLINGAMWrapper(MicroCausalDiscovery):
         self.min_lag = min_lag
         self.max_lag = max_lag
         
-        self.varlingam = VARLINGAM(TimeSeriesData(self.data))
+        self.varlingam = VARLINGAM(TimeSeriesData(self._data))
     
     def extract_parents(self) -> dict[int, list[int]]:
         '''

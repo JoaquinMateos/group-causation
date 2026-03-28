@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Any
+from typing import Any, Union
 
 from group_causation.micro_causal_discovery.micro_causal_discovery_base import MicroCausalDiscovery
 from group_causation.micro_causal_discovery.causal_discovery_causalnex import DynotearsWrapper
@@ -25,7 +25,7 @@ class MicroLevelGroupCausalDiscovery(GroupCausalDiscovery):
     def __init__(self, data: np.ndarray,
                     groups: list[set[int]],
                     node_causal_discovery_alg: str = 'pcmci',
-                    node_causal_discovery_params: dict[str, Any] = None,
+                    node_causal_discovery_params: Union[dict[str, Any], None] = None,
                     **kwargs):
         super().__init__(data, groups, **kwargs)
         
@@ -59,14 +59,14 @@ class MicroLevelGroupCausalDiscovery(GroupCausalDiscovery):
             group_parents : dict[int, list[int]]. Dictionary with the parents of each group of variables.
         '''
         group_parents = {}
-        for group_idx, group in enumerate(self.groups):
+        for group_idx, group in enumerate(self._groups):
             group_parents[group_idx] = []
             for son_node_idx in group:
                 # A group is son of another group iff any node has a parent node that is in the parent group
-                for parent_node_idx in node_parents[son_node_idx]:
-                    [parent_group_idx] = [idx for idx, group in enumerate(self.groups) if parent_node_idx[0] in group]
-                    # Add the parent group (with node's lag) to the parents of the son group
-                    group_parents[group_idx].append((parent_group_idx, parent_node_idx[1]))
+                for parent_node in node_parents[son_node_idx]:
+                    [parent_group_idx] = [idx for idx, group in enumerate(self._groups) if parent_node in group]
+                    # Add the parent group to the parents of the son group.
+                    group_parents[group_idx].append(parent_group_idx)
             # Remove duplicates
             group_parents[group_idx] = list(set(group_parents[group_idx]))
         
@@ -81,10 +81,10 @@ class MicroLevelGroupCausalDiscovery(GroupCausalDiscovery):
             causal_discovery_alg : function that will be used to discover the causal relationships
         '''
         if self.node_causal_discovery_alg == 'pcmci':
-            return PCMCIWrapper(data=self.data, **self.node_causal_discovery_params)
+            return PCMCIWrapper(data=self._data, **self.node_causal_discovery_params)
         elif self.node_causal_discovery_alg == 'pc-stable':
-            return PCStableWrapper(data=self.data, **self.node_causal_discovery_params)
+            return PCStableWrapper(data=self._data, **self.node_causal_discovery_params)
         elif self.node_causal_discovery_alg == 'dynotears':
-            return DynotearsWrapper(data=self.data, **self.node_causal_discovery_params)
+            return DynotearsWrapper(data=self._data, **self.node_causal_discovery_params)
         else:
             raise ValueError(f'Invalid node causal discovery algorithm: {self.node_causal_discovery_alg}')

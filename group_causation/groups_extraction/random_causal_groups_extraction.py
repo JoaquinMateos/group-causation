@@ -28,7 +28,7 @@ class RandomCausalGroupsExtractor(CausalGroupsExtractorBase): # Abstract class
             groups : list of sets with the variables that compound each group
         '''
         # Define the set to partition
-        n_variables = self.data.shape[1]
+        n_variables = self._data.shape[1]
         ELEMENTS = list(range(0, n_variables))
         def get_random_partition():
             # Generate a random partition

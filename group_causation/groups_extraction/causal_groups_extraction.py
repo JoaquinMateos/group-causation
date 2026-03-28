@@ -16,9 +16,9 @@ class CausalGroupsExtractorBase(ABC): # Abstract class
     '''
     def __init__(self, data: np.ndarray, standarize: bool=True, **kwargs):
         if standarize:
-            self.data = (data - data.mean(axis=0)) / data.std(axis=0)
+            self._data = (data - data.mean(axis=0)) / data.std(axis=0)
         else:
-            self.data = data
+            self._data = data
         self.extra_args = kwargs
     
     @abstractmethod
