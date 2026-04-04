@@ -9,8 +9,6 @@ Implements the method described in:
 from typing import Any
 import numpy as np
 from group_causation.group_causal_discovery import HybridGroupCausalDiscovery
-from group_causation.group_causal_discovery.micro_level import MicroLevelGroupCausalDiscovery
-from dowhy.gcm.independence_test import independence_test  # type: ignore[reportMissingImports]
 
 class ADAG(HybridGroupCausalDiscovery):
     '''

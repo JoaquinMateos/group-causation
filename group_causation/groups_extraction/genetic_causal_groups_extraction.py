@@ -1,8 +1,7 @@
 from collections import defaultdict
 import random
 import numpy as np
-from typing import Callable
-from sympy import bell
+from typing import Any, Callable, cast
 
 from deap import base, creator, tools, algorithms
 
@@ -45,12 +44,13 @@ def _run_genetic_algorithm(n_variables, scores_getter: Callable, scores_weights:
     ELEMENTS = list(range(0, n_variables))  # {1, 2, ..., N}
 
     # Genetic Algorithm: Define Fitness (Maximization)
-    if hasattr(creator, "FitnessMax") and hasattr(creator, "Individual"):
-        del creator.FitnessMax
-        del creator.Individual
+    creator_mod = cast(Any, creator)
+    if hasattr(creator_mod, "FitnessMax") and hasattr(creator_mod, "Individual"):
+        del creator_mod.FitnessMax
+        del creator_mod.Individual
     
-    creator.create("FitnessMax", base.Fitness, weights=scores_weights)
-    creator.create("Individual", list, fitness=creator.FitnessMax)
+    creator_mod.create("FitnessMax", base.Fitness, weights=scores_weights)
+    creator_mod.create("Individual", list, fitness=creator_mod.FitnessMax)
 
     # Function to generate a random partition
     def random_partition():
@@ -67,8 +67,9 @@ def _run_genetic_algorithm(n_variables, scores_getter: Callable, scores_weights:
 
     # Register genetic operations
     toolbox = base.Toolbox()
-    toolbox.register("individual", tools.initIterate, creator.Individual, random_partition)
-    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+    toolbox.register("individual", tools.initIterate, creator_mod.Individual, random_partition)
+    toolbox_mod = cast(Any, toolbox)
+    toolbox.register("population", tools.initRepeat, list, toolbox_mod.individual)
 
     toolbox.register("evaluate", scores_getter)
 
@@ -93,7 +94,7 @@ def _run_genetic_algorithm(n_variables, scores_getter: Callable, scores_weights:
     
     # Run the Genetic Algorithm
     def run_ga():
-        pop = toolbox.population(n=min(100, bell(max(n_variables//2, 1))))
+        pop = toolbox_mod.population(n=min(100, max(5, 10 * n_variables)))
         algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=50, verbose=False)
         return pop
     

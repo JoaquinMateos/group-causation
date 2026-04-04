@@ -2,6 +2,7 @@ import time
 from enum import Enum
 import numpy as np
 from abc import ABC, abstractmethod
+from typing import Optional
 from memory_profiler import memory_usage
 
 
@@ -36,7 +37,7 @@ class DirectionExtractorBase(ABC): # Abstract class
         self._groups_data = {i: data[:, list(group)] for i, group in enumerate(groups)}
         # This graph will be a dictionary whose keys will be pairs of groups index and 
         # values are the direction of the edge between them
-        self.directions_graph: dict = None
+        self.directions_graph: Optional[dict[tuple[int, int], EdgeDirection]] = None
         
         self.max_lag = max_lag
         self.extra_args = kwargs
@@ -67,20 +68,20 @@ class DirectionExtractorBase(ABC): # Abstract class
         
         return self.identify_causal_direction(X, Y, lag_X)
     
-    def extract_graph_directions(self) -> dict[set[int, int], EdgeDirection]:
+    def extract_graph_directions(self) -> dict[tuple[int, int], EdgeDirection]:
         '''
         Extract the directions of the edges in the causal graph for each group of variables
         
         Returns:
             dict[int, EdgeDirection] : dictionary with the directions of the edges in the causal graph
         '''
-        self.directions = {}
+        self.directions_graph = {}
         for i in range(len(self._groups)):
             for j in range(i+1, len(self._groups)):
-                self.directions[(i, j)] = self.extract_direction(i, j)
-                self.directions[(j, i)] = _opposite_direction(self.directions[(i, j)])
+                self.directions_graph[(i, j)] = self.extract_direction(i, j)
+                self.directions_graph[(j, i)] = _opposite_direction(self.directions_graph[(i, j)])
 
-        return self.directions
+        return self.directions_graph
 
 
 def _opposite_direction(direction: EdgeDirection) -> EdgeDirection:

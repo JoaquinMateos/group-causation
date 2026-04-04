@@ -20,7 +20,7 @@ class DynotearsWrapper(MicroCausalDiscovery):
         self.max_lag = max_lag
         self.kwargs = kwargs
         
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         '''
         Returns the parents dict
         
@@ -57,7 +57,7 @@ Tools to learn a Dynamic Bayesian Network which describe the conditional depende
 dataset.
 """
 import warnings
-from typing import List, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -65,16 +65,16 @@ import scipy.linalg as slin
 import scipy.optimize as sopt
 
 def from_pandas_dynamic(
-        time_series: Union[pd.DataFrame, List[pd.DataFrame]],
+    time_series: Union[pd.DataFrame, List[pd.DataFrame]],
         p: int,
         lambda_w: float = 0.1,
         lambda_a: float = 0.1,
         max_iter: int = 100,
         h_tol: float = 1e-8,
         w_threshold: float = 0.0,
-        tabu_edges: List[Tuple[int, int, int]] = None,
-        tabu_parent_nodes: List[int] = None,
-        tabu_child_nodes: List[int] = None,
+        tabu_edges: Optional[List[Tuple[int, Any, Any]]] = None,
+        tabu_parent_nodes: Optional[List[Any]] = None,
+        tabu_child_nodes: Optional[List[Any]] = None,
     ) -> dict[int, list[tuple[int, int]]]:
     """
     Learn the graph structure of a Dynamic Bayesian Network describing conditional dependencies between variables in
@@ -135,8 +135,8 @@ def from_pandas_dynamic(
         tabu_child_nodes = [col_idx[n] for n in tabu_child_nodes]
 
     g = from_numpy_dynamic(
-        X,
-        Xlags,
+        cast(np.ndarray, X),
+        cast(np.ndarray, Xlags),
         lambda_w,
         lambda_a,
         max_iter,
@@ -157,9 +157,9 @@ def from_numpy_dynamic(
         max_iter: int = 100,
         h_tol: float = 1e-8,
         w_threshold: float = 0.0,
-        tabu_edges: List[Tuple[int, int, int]] = None,
-        tabu_parent_nodes: List[int] = None,
-        tabu_child_nodes: List[int] = None,
+        tabu_edges: Optional[List[Tuple[int, int, int]]] = None,
+        tabu_parent_nodes: Optional[List[int]] = None,
+        tabu_child_nodes: Optional[List[int]] = None,
     ) -> dict[int, list[tuple[int, int]]]:
     """
     Learn the graph structure of a Dynamic Bayesian Network describing conditional dependencies between variables in
@@ -320,7 +320,7 @@ def _reshape_wa(
 def _learn_dynamic_structure(
     X: np.ndarray,
     Xlags: np.ndarray,
-    bnds: List[Tuple[float, float]],
+    bnds: List[Tuple[Any, Any]],
     lambda_w: float = 0.1,
     lambda_a: float = 0.1,
     max_iter: int = 100,
@@ -480,7 +480,7 @@ def _learn_dynamic_structure(
 
 
 def convert_to_dynotears_format(
-    time_series: Union[pd.DataFrame, List[pd.DataFrame]], p: int, columns: List[str] = None
+    time_series: Union[pd.DataFrame, List[pd.DataFrame]], p: int, columns: Optional[List[Any]] = None
 ) -> Union[pd.DataFrame, Tuple[np.ndarray, np.ndarray]]:
     """
     Applies transformation to format the dataframe properly
@@ -498,15 +498,15 @@ def convert_to_dynotears_format(
                 Xlags (np.ndarray):
                     Shifted data of X with lag orders stacking horizontally. Xlags=[shift(X,1)|...|shift(X,p)]
     """
-    time_series = time_series if isinstance(time_series, list) else [time_series]
+    time_series_list: List[pd.DataFrame] = time_series if isinstance(time_series, list) else [time_series]
 
     if columns is None:
-        columns = time_series[0].columns.tolist()
+        columns = time_series_list[0].columns.tolist()
     
-    _check_input_from_pandas(time_series, columns)
+    _check_input_from_pandas(time_series_list, columns)
 
-    time_series = [t[columns] for t in time_series]
-    ts_realisations = _cut_dataframes_on_discontinuity_points(time_series)
+    selected_time_series: List[pd.DataFrame] = [cast(pd.DataFrame, t[columns]) for t in time_series_list]
+    ts_realisations = _cut_dataframes_on_discontinuity_points(selected_time_series)
     X, Xlags = _convert_realisations_into_dynotears_format(
         ts_realisations, p
     )
@@ -514,7 +514,7 @@ def convert_to_dynotears_format(
     return X, Xlags
 
 
-def _check_input_from_pandas(time_series: List[pd.DataFrame], columns: list[str]):
+def _check_input_from_pandas(time_series: List[pd.DataFrame], columns: List[Any]):
     """
     Check if the input of function `from_pandas_dynamic` is valid
     
@@ -661,7 +661,7 @@ if __name__ == '__main__':
     max_lag = 2
 
     # Create an instance of the DynotearsWrapper
-    dynotears = DynotearsWrapper(data, max_lag)
+    dynotears = DynotearsWrapper(data, min_lag=1, max_lag=max_lag)
 
     # Extract parents
     predicted_parents = dynotears.extract_parents()

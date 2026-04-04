@@ -67,7 +67,7 @@ class DimensionReductionGroupCausalDiscovery(GroupCausalDiscovery):
         time_series = np.concatenate(groups_data, axis=1)
         return time_series
     
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[Union[int, tuple[int, int]]]]:
         '''
         Extract the parents of each group of variables using the dimension reduction algorithm
         

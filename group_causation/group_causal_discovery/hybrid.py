@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.decomposition import PCA
 from typing import Any, Union
-
+import logging
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.group_causal_discovery.micro_level import MicroLevelGroupCausalDiscovery
 
@@ -40,7 +40,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
     def __init__(self, data: np.ndarray,
                     groups: list[set[int]],
                     dimensionality_reduction_params: dict[str, Any],
-                    link_assumptions:dict[int, dict[tuple[int, int], str]],
+                    link_assumptions: Union[dict[int, dict[tuple[int, int], str]], None] = None,
                     dimensionality_reduction: str = 'pca',
                     node_causal_discovery_alg: str = 'pcmci',
                     node_causal_discovery_params: Union[dict[str, Any], None] = None,
@@ -66,7 +66,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         self.micro_level_causal_discovery = MicroLevelGroupCausalDiscovery(self.micro_data, self.micro_groups,
                                                                     self._node_causal_discovery_alg, self._node_causal_discovery_params)
     
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         '''
         Extract the parents of each group of variables using the dimension reduction algorithm
         
@@ -75,6 +75,8 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         '''
         group_parents = self.micro_level_causal_discovery.extract_parents()
         
+        if self._verbose > 1:
+            logging.info(f'Parents extracted: {group_parents}')
         
         return group_parents
     
@@ -249,7 +251,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
 
 
 
-def _convert_link_assumptions(link_assumptions: dict[int, dict[tuple[int, int], str]], micro_groups: list[set[int]]) -> dict[int, dict[tuple[int, int], str]]:
+def _convert_link_assumptions(link_assumptions: Union[dict[int, dict[tuple[int, int], str]], None], micro_groups: list[set[int]]) -> Union[dict[int, dict[tuple[int, int], str]], None]:
     '''
     Convert the link assumptions from the original groups to the microgroups
     

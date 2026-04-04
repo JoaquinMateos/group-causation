@@ -19,7 +19,7 @@ class ExhaustiveCausalGroupsExtractor(CausalGroupsExtractorBase): # Abstract cla
         super().__init__(data, **kwargs)
         self.score_getter = get_scores_getter(data, scores)
     
-    def extract_groups(self) -> tuple[list[set[int]]]:
+    def extract_groups(self) -> list[set[int]]:
         '''
         Get score over all possible partitions of dataset and return the optimal one
         
@@ -28,12 +28,12 @@ class ExhaustiveCausalGroupsExtractor(CausalGroupsExtractorBase): # Abstract cla
         '''
         all_posible_partitions = list(set_partitions(range(self._data.shape[1])))
         best_score = float('-inf')
-        best_partition = None
+        best_partition: list[set[int]] = []
         for partition in all_posible_partitions:
             [score] = self.score_getter(partition)
             if score > best_score:
                 best_score = score
-                best_partition = partition
+                best_partition = [set(group) for group in partition]
         
         return best_partition
     

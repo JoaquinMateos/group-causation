@@ -1,5 +1,5 @@
 
-from typing import Union
+from typing import Optional, Union
 import numpy as np
 import tigramite
 import tigramite.data_processing
@@ -27,7 +27,7 @@ class PCMCIWrapper(MicroCausalDiscovery):
         pc_alpha: alpha value for the conditional independence test
     '''
     def __init__(self, data: np.ndarray, cond_ind_test='parcorr',
-                 min_lag=1, max_lag=3, pc_alpha: int = None, **kwargs):
+                 min_lag=1, max_lag=3, pc_alpha: Optional[float] = None, **kwargs):
         '''
         Initialize the PCMCI object
         
@@ -57,7 +57,7 @@ class PCMCIWrapper(MicroCausalDiscovery):
         :param data: np.array with the data, shape (n_samples, n_features)
         '''
         results = self.pcmci.run_pcmciplus(tau_min=self.min_lag, tau_max=self.max_lag,
-                                            pc_alpha=self.pc_alpha, **self.extra_args)
+                                            pc_alpha=(self.pc_alpha if self.pc_alpha is not None else 0.05), **self.extra_args)
         parents = self.pcmci.return_parents_dict(graph=results['graph'], 
                                                  val_matrix=results['val_matrix'],
                                                  include_lagzero_parents=True)

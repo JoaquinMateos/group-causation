@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Mapping
 import numpy as np
 from causalai.models.time_series.granger import Granger
 from causalai.models.time_series.var_lingam import VARLINGAM
@@ -25,7 +25,7 @@ class GrangerWrapper(MicroCausalDiscovery):
         self.min_lag = min_lag
         self.max_lag = max_lag
         
-        self.granger = Granger(TimeSeriesData(self._data), cv=cv, max_iter=1e5)
+        self.granger = Granger(TimeSeriesData([self._data]), cv=cv, max_iter=100000)
 
     def extract_parents(self) -> dict[int, list[int]]:
         '''
@@ -56,7 +56,7 @@ class VARLINGAMWrapper(MicroCausalDiscovery):
         self.min_lag = min_lag
         self.max_lag = max_lag
         
-        self.varlingam = VARLINGAM(TimeSeriesData(self._data))
+        self.varlingam = VARLINGAM(TimeSeriesData([self._data]))
     
     def extract_parents(self) -> dict[int, list[int]]:
         '''
@@ -71,10 +71,18 @@ class VARLINGAMWrapper(MicroCausalDiscovery):
         return parents_dict
 
 
-def get_parents_dict(parents_causalai: dict[str, dict[str, Any]]):
+def get_parents_dict(parents_causalai: Mapping[Any, Any]) -> dict[int, list[int]]:
     '''
     Convert the parents dict from CausalAI format to the format used in the benchmarks
     '''
-    parents_dict = {node: values['parents'] for node, values in parents_causalai.items()}
+    parents_dict: dict[int, list[int]] = {}
+    for node, values in parents_causalai.items():
+        node_idx = int(node)
+        raw_parents = getattr(values, 'parents', None)
+        if raw_parents is None and isinstance(values, Mapping):
+            raw_parents = values.get('parents', [])
+        if raw_parents is None:
+            raw_parents = []
+        parents_dict[node_idx] = [int(parent) for parent in raw_parents]
     
     return parents_dict

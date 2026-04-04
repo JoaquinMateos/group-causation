@@ -6,7 +6,7 @@ Module with the base class for causal discovery algorithms.
 import time
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import Any, cast
+from typing import Any, Union, cast
 from memory_profiler import memory_usage
 
 
@@ -29,7 +29,7 @@ class CausalDiscovery(ABC): # Abstract class
             self._data = data
     
     @abstractmethod
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[Union[int, tuple[int, int]]]]:
         '''
         To be implemented by subclasses
         
@@ -38,7 +38,7 @@ class CausalDiscovery(ABC): # Abstract class
         '''
         pass
     
-    def extract_parents_time_and_memory(self) -> tuple[dict[int, list[int]], float, float]:
+    def extract_parents_time_and_memory(self) -> tuple[dict[int, list[Union[int, tuple[int, int]]]], float, float]:
         '''
         Execute the extract_parents method and return the parents dict, the time that took to run the algorithm
         

@@ -42,6 +42,14 @@ class CausalDataset:
         self._groups: Union[list[list[int]], None] = groups
         self.node_parents_dict: dict[int, list[tuple[int, int]]] = {}
         self.max_value_threshold = max_value_threshold
+
+    @property
+    def groups(self) -> Union[list[list[int]], None]:
+        return self._groups
+
+    @groups.setter
+    def groups(self, value: Union[list[list[int]], None]) -> None:
+        self._groups = value
     
     dependency_funcs_dict = {
         'linear': lambda x: x,

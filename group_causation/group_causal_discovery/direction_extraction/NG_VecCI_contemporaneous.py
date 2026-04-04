@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Any
 from group_causal_discovery.direction_extraction.direction_extraction_base import DirectionExtractorBase, EdgeDirection
 
 
@@ -15,10 +16,10 @@ class NG_VecCI(DirectionExtractorBase):
     This is an extension of the 2G-Vector Causal Inference algorithm for groups of variables,
     [Wahl, J., Ninad, U., & Runge, J. (2023, June). Vector causal inference between two groups of variables.]
     '''
-    def identify_causal_direction(self,X: pp.DataFrame , Y: pp.DataFrame, alpha=0.01,
+    def identify_causal_direction(self, X: np.ndarray, Y: np.ndarray, alpha=0.01,
                                     CI_test_method='ParCorr', ambiguity = None,
                                     test = 'full', max_sep_set = None, linear = True,
-                                    fit_intercept = False, random_state = None) -> EdgeDirection:
+                                    fit_intercept = False, random_state = None) -> tuple[EdgeDirection, dict[str, Any]]:
         '''
         Function that executes either 2G-VecCI.PC or 2G-VecCi.Full and outputs the causal direction as well as the inference criterion
         and details on edge counts and densities
@@ -43,7 +44,16 @@ class NG_VecCI(DirectionExtractorBase):
             ambiguity = alpha
 
         if test == 'full':
-            test_results = _full_conditioning_ind_test(X,Y,alpha,CI_test_method=CI_test_method, linear = linear, fit_intercept=fit_intercept, random_state=random_state)
+            test_results = _full_conditioning_ind_test(
+                X,
+                Y,
+                max_lag=self.max_lag,
+                alpha=alpha,
+                CI_test_method=CI_test_method,
+                linear=linear,
+                fit_intercept=fit_intercept,
+                random_state=random_state,
+            )
         # elif test == 'PC':
         #     test_results = conditioning_ind_test_with_PC(X, Y, alpha, CI_test_method=CI_test_method, max_sep_set=max_sep_set, linear_interactions=linear)
         
@@ -55,10 +65,16 @@ class NG_VecCI(DirectionExtractorBase):
             direction = EdgeDirection.NONE
         elif criterion > ambiguity:
             direction = EdgeDirection.LEFT2RIGHT
-        elif criterion  < ambiguity:
+        elif criterion < -ambiguity:
             direction = EdgeDirection.RIGHT2LEFT
             
         return direction, test_results
+
+
+def _extract_pvalue(test_output: Any) -> float:
+    if isinstance(test_output, tuple) and len(test_output) >= 2 and test_output[1] is not None:
+        return float(test_output[1])
+    return 1.0
         
 
 
@@ -97,7 +113,7 @@ def _full_conditioning_ind_test(X: np.ndarray, Y: np.ndarray, max_lag=3, alpha=0
     if linear == True:
         # OBTAIN EDGE DENSITY OF Y AND RES Y|X
         Regression = _regression(X, Y, fit_intercept=fit_intercept)
-        residualsY = Regression['X_to_Y'].residuals
+        residualsY = Regression['X_to_Y']
         edgecounterY = 0
         edgecounterResY = 0
         max_edgenumberY = Y.shape[1] * (Y.shape[1] - 1) / 2
@@ -106,14 +122,14 @@ def _full_conditioning_ind_test(X: np.ndarray, Y: np.ndarray, max_lag=3, alpha=0
         for var1 in range(Y.shape[1]):
             for var2 in range(var1 + 1, Y.shape[1]):
                 removedY = np.delete(Y, (var1, var2), 1)
-                valY, pvalY = CI_test.run_test_raw(Y[:, var1:var1 + 1], Y[:, var2:var2 + 1], z=removedY)
+                pvalY = _extract_pvalue(CI_test.run_test_raw(Y[:, var1:var1 + 1], Y[:, var2:var2 + 1], z=removedY))
                 
                 if pvalY < alpha: # Is current edge significant over G_Y?
                     edgecounterY += 1
                 
                 removedResY = np.delete(residualsY, (var1, var2), 1)
-                valResY, pvalResY = CI_test.run_test_raw(residualsY[:, var1:var1 + 1], residualsY[:, var2:var2 + 1],
-                                                            z=removedResY)
+                pvalResY = _extract_pvalue(CI_test.run_test_raw(residualsY[:, var1:var1 + 1], residualsY[:, var2:var2 + 1],
+                                                            z=removedResY))
                 if pvalResY < alpha: # Is current edge significant over G_{Y|X}?
                     edgecounterResY += 1
                 
@@ -125,21 +141,21 @@ def _full_conditioning_ind_test(X: np.ndarray, Y: np.ndarray, max_lag=3, alpha=0
         dict['edge density of Res Y'] = edgecounterResY / max_edgenumberY
         
         # OBTAIN EDGE DENSITY OF X AND RES X|Y
-        residualsX = Regression['Y_to_X'].residuals
+        residualsX = Regression['Y_to_X']
         edgecounterX = 0
         edgecounterResX = 0
         # iterate over all possible pairs of variables, i.e., all possible edges
         for var1 in range(X.shape[1]):
             for var2 in range(var1 + 1, X.shape[1]):
                 removedX = np.delete(X, (var1, var2), 1)
-                valX, pvalX = CI_test.run_test_raw(X[:, var1:var1 + 1], X[:, var2:var2 + 1], z=removedX)
+                pvalX = _extract_pvalue(CI_test.run_test_raw(X[:, var1:var1 + 1], X[:, var2:var2 + 1], z=removedX))
                 
                 if pvalX < alpha: # Is current edge significant over G_X?
                     edgecounterX += 1
                 
                 removedResX = np.delete(residualsX, (var1, var2), 1)
-                valResX, pvalResX = CI_test.run_test_raw(residualsX[:, var1:var1 + 1], residualsX[:, var2:var2 + 1],
-                                                            z=removedResX)
+                pvalResX = _extract_pvalue(CI_test.run_test_raw(residualsX[:, var1:var1 + 1], residualsX[:, var2:var2 + 1],
+                                                            z=removedResX))
                 if pvalResX < alpha: # Is current edge significant over G_{X|Y}?
                     edgecounterResX += 1
             
@@ -160,12 +176,12 @@ def _full_conditioning_ind_test(X: np.ndarray, Y: np.ndarray, max_lag=3, alpha=0
         for var1 in range(Y.shape[1]):
             for var2 in range(var1 + 1, Y.shape[1]):
                 removedY = np.delete(Y, (var1, var2), 1)
-                valY, pvalY = CI_test.run_test_raw(Y[:, var1:var1 + 1], Y[:, var2:var2 + 1], z=removedY)
+                pvalY = _extract_pvalue(CI_test.run_test_raw(Y[:, var1:var1 + 1], Y[:, var2:var2 + 1], z=removedY))
                 if pvalY < alpha:
                     edgecounterY += 1
                 cond_setY = np.concatenate((removedY,X),axis=1)
-                valResY, pvalResY = CI_test.run_test_raw(Y[:, var1:var1 + 1], Y[:, var2:var2 + 1],
-                                                            z=cond_setY)
+                pvalResY = _extract_pvalue(CI_test.run_test_raw(Y[:, var1:var1 + 1], Y[:, var2:var2 + 1],
+                                                            z=cond_setY))
                 if pvalResY < alpha:
                     edgecounterResY += 1
         dict['number of nodes Y'] = Y.shape[1]
@@ -179,12 +195,12 @@ def _full_conditioning_ind_test(X: np.ndarray, Y: np.ndarray, max_lag=3, alpha=0
         for var1 in range(X.shape[1]):
             for var2 in range(var1 + 1, X.shape[1]):
                 removedX = np.delete(X, (var1, var2), 1)
-                valX, pvalX = CI_test.run_test_raw(X[:, var1:var1 + 1], X[:, var2:var2 + 1], z=removedX)
+                pvalX = _extract_pvalue(CI_test.run_test_raw(X[:, var1:var1 + 1], X[:, var2:var2 + 1], z=removedX))
                 if pvalX < alpha:
                     edgecounterX += 1
                 cond_setX = np.concatenate((removedX, Y), axis=1)
-                valResX, pvalResX = CI_test.run_test_raw(X[:, var1:var1 + 1], X[:, var2:var2 + 1],
-                                                            z=cond_setX)
+                pvalResX = _extract_pvalue(CI_test.run_test_raw(X[:, var1:var1 + 1], X[:, var2:var2 + 1],
+                                                            z=cond_setX))
                 if pvalResX < alpha:
                     edgecounterResX += 1
         dict['number of nodes X'] = X.shape[1]
@@ -218,10 +234,8 @@ def _regression(X: np.ndarray, Y: np.ndarray, fit_intercept: bool=False):
     reg_Y_to_X.fit(Y, X)
     
     # Obtain residuals
-    reg_X_to_Y.residuals = Y - reg_X_to_Y.predict(X)
-    reg_Y_to_X.residuals = X - reg_Y_to_X.predict(Y)
-    dict['X_to_Y'] = reg_X_to_Y
-    dict['Y_to_X'] = reg_Y_to_X
+    dict['X_to_Y'] = Y - reg_X_to_Y.predict(X)
+    dict['Y_to_X'] = X - reg_Y_to_X.predict(Y)
     
     return dict
 
@@ -255,7 +269,7 @@ if __name__ == '__main__':
         
         data = np.concatenate((X_vec, Y_vec), axis=1)
         
-        ng_vecci = NG_VecCI(data, groups=[X_group, Y_group])
+        ng_vecci = NG_VecCI(data, groups=[set(X_group), set(Y_group)])
         
         direction, test_results = ng_vecci.identify_causal_direction(X_vec, Y_vec)
         
@@ -287,15 +301,14 @@ if __name__ == '__main__':
         
         data = np.concatenate((X, Y, Z), axis=1)
         
-        ng_vecci = NG_VecCI(data, groups=[X_group, Y_group, Z_group])
+        ng_vecci = NG_VecCI(data, groups=[set(X_group), set(Y_group), set(Z_group)])
         
         groups_dict = {0: 'X', 1: 'Y', 2: 'Z'}
         print('Start testing')
-        for i in range(len(ng_vecci.groups)):
-            for j in range(i+1, len(ng_vecci.groups)):
-                direction, test_results = ng_vecci.extract_direction(i, j)
+        for i in range(len(ng_vecci._groups)):
+            for j in range(i+1, len(ng_vecci._groups)):
+                direction = ng_vecci.extract_direction(i, j)
                 print(f'For {groups_dict[i]}, {groups_dict[j]}, we get {direction}')
-                print(test_results)
     
     # Execute the tests
     # test_2G_VecCI()

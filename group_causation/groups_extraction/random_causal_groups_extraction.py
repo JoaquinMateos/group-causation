@@ -1,12 +1,10 @@
 import random
 import numpy as np
-from sympy import bell
 
 
 from group_causation.groups_extraction.causal_groups_extraction import CausalGroupsExtractorBase
 from group_causation.groups_extraction.stat_utils import get_scores_getter
-
-
+import group_causation
 
 class RandomCausalGroupsExtractor(CausalGroupsExtractorBase): # Abstract class
     '''
@@ -20,7 +18,7 @@ class RandomCausalGroupsExtractor(CausalGroupsExtractorBase): # Abstract class
         super().__init__(data, **kwargs)
         self.score_getter = get_scores_getter(data, scores)
         
-    def extract_groups(self) -> tuple[list[set[int]]]:
+    def extract_groups(self) -> list[set[int]]:
         '''
         
         
@@ -43,13 +41,14 @@ class RandomCausalGroupsExtractor(CausalGroupsExtractorBase): # Abstract class
                 start = cut
             return partition
         
-        best_partition = None
+        best_partition: list[set[int]] = []
         best_score = float('-inf')
-        for i in range(min(2500, 25 * bell(max(n_variables//2, 1)))): # This value is equivalent to the number of iterations in the genetic algorithm
+        max_iterations = min(2500, max(100, 50 * n_variables))
+        for _ in range(max_iterations): # This value is equivalent to the number of iterations in the genetic algorithm
             partition = get_random_partition()
             [score] = self.score_getter(partition)
             if score > best_score:
                 best_score = score
-                best_partition = partition
+            best_partition = [set(group) for group in partition]
         
         return best_partition 

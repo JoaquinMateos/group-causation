@@ -1,6 +1,7 @@
 import time
 import numpy as np
 from abc import ABC, abstractmethod
+from typing import Any, cast
 from memory_profiler import memory_usage
 
 
@@ -22,7 +23,7 @@ class CausalGroupsExtractorBase(ABC): # Abstract class
         self.extra_args = kwargs
     
     @abstractmethod
-    def extract_groups(self) -> tuple[list[set[int]]]:
+    def extract_groups(self) -> list[set[int]]:
         '''
         To be implemented by subclasses
         
@@ -31,7 +32,7 @@ class CausalGroupsExtractorBase(ABC): # Abstract class
         '''
         pass
     
-    def extract_groups_time_and_memory(self) -> tuple[dict[int, list[int]], float, float]:
+    def extract_groups_time_and_memory(self) -> tuple[list[set[int]], float, float]:
         '''
         Execute the extract_groups method and return the set of groups, the time that took to run the algorithm
         
@@ -41,7 +42,7 @@ class CausalGroupsExtractorBase(ABC): # Abstract class
             memory : volatile memory used by the process, in MB
         '''
         tic = time.time()
-        memory, groups = memory_usage( self.extract_groups, retval=True, include_children=True, multiprocess=True)
+        memory, groups = memory_usage(cast(Any, self.extract_groups), retval=True, include_children=True, multiprocess=True)
         toc = time.time()
         execution_time = toc - tic
         

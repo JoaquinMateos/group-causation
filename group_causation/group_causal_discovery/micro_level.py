@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 from typing import Any, Union
 
@@ -33,7 +35,7 @@ class MicroLevelGroupCausalDiscovery(GroupCausalDiscovery):
         self.node_causal_discovery_params = node_causal_discovery_params if node_causal_discovery_params is not None else {}
         
     
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         '''
         Extract the parents of each group of variables using the micro-level causal discovery algorithm
         to extract the micro-level causal DAG and convert it in a group-level graph.
@@ -48,27 +50,36 @@ class MicroLevelGroupCausalDiscovery(GroupCausalDiscovery):
         group_parents = self._convert_node_to_group_parents(node_parents)
         return group_parents
 
-    def _convert_node_to_group_parents(self, node_parents: dict[int, list[int]]) -> dict[int, list[int]]:
+    def _convert_node_to_group_parents(self, node_parents: dict[int, list[Union[int, tuple[int, int]]]]) -> dict[int, list[tuple[int, int]]]:
         '''
         Convert the parents of each node to the parents of each group of variables
         
         Args:
-            node_parents : dict[int, list[int]]. Dictionary with the parents of each node.
+            node_parents : dict[int, list[tuple[int, int]]]. Dictionary with the parents of each node.
         
         Returns:
-            group_parents : dict[int, list[int]]. Dictionary with the parents of each group of variables.
+            group_parents : dict[int, list[tuple[int, int]]]. Dictionary with the parents of each group of variables.
         '''
         group_parents = {}
+
+        # Build an index from node to all groups containing that node
+        node_to_groups = {}
+        for idx, group in enumerate(self._groups):
+            for node_idx in group:
+                node_to_groups.setdefault(node_idx, set()).add(idx)
+
         for group_idx, group in enumerate(self._groups):
-            group_parents[group_idx] = []
+            parent_groups = set()
             for son_node_idx in group:
                 # A group is son of another group iff any node has a parent node that is in the parent group
-                for parent_node in node_parents[son_node_idx]:
-                    [parent_group_idx] = [idx for idx, group in enumerate(self._groups) if parent_node in group]
-                    # Add the parent group to the parents of the son group.
-                    group_parents[group_idx].append(parent_group_idx)
+                for parent_node in node_parents.get(son_node_idx, []):
+                    parent_node_idx = parent_node[0] if isinstance(parent_node, tuple) else parent_node
+                    parent_node_offset = parent_node[1] if isinstance(parent_node, tuple) else 0
+                    # Add all matching parent groups (supports overlapping groups safely)
+                    for parent_group_idx in node_to_groups.get(parent_node_idx, set()):
+                        parent_groups.add((parent_group_idx, parent_node_offset))
             # Remove duplicates
-            group_parents[group_idx] = list(set(group_parents[group_idx]))
+            group_parents[group_idx] = list(parent_groups)
         
         return group_parents
     
