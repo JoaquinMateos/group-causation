@@ -4,9 +4,9 @@ import numpy as np
 from typing import Any
 
 # Inner library imports
-from group_causation.benchmark.benchmark_base import _generate_micro_dataset, _load_micro_datasets, _parent_to_node
+from group_causation.benchmark.benchmark_base import _generate_micro_dataset, _load_micro_datasets, parent_to_node
 from group_causation.create_toy_datasets import CausalDataset
-from group_causation.utils import get_FN, get_FP, get_TP, get_f1, get_precision, get_recall, get_shd, window_to_summary_graph
+from group_causation.utils import get_FN, get_FP, get_TP, get_cpdag_and_edge_set, get_f1, get_false_positive_ratio, get_precision, get_recall, get_shd, window_to_summary_graph
 from group_causation.micro_causal_discovery.micro_causal_discovery_base import MicroCausalDiscovery
 from group_causation.benchmark import BenchmarkBase
 
@@ -84,21 +84,41 @@ class BenchmarkCausalDiscovery(BenchmarkBase):
             actual_parents = causal_dataset.parents_dict
             actual_parents_summary = window_to_summary_graph(actual_parents)
             predicted_parents_window = {
-                son: [(_parent_to_node(p), -1) for p in parents]
+                son: [(parent_to_node(p), -1) for p in parents]
                 for son, parents in predicted_parents.items()
             }
             
-            result['precision'] = get_precision(actual_parents, predicted_parents)
-            result['recall'] = get_recall(actual_parents, predicted_parents)
-            result['f1'] = get_f1(actual_parents, predicted_parents)
-            result['shd'] = get_shd(actual_parents, predicted_parents)
+            # --- WINDOW GRAPH METRICS ---
+            # TODO: Update these metrics to compute lagged and contemporaneous edges separately.
             
-            # Obtain the same metrics in the summary graph
+            # Compute the CPDAGs exactly ONCE
+            gt_edges, gt_cpdag = get_cpdag_and_edge_set(actual_parents)
+            pred_edges, pred_cpdag = get_cpdag_and_edge_set(predicted_parents_window)
+            
+            # Calculate metrics instantly using sets
+            n_nodes_window = len(gt_cpdag.nodes)
+            result['precision'] = get_precision(gt_edges, pred_edges)
+            result['recall'] = get_recall(gt_edges, pred_edges)
+            result['f1'] = get_f1(gt_edges, pred_edges)
+            result['fpr'] = get_false_positive_ratio(gt_edges, pred_edges, n_nodes_window)
+            result['shd'] = get_shd(gt_cpdag, pred_cpdag)
+            
+            
+            # --- SUMMARY GRAPH METRICS ---
+            actual_parents_summary = window_to_summary_graph(actual_parents)
             predicted_parents_summary = window_to_summary_graph(predicted_parents_window)
-            result['precision_summary'] = get_precision(actual_parents_summary, predicted_parents_summary)
-            result['recall_summary'] = get_recall(actual_parents_summary, predicted_parents_summary)
-            result['f1_summary'] = get_f1(actual_parents_summary, predicted_parents_summary)
-            result['shd_summary'] = get_shd(actual_parents_summary, predicted_parents_summary)
+            
+            # Compute the summary CPDAGs exactly ONCE
+            gt_summary_edges, gt_summary_cpdag = get_cpdag_and_edge_set(actual_parents_summary)
+            pred_summary_edges, pred_summary_cpdag = get_cpdag_and_edge_set(predicted_parents_summary)
+            
+            # Calculate summary metrics instantly
+            n_nodes_summary = len(gt_summary_cpdag.nodes)
+            result['precision_summary'] = get_precision(gt_summary_edges, pred_summary_edges)
+            result['recall_summary'] = get_recall(gt_summary_edges, pred_summary_edges)
+            result['f1_summary'] = get_f1(gt_summary_edges, pred_summary_edges)
+            result['fpr_summary'] = get_false_positive_ratio(gt_summary_edges, pred_summary_edges, n_nodes_summary)
+            result['shd_summary'] = get_shd(gt_summary_cpdag, pred_summary_cpdag)
             
             return result
         

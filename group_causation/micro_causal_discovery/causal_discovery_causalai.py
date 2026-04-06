@@ -27,7 +27,7 @@ class GrangerWrapper(MicroCausalDiscovery):
         
         self.granger = Granger(TimeSeriesData([self._data]), cv=cv, max_iter=100000)
 
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         '''
         Returns the parents dict
         Args:
@@ -58,7 +58,7 @@ class VARLINGAMWrapper(MicroCausalDiscovery):
         
         self.varlingam = VARLINGAM(TimeSeriesData([self._data]))
     
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         '''
         Returns the parents dict
         
@@ -71,18 +71,36 @@ class VARLINGAMWrapper(MicroCausalDiscovery):
         return parents_dict
 
 
-def get_parents_dict(parents_causalai: Mapping[Any, Any]) -> dict[int, list[int]]:
+def get_parents_dict(parents_causalai: Mapping[Any, Any]) -> dict[int, list[tuple[int, int]]]:
     '''
-    Convert the parents dict from CausalAI format to the format used in the benchmarks
+    Convert the parents dict from CausalAI format to the format used in the benchmarks.
+    Outputs a dictionary mapping children to a list of (parent_node, lag) tuples.
     '''
-    parents_dict: dict[int, list[int]] = {}
+    parents_dict: dict[int, list[tuple[int, int]]] = {}
     for node, values in parents_causalai.items():
         node_idx = int(node)
         raw_parents = getattr(values, 'parents', None)
+        
         if raw_parents is None and isinstance(values, Mapping):
             raw_parents = values.get('parents', [])
         if raw_parents is None:
             raw_parents = []
-        parents_dict[node_idx] = [int(parent) for parent in raw_parents]
+            
+        parsed_parents = []
+        for p in raw_parents:
+            # 1. Handle Sequences (lists or tuples)
+            if isinstance(p, (tuple, list)):
+                if len(p) >= 2:
+                    # Has both node and lag
+                    parsed_parents.append((int(p[0]), int(p[1])))
+                elif len(p) == 1:
+                    # Has node, but no lag (fallback to -1)
+                    parsed_parents.append((int(p[0]), -1))
+            
+            # 2. Handle Scalars (int, str, np.int64)
+            else:
+                parsed_parents.append((int(p), -1))
+                
+        parents_dict[node_idx] = parsed_parents
     
     return parents_dict

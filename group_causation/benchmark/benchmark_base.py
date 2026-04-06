@@ -23,7 +23,7 @@ from group_causation.group_causal_discovery.group_causal_discovery_base import G
 AlgorithmCls = Union[type[MicroCausalDiscovery], type[GroupCausalDiscovery], type[CausalGroupsExtractorBase]]
 
 
-def _parent_to_node(parent: Union[int, tuple[int, int]]) -> int:
+def parent_to_node(parent: tuple[int, int]) -> int:
     return parent if isinstance(parent, int) else parent[0]
 
 # For printings

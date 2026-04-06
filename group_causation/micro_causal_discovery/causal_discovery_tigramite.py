@@ -50,7 +50,7 @@ class PCMCIWrapper(MicroCausalDiscovery):
             verbosity=0,
         )
     
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         '''
         Returns the parents dict
         
@@ -97,7 +97,7 @@ class LPCMCIWrapper(MicroCausalDiscovery):
             verbosity=0
         )
     
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         '''
         Returns the parents dict
         '''
@@ -140,7 +140,7 @@ class PCStableWrapper(MicroCausalDiscovery):
             verbosity=0
         )
 
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         '''
         Returns the parents dict
         '''

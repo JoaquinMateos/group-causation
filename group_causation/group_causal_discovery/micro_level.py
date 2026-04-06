@@ -50,7 +50,7 @@ class MicroLevelGroupCausalDiscovery(GroupCausalDiscovery):
         group_parents = self._convert_node_to_group_parents(node_parents)
         return group_parents
 
-    def _convert_node_to_group_parents(self, node_parents: dict[int, list[Union[int, tuple[int, int]]]]) -> dict[int, list[tuple[int, int]]]:
+    def _convert_node_to_group_parents(self, node_parents: dict[int, list[tuple[int, int]]]) -> dict[int, list[tuple[int, int]]]:
         '''
         Convert the parents of each node to the parents of each group of variables
         
