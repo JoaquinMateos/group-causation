@@ -32,6 +32,7 @@ dependencies = [
     "statsmodels==0.13.4",
     "tigramite>=5.2",
     "pgmpy>=0.1.19,<1",
+    "causaldag==0.1a163",
     "causalai @ git+https://github.com/salesforce/causalai.git@v2.0.0",
 ]
 

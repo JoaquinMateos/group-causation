@@ -109,7 +109,7 @@ class GroupRegressor:
         input_dim = X.shape[1]
         output_dim = Y.shape[1]
         
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
         self.model = MultiOutputMLP(input_dim, output_dim, self.hidden_dim).to(self.device)
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr)
         criterion = nn.MSELoss()

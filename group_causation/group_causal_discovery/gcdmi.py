@@ -136,7 +136,7 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
         """Step 1: Structure Learning. Train DeepAR to forecast the multivariate system."""
         X_seq, Y_seq = self._create_windows(self._data)
         
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
         self.model = DeepAR(
             input_dim=self.N, 
             hidden_dim=self.hidden_dim, 
