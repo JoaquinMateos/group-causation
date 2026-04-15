@@ -75,9 +75,6 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         '''
         group_parents = self.micro_level_causal_discovery.extract_parents()
         
-        if self._verbose > 1:
-            logging.info(f'Parents extracted: {group_parents}')
-        
         return group_parents
     
     

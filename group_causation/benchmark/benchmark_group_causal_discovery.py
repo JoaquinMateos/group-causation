@@ -63,8 +63,6 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
             
             if self.verbose > 1:
                 logging.info(f'Algorithm {causalDiscovery.__name__} executed in {time:.3f} seconds and {memory:.3f} MB of memory')
-                logging.info(f'Predicted parents: {predicted_parents}')
-                logging.info(f'Predicted parents summary: {predicted_parents_summary}')
                 
         except Exception as e:
             logging.exception(f'Error in algorithm {causalDiscovery.__name__}: {e}')
@@ -81,8 +79,10 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
             actual_parents_summary = window_to_summary_graph(actual_parents)
             
             if self.verbose > 1:
-                logging.info(f'Actual parents: {actual_parents}')
-                logging.info(f'Actual parents summary: {actual_parents_summary}')
+                logging.info(f'Predicted parents: \t{ {parent: sorted(sons) for parent, sons in predicted_parents.items()} }')
+                logging.info(f'Actual parents: \t\t{ {parent: sorted(sons) for parent, sons in actual_parents.items()} }')
+                logging.info(f'Predicted parents summary: \t{ {parent: sorted(sons) for parent, sons in predicted_parents_summary.items()} }')
+                logging.info(f'Actual parents summary: \t\t{ {parent: sorted(sons) for parent, sons in actual_parents_summary.items()} }')
                 
             n_nodes = len(actual_parents)
             
