@@ -8,7 +8,8 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Any, Union, cast
 from memory_profiler import memory_usage
-
+import logging
+import psutil
 
 class CausalDiscovery(ABC): # Abstract class
     '''
@@ -48,17 +49,37 @@ class CausalDiscovery(ABC): # Abstract class
             memory : volatile memory used by the process, in MB
         '''
         tic = time.time()
-        memory, parents = memory_usage(
-            cast(Any, self.extract_parents),
-            retval=True,
-            include_children=True,
-            multiprocess=True,
-        )
+        
+        try:
+            memory, parents = memory_usage(
+                cast(Any, self.extract_parents),
+                retval=True,
+                include_children=True,
+                multiprocess=True,
+            )
+        except psutil.NoSuchProcess:
+            toc = time.time()
+            execution_time = toc - tic
+            # LOG EXPLICATIVO DEL OOM KILLER
+            logging.error(
+                f"[OOM KILLED] El sistema operativo forzó el cierre de {self.__class__.__name__}. "
+                f"El Mac se quedó sin memoria unificada. Prueba reduciendo el 'batch_size' o el 'max_lag'."
+            )
+            # Retornamos un diccionario vacío y memoria negativa para indicar el fallo en los resultados
+            return {}, execution_time, -1.0 
+            
+        except Exception as e:
+            # Captura cualquier otro error inesperado para que no rompa el bucle de 25 datasets
+            toc = time.time()
+            execution_time = toc - tic
+            logging.error(f"Error inesperado ejecutando {self.__class__.__name__}: {str(e)}")
+            return {}, execution_time, -1.0
+
         toc = time.time()
         execution_time = toc - tic
         
-        memory = max(memory) - min(memory)  # Memory usage in MiB
-        memory = memory * 1.048576 # Exact division   1024^2 / 1000^2
+        memory_used = max(memory) - min(memory)  # Memory usage in MiB
+        memory_used = memory_used * 1.048576 # Exact division  1024^2 / 1000^2
         
-        return parents, execution_time, memory
+        return parents, execution_time, memory_used
 
