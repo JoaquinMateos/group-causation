@@ -3,6 +3,8 @@ Module with the base class for causal discovery algorithms.
 '''
 
 
+import os
+import threading
 import time
 import numpy as np
 from abc import ABC, abstractmethod
@@ -42,48 +44,49 @@ class CausalDiscovery(ABC): # Abstract class
     def extract_parents_time_and_memory(self) -> tuple[dict[int, list[tuple[int, int]]], float, float]:
         '''
         Execute the extract_parents method and return the parents dict, the time that took to run the algorithm
-        
-        Returns:
-            parents : dictionary of extracted parents
-            execution_time : execution time in seconds
-            memory : volatile memory used by the process, in MB
         '''
-        tic = time.time()
-        logging.info(f"Running {self.__class__.__name__}...")
-        try:
-            memory, parents = memory_usage(
-                cast(Any, self.extract_parents),
-                retval=True,
-                include_children=True,
-                multiprocess=True,
-            )
-        except psutil.NoSuchProcess:
-            toc = time.time()
-            execution_time = toc - tic
-            
-            error_message = (
-                f"[OOM KILLED] The Operative System killed {self.__class__.__name__}. "
-                f"The system ran out of memory. Try reducing the 'batch_size' or the 'max_lag'."
-            )
-            print(error_message, flush=True)
-            # Return empty parents dict, execution time until OOM, and -1 for memory to indicate OOM
-            return {}, execution_time, -1.0 
-            
-        except Exception as e:
-            # Capture any other unexpected error so it doesn't break the loop of datasets
-            toc = time.time()
-            execution_time = toc - tic
-            error_message = (
-                f"[UNEXPECTED ERROR] Error running {self.__class__.__name__}: {str(e)}"
-            )
-            print(error_message, flush=True)
-            return {}, execution_time, -1.0
+        process = psutil.Process(os.getpid())
+        mem_base = process.memory_info().rss
+        peak_memory = [mem_base]
+        keep_measuring = True
 
+        # Create a thread to monitor memory usage while the algorithm is running
+        def monitor_memory():
+            while keep_measuring:
+                try:
+                    current_mem = process.memory_info().rss
+                    if current_mem > peak_memory[0]:
+                        peak_memory[0] = current_mem
+                    time.sleep(0.05) # Check memory every 50ms
+                except psutil.NoSuchProcess:
+                    break
+
+        monitor_thread = threading.Thread(target=monitor_memory)
+        monitor_thread.start()
+
+        tic = time.time()
+        
+        try:
+            parents = self.extract_parents()
+        except Exception as e:
+            # Stop the memory monitor in case of error
+            keep_measuring = False
+            monitor_thread.join()
+            toc = time.time()
+            
+            logging.error(f"Error executing {self.__class__.__name__}: {str(e)}")
+            return {}, (toc - tic), -1.0
+
+        # Stop the memory monitor after the algorithm finishes
+        keep_measuring = False
+        monitor_thread.join()
+        
         toc = time.time()
         execution_time = toc - tic
         
-        memory_used = max(memory) - min(memory)  # Memory usage in MiB
-        memory_used = memory_used * 1.048576 # Exact division  1024^2 / 1000^2
+        # Calculate the difference between the maximum peak and the initial memory
+        memory_used_bytes = peak_memory[0] - mem_base
+        memory_used_mb = memory_used_bytes / (1024 * 1024) # Convert to MiB
         
-        return parents, execution_time, memory_used
+        return parents, execution_time, memory_used_mb
 
