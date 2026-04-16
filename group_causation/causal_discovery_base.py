@@ -49,7 +49,7 @@ class CausalDiscovery(ABC): # Abstract class
             memory : volatile memory used by the process, in MB
         '''
         tic = time.time()
-        
+        logging.info(f"Running {self.__class__.__name__}...")
         try:
             memory, parents = memory_usage(
                 cast(Any, self.extract_parents),
@@ -60,19 +60,23 @@ class CausalDiscovery(ABC): # Abstract class
         except psutil.NoSuchProcess:
             toc = time.time()
             execution_time = toc - tic
-            # LOG EXPLICATIVO DEL OOM KILLER
-            logging.error(
-                f"[OOM KILLED] El sistema operativo forzó el cierre de {self.__class__.__name__}. "
-                f"El Mac se quedó sin memoria unificada. Prueba reduciendo el 'batch_size' o el 'max_lag'."
+            
+            error_message = (
+                f"[OOM KILLED] The Operative System killed {self.__class__.__name__}. "
+                f"The system ran out of memory. Try reducing the 'batch_size' or the 'max_lag'."
             )
-            # Retornamos un diccionario vacío y memoria negativa para indicar el fallo en los resultados
+            print(error_message, flush=True)
+            # Return empty parents dict, execution time until OOM, and -1 for memory to indicate OOM
             return {}, execution_time, -1.0 
             
         except Exception as e:
-            # Captura cualquier otro error inesperado para que no rompa el bucle de 25 datasets
+            # Capture any other unexpected error so it doesn't break the loop of datasets
             toc = time.time()
             execution_time = toc - tic
-            logging.error(f"Error inesperado ejecutando {self.__class__.__name__}: {str(e)}")
+            error_message = (
+                f"[UNEXPECTED ERROR] Error running {self.__class__.__name__}: {str(e)}"
+            )
+            print(error_message, flush=True)
             return {}, execution_time, -1.0
 
         toc = time.time()
