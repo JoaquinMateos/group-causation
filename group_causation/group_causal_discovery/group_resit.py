@@ -45,7 +45,33 @@ class HSIC_Test:
         return K, Kc
 
     @classmethod
-    def test(cls, X: np.ndarray, Y: np.ndarray) -> tuple[float, float]:
+    def test(cls, X: np.ndarray, Y: np.ndarray, max_samples=500, n_ensembles=5) -> tuple[float, float]:
+        X = X.reshape(-1, 1) if X.ndim == 1 else X
+        Y = Y.reshape(-1, 1) if Y.ndim == 1 else Y
+        n = X.shape[0]
+        
+        # If there are few samples, run a single test without subsampling to avoid excessive variance from small subsets.
+        if n <= max_samples:
+            return cls._single_test(X, Y)
+            
+        p_vals = []
+        stats = []
+        
+        # Multiple subsampling (Ensemble)
+        for _ in range(n_ensembles):
+            # Choose max_samples indices at random without replacement
+            idx = np.random.choice(n, max_samples, replace=False)
+            
+            # Execute the test on this subset
+            s, p = cls._single_test(X[idx], Y[idx])
+            p_vals.append(p)
+            stats.append(s)
+            
+        # Aggregate results by taking the mean test statistic and median p-value across ensembles
+        return float(np.mean(stats)), float(np.median(p_vals))
+
+    @classmethod
+    def _single_test(cls, X: np.ndarray, Y: np.ndarray) -> tuple[float, float]:
         X = X.reshape(-1, 1) if X.ndim == 1 else X
         Y = Y.reshape(-1, 1) if Y.ndim == 1 else Y
         n = X.shape[0]
