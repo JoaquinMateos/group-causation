@@ -1,8 +1,12 @@
+import logging
+import os
+import threading
 import time
 import numpy as np
 from abc import ABC, abstractmethod
 from typing import Any, cast
 from memory_profiler import memory_usage
+import psutil
 
 
 
@@ -41,12 +45,50 @@ class CausalGroupsExtractorBase(ABC): # Abstract class
             execution_time : execution time in seconds
             memory : volatile memory used by the process, in MB
         '''
+        process = psutil.Process(os.getpid())
+        mem_base = process.memory_info().rss
+        peak_memory = [mem_base]
+        keep_measuring = True
+
+        # Create a thread to monitor memory usage while the algorithm is running
+        def monitor_memory():
+            while keep_measuring:
+                try:
+                    current_mem = process.memory_info().rss
+                    if current_mem > peak_memory[0]:
+                        peak_memory[0] = current_mem
+                    time.sleep(0.05) # Check memory every 50ms
+                except psutil.NoSuchProcess:
+                    break
+
+        monitor_thread = threading.Thread(target=monitor_memory)
+        monitor_thread.start()
+
         tic = time.time()
-        memory, groups = memory_usage(cast(Any, self.extract_groups), retval=True, include_children=True, multiprocess=True)
+        
+        try:
+            groups = self.extract_groups()
+        except Exception as e:
+            # Stop the memory monitor in case of error
+            keep_measuring = False
+            monitor_thread.join()
+            toc = time.time()
+            
+            logging.error(f"Error executing {self.__class__.__name__}: {str(e)}")
+            return [], (toc - tic), -1.0
+
+        # Stop the memory monitor after the algorithm finishes
+        keep_measuring = False
+        monitor_thread.join()
+        
         toc = time.time()
         execution_time = toc - tic
         
-        memory = max(memory) - min(memory)  # Memory usage in MiB
-        memory = memory * 1.048576 # Exact division   1024^2 / 1000^2
+        # Calculate the difference between the maximum peak and the initial memory
+        memory_used_bytes = peak_memory[0] - mem_base
         
-        return groups, execution_time, memory
+        # Exact division to MB (Megabytes). 
+        # Equivalent to the (MiB * 1.048576) from your original code.
+        memory_used_mb = memory_used_bytes / 1_000_000 
+        
+        return groups, execution_time, memory_used_mb
