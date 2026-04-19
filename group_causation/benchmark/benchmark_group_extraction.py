@@ -6,8 +6,8 @@ import numpy as np
 from typing import Any
 
 from group_causation.benchmark import BenchmarkBase
-from group_causation.benchmark.benchmark_base import _generate_group_dataset, _load_group_datasets
-from group_causation.create_toy_datasets import CausalDataset
+from group_causation.benchmark.benchmark_group_causal_discovery import _generate_group_dataset, _load_group_datasets
+from group_causation.data_management.create_toy_datasets import CausalDataset
 from group_causation.groups_extraction.causal_groups_extraction import CausalGroupsExtractorBase
 
 # Inner library imports

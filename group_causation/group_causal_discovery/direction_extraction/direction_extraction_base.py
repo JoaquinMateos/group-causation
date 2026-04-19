@@ -3,7 +3,6 @@ from enum import Enum
 import numpy as np
 from abc import ABC, abstractmethod
 from typing import Optional
-from memory_profiler import memory_usage
 
 
 class EdgeDirection(Enum):

@@ -5,7 +5,7 @@ from typing import Any
 
 # Inner library imports
 from group_causation.benchmark.benchmark_base import _generate_micro_dataset, _load_micro_datasets, parent_to_node
-from group_causation.create_toy_datasets import CausalDataset
+from group_causation.data_management.create_toy_datasets import CausalDataset
 from group_causation.utils import get_FN, get_FP, get_TP, get_cpdag_and_edge_set, get_f1, get_false_positive_ratio, get_precision, get_recall, get_shd, window_to_summary_graph
 from group_causation.micro_causal_discovery.micro_causal_discovery_base import MicroCausalDiscovery
 from group_causation.benchmark import BenchmarkBase

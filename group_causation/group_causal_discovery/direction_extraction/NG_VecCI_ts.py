@@ -269,7 +269,7 @@ def _regression(X: np.ndarray, lag_X: int, Y: np.ndarray):
 if __name__ == '__main__':
     # TEST WITH DIFFERENT KINDS OF DATA
     np.random.seed(0)
-    from create_toy_datasets import CausalDataset
+    from group_causation.data_management.create_toy_datasets import CausalDataset
     def test_edge_extraction_capacity():
         '''
         Test the capacity of the edge extraction algorithm to extract edges from a time series
