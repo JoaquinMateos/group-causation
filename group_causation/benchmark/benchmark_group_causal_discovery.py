@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 # Inner library imports
-from group_causation.benchmark import BenchmarkCausalDiscovery
+from group_causation.benchmark.benchmark_causal_discovery import BenchmarkCausalDiscovery
 from group_causation.benchmark.benchmark_base import parent_to_node
 from group_causation.data_management.create_toy_datasets import CausalDataset
 from group_causation.utils import (
@@ -65,7 +65,11 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
             
             if self.verbose > 1:
                 logging.info(f'Algorithm {causalDiscovery.__name__} executed in {time:.3f} seconds and {memory:.3f} MB of memory')
-                
+        
+        except KeyboardInterrupt:
+            logging.warning(f'Algorithm {causalDiscovery.__name__} interrupted by user')
+            raise
+             
         except Exception as e:
             logging.exception(f'Error in algorithm {causalDiscovery.__name__}: {e}')
             logging.error('Returning nan values for this algorithm')
@@ -117,7 +121,6 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
                 gt_contemp_cpdag, pred_contemp_cpdag
             )
             result.update(global_metrics)
-            
             
             # --- 4. SUMMARY GRAPH METRICS (Evaluated as a single CPDAG) ---
             gt_summary_edges, gt_summary_cpdag = get_cpdag_and_edge_set(actual_parents_summary)

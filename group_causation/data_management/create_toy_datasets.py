@@ -165,9 +165,9 @@ class CausalDataset:
     def generate_group_toy_data(self, name, T=100, N_vars=20, N_groups=3,
                                 inner_group_crosslinks_density=0.5, outer_group_crosslinks_density=0.5,
                                 n_node_links_per_group_link=2, contemp_fraction=.0,
-                                cross_terms_fraction=0.2, # NEW
+                                cross_terms_fraction=0.2,
                                 max_lag=3, min_lag=1, dependency_funcs=['linear'],
-                                multivariate_funcs=[lambda x, y: x * y], # NEW
+                                multivariate_funcs=[lambda x, y: x * y],
                                 dependency_coeffs=[-0.5, 0.5], auto_coeffs=[0.5, 0.7],
                                 noise_dists=['gaussian'], noise_sigmas=[0.5, 2],
                                 datasets_folder = None, maximum_tries=100, 
@@ -186,8 +186,9 @@ class CausalDataset:
             outer_group_crosslinks_density : Density of links between nodes of different groups
             n_node_links_per_group_link : Number of node-level links per group-level link
             contemp_fraction : Fraction of links that are contemporaneous (lag 0)
-            cross_terms_fraction : Fraction of links that are cross-terms (nonlinear interactions between parents)
+            cross_terms_fraction : Fraction of links that are cross-terms (multivariate interactions from multiple parents, instead of simple univariate functions of each parent)
             max_lag : Maximum lag of the causal process
+            min_lag : Minimum lag of the causal process (if 0, there can be contemporaneous links)
             dependency_funcs : List of dependency functions (in {'linear', 'negative-exponential', 'sin', 'cos', 'step'}, or a function :math:`f:\mathbb R \\rightarrow\mathbb R`)
             multivariate_funcs : List of multivariate functions (functions :math:`f:\mathbb R^k \\rightarrow\mathbb R`, where k is the number of parents in the interaction)
             dependency_coeffs : List of coefficients for the parent dependencies (these are the :math:`\\beta_{ij}` in the equation in the docstring of generate_toy_data)

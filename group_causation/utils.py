@@ -286,15 +286,15 @@ def window_to_summary_graph(window_graph: dict[int, list[tuple[int, int]]]) -> d
             A dictionary where the keys are the time points and the values are lists of parents.
             Each parent is a tuple (node, lag).
     '''
-    summary_graph = {}
-    for t, parents in window_graph.items():
-        # Collapse lags: any lag < 0 becomes -1, contemporaneous stays 0
-        new_parents = []
-        for parent, lag in parents:
-            new_lag = -1 if lag < 0 else 0
-            new_parents.append((parent, new_lag))
-        
-        # Remove duplicates
-        summary_graph[t] = list(set(new_parents))
-        
+    summary_graph = {node: [] for node in window_graph.keys()}
+    
+    for son, parents in window_graph.items():
+        for parent_info in parents:
+            # Extraer solo el ID del padre (si viene en formato tupla)
+            parent_node = parent_info[0] if isinstance(parent_info, tuple) else parent_info
+            
+            # Condición para evitar auto-bucles (diagonal) y duplicados
+            if parent_node != son and parent_node not in summary_graph[son]:
+                summary_graph[son].append(parent_node)
+                
     return summary_graph
