@@ -89,8 +89,6 @@ class BenchmarkCausalDiscovery(BenchmarkBase):
             }
             
             # --- WINDOW GRAPH METRICS ---
-            # TODO: Update these metrics to compute lagged and contemporaneous edges separately.
-            
             # Compute the CPDAGs exactly ONCE
             gt_edges, gt_cpdag = get_cpdag_and_edge_set(actual_parents)
             pred_edges, pred_cpdag = get_cpdag_and_edge_set(predicted_parents_window)
@@ -108,7 +106,7 @@ class BenchmarkCausalDiscovery(BenchmarkBase):
             actual_parents_summary = window_to_summary_graph(actual_parents)
             predicted_parents_summary = window_to_summary_graph(predicted_parents_window)
             
-            # Compute the summary CPDAGs exactly ONCE
+            # Compute the summary CPDAGs
             gt_summary_edges, gt_summary_cpdag = get_cpdag_and_edge_set(actual_parents_summary)
             pred_summary_edges, pred_summary_cpdag = get_cpdag_and_edge_set(predicted_parents_summary)
             

@@ -164,6 +164,7 @@ class CausalDataset:
     
     def generate_group_toy_data(self, name, T=100, N_vars=20, N_groups=3,
                                 inner_group_crosslinks_density=0.5, outer_group_crosslinks_density=0.5,
+                                latent_confounding_fraction=0.0,
                                 n_node_links_per_group_link=2, contemp_fraction=.0,
                                 cross_terms_fraction=0.2,
                                 max_lag=3, min_lag=1, dependency_funcs=['linear'],
@@ -183,7 +184,8 @@ class CausalDataset:
             N_vars : Number of variables
             N_groups : Number of groups
             inner_group_crosslinks_density : Density of links between nodes of the same group
-            outer_group_crosslinks_density : Density of links between nodes of different groups
+            outer_group_crosslinks_density : Density of links between groups
+            latent_confounding_fraction : Fraction of latent confounders at the group level (these are groups that are generated but then hidden, so they create latent confounding between the visible groups)
             n_node_links_per_group_link : Number of node-level links per group-level link
             contemp_fraction : Fraction of links that are contemporaneous (lag 0)
             cross_terms_fraction : Fraction of links that are cross-terms (multivariate interactions from multiple parents, instead of simple univariate functions of each parent)
@@ -198,7 +200,6 @@ class CausalDataset:
             datasets_folder : Name of the folder where datasets and parents will be saved. By default they are not saved.
             group_links : Optional dictionary defining the Macro-Graph structure. If None, it will be generated randomly using outer_group_crosslinks_density and contemp_fraction
         '''
-
         if min_lag > 0 and contemp_fraction > 1e-6:
             raise ValueError('If there is a fraction of links that are contemporaneous, the minimum lag must be 0')
         
@@ -206,25 +207,28 @@ class CausalDataset:
         parsed_dependency_funcs = [self.dependency_funcs_dict[func] if func in self.dependency_funcs_dict else func\
                                 for func in dependency_funcs]
         
+        # Calculate inflated geometry for latent groups
+        total_groups = int(N_groups * (1 + latent_confounding_fraction))
+        total_vars = int(N_vars * (1 + latent_confounding_fraction))
+        
         for it in range(1, maximum_tries+1):
             try:
                 # 1. Set Groups
-                if self._groups is None:
-                    self._groups = self._generate_groups(N_vars, N_groups)
+                current_groups = self._generate_groups(total_vars, total_groups)
                 
                 # 2. Set the Macro-Graph (Group Links)
                 current_group_links = group_links
                 if current_group_links is None:
                     current_group_links = self._generate_random_group_links(
-                        N_groups=N_groups, 
+                        N_groups=total_groups, # Use total_groups
                         density=outer_group_crosslinks_density, 
                         max_lag=max_lag, 
                         contemp_fraction=contemp_fraction
                     )
                 
-                # 3. Generate the Micro-Graph structure using the new module
+                # 3. Generate the Micro-Graph structure
                 global_causal_process = generate_group_causal_process_structure(
-                    groups=self._groups,
+                    groups=current_groups,
                     group_links=current_group_links,
                     n_node_links_per_group_link=n_node_links_per_group_link,
                     inner_group_density=inner_group_crosslinks_density,
@@ -235,23 +239,48 @@ class CausalDataset:
                     multivariate_funcs=multivariate_funcs,
                     dependency_coeffs=dependency_coeffs,
                     auto_coeffs=auto_coeffs,
-                    enforce_stationarity=True # Fails fast if non-stationary
+                    enforce_stationarity=True 
                 )
                 
-                # 4. Generate data by unrolling the process over time
-                self.time_series, nonvalid = generate_data_from_causal_process_structure(
+                # 4. Generate full inflated data
+                full_time_series, nonvalid = generate_data_from_causal_process_structure(
                     links=global_causal_process,
                     T=T,
                     noise_dists=noise_dists,
                     noise_sigmas=noise_sigmas
                 )
                 
-                if nonvalid or np.any(np.abs(self.time_series) > self.max_value_threshold):
+                if nonvalid or np.any(np.abs(full_time_series) > self.max_value_threshold):
                     print(f'Dataset has NaNs or infinites, trying again... {it}/{maximum_tries}')
                     continue
                 
-                # 5. Extract parent dictionaries
-                self.node_parents_dict = get_parents_dict(global_causal_process)
+                # 5. Extract Visible Subgraph & Apply Latent Hiding
+                if latent_confounding_fraction > 1e-6:
+                    chosen_groups_idx = random.sample(range(total_groups), N_groups)
+                    chosen_groups_idx.sort() # Keep original chronological order
+                else:
+                    chosen_groups_idx = list(range(N_groups))
+
+                # Identify which nodes belong to the chosen visible groups
+                visible_groups_orig = [current_groups[i] for i in chosen_groups_idx]
+                visible_nodes = [node for group in visible_groups_orig for node in group]
+
+                # Filter the time series
+                self.time_series = full_time_series[:, visible_nodes]
+
+                # Update the node parent dict to bypass hidden variables 
+                full_node_parents = get_parents_dict(global_causal_process)
+                self.node_parents_dict = _extract_subgraph(full_node_parents, visible_nodes)
+
+                # Remap group indices to match the new contiguous node array (0 to N_vars)
+                self._groups = []
+                current_node_idx = 0
+                for g in visible_groups_orig:
+                    size = len(g)
+                    self._groups.append(list(range(current_node_idx, current_node_idx + size)))
+                    current_node_idx += size
+
+                # Finally, calculate the macro-parents from the filtered micro-parents
                 self.parents_dict = self.extract_group_parents(self.node_parents_dict)
                 break
                 

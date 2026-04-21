@@ -76,6 +76,19 @@ def changing_N_vars_per_group(
         
         yield algorithms_parameters, options
 
+def changing_latent_confounding_fraction(
+    options: dict[str, Any],
+    algorithms_parameters: dict[str, Any],
+    list_latent_confounding_fraction: Union[list[float], None] = None
+) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
+    if list_latent_confounding_fraction is None:
+        list_latent_confounding_fraction = [0.1, 0.2, 0.3, 0.4, 0.5]
+    
+    for latent_confounding_fraction in list_latent_confounding_fraction:
+        options['latent_confounding_fraction'] = latent_confounding_fraction
+        
+        yield algorithms_parameters, options
+
 def increasing_N_vars_per_group(
     options: dict[str, Any],
     algorithms_parameters: dict[str, Any],
@@ -290,11 +303,12 @@ def window_to_summary_graph(window_graph: dict[int, list[tuple[int, int]]]) -> d
     
     for son, parents in window_graph.items():
         for parent_info in parents:
-            # Extraer solo el ID del padre (si viene en formato tupla)
+            # Extract just the parent node ID (if it comes in tuple format)
             parent_node = parent_info[0] if isinstance(parent_info, tuple) else parent_info
             
-            # Condición para evitar auto-bucles (diagonal) y duplicados
-            if parent_node != son and parent_node not in summary_graph[son]:
-                summary_graph[son].append(parent_node)
+            # Condition to avoid duplicates
+            summary_edge = (int(parent_node), 0)
+            if summary_edge not in summary_graph[son]:
+                summary_graph[son].append(summary_edge)
                 
     return summary_graph

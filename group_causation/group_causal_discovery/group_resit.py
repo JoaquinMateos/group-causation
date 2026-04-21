@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import torch
 import torch.nn as nn
@@ -6,11 +7,12 @@ from scipy.stats import gamma
 from typing import Union
 from abc import abstractmethod
 
+# Assuming GroupCausalDiscovery is defined elsewhere in your project
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 
 
 # ---------------------------------------------------------------------------
-# 1. HSIC Independence Test
+# 1. HSIC Independence Test (Unchanged - Used for Phase I)
 # ---------------------------------------------------------------------------
 class HSIC_Test:
     """Hilbert-Schmidt Independence Criterion using Gamma approximation."""
@@ -50,24 +52,18 @@ class HSIC_Test:
         Y = Y.reshape(-1, 1) if Y.ndim == 1 else Y
         n = X.shape[0]
         
-        # If there are few samples, run a single test without subsampling to avoid excessive variance from small subsets.
         if n <= max_samples:
             return cls._single_test(X, Y)
             
         p_vals = []
         stats = []
         
-        # Multiple subsampling (Ensemble)
         for _ in range(n_ensembles):
-            # Choose max_samples indices at random without replacement
             idx = np.random.choice(n, max_samples, replace=False)
-            
-            # Execute the test on this subset
             s, p = cls._single_test(X[idx], Y[idx])
             p_vals.append(p)
             stats.append(s)
             
-        # Aggregate results by taking the mean test statistic and median p-value across ensembles
         return float(np.mean(stats)), float(np.median(p_vals))
 
     @classmethod
@@ -77,7 +73,7 @@ class HSIC_Test:
         n = X.shape[0]
         
         if n < 6:
-            return 0.0, 1.0 # Too few samples
+            return 0.0, 1.0 
 
         width_x = cls.get_kernel_width(X)
         width_y = cls.get_kernel_width(Y)
@@ -108,7 +104,7 @@ class HSIC_Test:
         return float(test_stat), float(p_val)
 
 # ---------------------------------------------------------------------------
-# 2. MLP Regressor
+# 2. MLP Regressors (Standard & Spatio-Temporal MURGS)
 # ---------------------------------------------------------------------------
 class MultiOutputMLP(nn.Module):
     def __init__(self, input_dim: int, output_dim: int, hidden_dim: int = 100):
@@ -125,6 +121,7 @@ class MultiOutputMLP(nn.Module):
         return self.net(x)
 
 class GroupRegressor:
+    """Standard Regressor used for Phase I residual computation."""
     def __init__(self, epochs=200, batch_size=200, lr=0.01, hidden_dim=100):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -159,24 +156,88 @@ class GroupRegressor:
             preds = self.model(torch.FloatTensor(X).to(self.device))
         return preds.cpu().numpy()
 
+class SpatioTemporalMURGSRegressor(GroupRegressor):
+    """
+    Regressor with L2,1 Group Lasso Penalty on the input layer weights 
+    to implement the Temporal-MURGS pruning for Phase II.
+    """
+    def __init__(self, epochs=200, batch_size=200, lr=0.01, hidden_dim=100, lambda_reg=0.01):
+        super().__init__(epochs, batch_size, lr, hidden_dim)
+        self.lambda_reg = lambda_reg
+
+    def fit(self, X: np.ndarray, Y: np.ndarray, group_dims: list[int]):
+        input_dim = X.shape[1]
+        output_dim = Y.shape[1]
+        
+        self.device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+        self.model = MultiOutputMLP(input_dim, output_dim, self.hidden_dim).to(self.device)
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr)
+        criterion = nn.MSELoss()
+
+        dataset = TensorDataset(torch.FloatTensor(X), torch.FloatTensor(Y))
+        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+
+        self.model.train()
+        for _ in range(self.epochs):
+            for batch_x, batch_y in loader:
+                batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
+                optimizer.zero_grad()
+                
+                preds = self.model(batch_x)
+                mse_loss = criterion(preds, batch_y)
+                
+                # Apply Spatio-Temporal Group Lasso (MURGS Penalty)
+                reg_loss = 0.0
+                start_idx = 0
+                W_in = self.model.net[0].weight  # Shape: (hidden_dim, input_dim)
+                
+                for g_dim in group_dims:
+                    end_idx = start_idx + g_dim
+                    W_group = W_in[:, start_idx:end_idx]
+                    # MURGS functional: sqrt(d_g) * ||W_g||_F
+                    reg_loss += math.sqrt(g_dim) * torch.norm(W_group, p='fro')
+                    start_idx = end_idx
+                
+                loss = mse_loss + self.lambda_reg * reg_loss
+                loss.backward()
+                optimizer.step()
+
+    def get_group_norms(self, group_dims: list[int]) -> list[float]:
+        """Returns the Frobenius norm of the input weights associated with each feature group."""
+        self.model.eval()
+        norms = []
+        start_idx = 0
+        with torch.no_grad():
+            W_in = self.model.net[0].weight.cpu()
+            for g_dim in group_dims:
+                end_idx = start_idx + g_dim
+                W_group = W_in[:, start_idx:end_idx]
+                norms.append(float(torch.norm(W_group, p='fro')))
+                start_idx = end_idx
+        return norms
+
 # ---------------------------------------------------------------------------
-# 3. Time-Series GroupRESIT Algorithm
+# 3. Time-Series GroupRESIT-MURGS Algorithm
 # ---------------------------------------------------------------------------
 class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
     '''
-    Time-Series adaptation of the GroupRESIT Algorithm using Neural Networks 
-    and Greedy Independence Pruning. Supports min_lag and max_lag.
+    Time-Series adaptation of the GroupRESIT Algorithm.
+    Phase I: HSIC-based Sink Node identification for contemporaneous order.
+    Phase II: Spatio-Temporal MURGS pruning via Group-Lasso Neural Networks.
     '''
     def __init__(self, data: np.ndarray, groups: Union[list[set[int]], None] = None,
                  standarize: bool=True, **kwargs):
         super().__init__(data, groups, standarize, **kwargs)
         
         # Hyperparameters
-        self.alpha = self.extra_args.get("alpha", 0.01)
         self.epochs = self.extra_args.get("epochs", 200)
         self.hidden_dim = self.extra_args.get("hidden_dim", 100)
         self.max_lag = self.extra_args.get("max_lag", 1)
-        self.min_lag = self.extra_args.get("min_lag", 1)  # Added min_lag support
+        self.min_lag = self.extra_args.get("min_lag", 1) 
+        
+        # MURGS specific hyperparameters
+        self.lambda_reg = self.extra_args.get("lambda_reg", 0.05) # Regularization strength
+        self.pruning_threshold = self.extra_args.get("pruning_threshold", 1e-3) # Threshold to drop edge
         
         self.T = self._data.shape[0]
         self.G = len(self._groups)
@@ -187,32 +248,30 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
             raise ValueError("min_lag cannot be strictly greater than max_lag.")
         
         # Internal state
-        self._causal_order = [] # Order of contemporary groups (lag = 0)
-        self._pa = {}           # Final super-DAG pruning results
+        self._causal_order = [] 
+        self._pa = {}           
 
-    def _get_data_for_vars(self, vars_list: list[tuple[int, int]]) -> np.ndarray:
+    def _get_data_and_dims_for_vars(self, vars_list: list[tuple[int, int]]) -> tuple[np.ndarray, list[int]]:
         """
-        Helper to construct a flat 2D array of specific groups at specific lags.
-        vars_list: List of (group_idx, lag)
-        Returns: np.ndarray of shape (T - max_lag, sum_of_features)
+        Constructs a flat 2D array of specific groups at specific lags,
+        and returns the feature dimensions of each group block for the MURGS penalty.
         """
         if not vars_list:
-            return np.empty((self.T - self.max_lag, 0))
+            return np.empty((self.T - self.max_lag, 0)), []
             
         blocks = []
+        dims = []
         for g, l in vars_list:
-            cols = self._groups[g]
+            cols = list(self._groups[g]) # Ensure it's list-like for indexing
             start_idx = self.max_lag - l
             end_idx = self.T - l
             blocks.append(self._data[start_idx:end_idx, cols])
+            dims.append(len(cols))
             
-        return np.concatenate(blocks, axis=1)
+        return np.concatenate(blocks, axis=1), dims
 
     def _phase_1_causal_order(self):
         """Phase I: Infer the causal order among contemporary variables (lag 0)."""
-        
-        # Optimization: If min_lag > 0, there are no contemporaneous edges.
-        # We can bypass Phase I completely to save computation.
         if self.min_lag > 0:
             self._causal_order = list(range(self.G))
             return
@@ -220,7 +279,6 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
         S = list(range(self.G))
         pi_contemp = []
         
-        # Past historical variables (up to max_lag)
         start_lag = max(1, self.min_lag)
         past_vars = [(g, l) for g in range(self.G) for l in range(start_lag, self.max_lag + 1)]
 
@@ -233,19 +291,19 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
             least_dependent_stat = float('inf')
 
             for g in S:
-                # Regress X_g(t) on X_{S \ g}(t) AND X_{all}(t-1 ... t-max_lag)
                 rem_contemp = [(rem_g, 0) for rem_g in S if rem_g != g]
                 regressors = rem_contemp + past_vars
                 
-                Y = self._get_data_for_vars([(g, 0)])
+                Y, _ = self._get_data_and_dims_for_vars([(g, 0)])
                 
                 if not regressors:
                     least_dependent_stat = 0.0
                     best_group = g
                     break
                     
-                X = self._get_data_for_vars(regressors)
+                X, _ = self._get_data_and_dims_for_vars(regressors)
 
+                # Standard Regression for conditional independence testing
                 regressor = GroupRegressor(epochs=self.epochs, hidden_dim=self.hidden_dim)
                 regressor.fit(X, Y)
                 Y_pred = regressor.predict(X)
@@ -269,48 +327,46 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
         self._causal_order = pi_contemp
 
     def _phase_2_pruning(self):
-        """Phase II: Greedily test away edges from the super-DAG."""
+        """Phase II: Spatio-Temporal MURGS Model Selection."""
         pa = {}
         
-        # Build list of lagged variables respecting min_lag and max_lag
         start_lag = max(1, self.min_lag)
         past_vars = [(g, l) for g in range(self.G) for l in range(start_lag, self.max_lag + 1)]
 
-        # Initialize super-DAG
         for i, k in enumerate(self._causal_order):
             contemp_preds = [(p, 0) for p in self._causal_order[:i]] if self.min_lag == 0 else []
-            pa[k] = contemp_preds + past_vars
-
-        for k in self._causal_order:
-            parents = list(pa[k])
-            if not parents:
+            potential_parents = contemp_preds + past_vars
+            
+            if not potential_parents:
+                pa[k] = []
                 continue
 
-            for p in parents:
-                remainders = [var for var in pa[k] if var != p]
-                Y = self._get_data_for_vars([(k, 0)])
-                
-                if not remainders:
-                    X_p = self._get_data_for_vars([p])
-                    test_stat, p_val = HSIC_Test.test(Y, X_p)
-                else:
-                    X_rem = self._get_data_for_vars(remainders)
-                    
-                    regressor = GroupRegressor(epochs=self.epochs, hidden_dim=self.hidden_dim)
-                    regressor.fit(X_rem, Y)
-                    Y_pred = regressor.predict(X_rem)
-                    
-                    residuals = Y - Y_pred
-                    residuals = (residuals - residuals.mean(axis=0)) / (residuals.std(axis=0) + 1e-8)
-                    
-                    X_p = self._get_data_for_vars([p])
-                    X_p = (X_p - X_p.mean(axis=0)) / (X_p.std(axis=0) + 1e-8)
-                    
-                    test_stat, p_val = HSIC_Test.test(residuals, X_p)
+            # Extract data and group dimensions for all potential parents simultaneously
+            X_pot_parents, group_dims = self._get_data_and_dims_for_vars(potential_parents)
+            Y, _ = self._get_data_and_dims_for_vars([(k, 0)])
+            
+            # Standardize
+            X_pot_parents = (X_pot_parents - X_pot_parents.mean(axis=0)) / (X_pot_parents.std(axis=0) + 1e-8)
+            Y = (Y - Y.mean(axis=0)) / (Y.std(axis=0) + 1e-8)
 
-                # Edge is removed if residuals and potential parent are independent
-                if p_val > self.alpha:
-                    pa[k].remove(p)
+            # Fit MURGS model with group-lasso penalty across space and time
+            murgs_model = SpatioTemporalMURGSRegressor(
+                epochs=self.epochs, 
+                hidden_dim=self.hidden_dim, 
+                lambda_reg=self.lambda_reg
+            )
+            murgs_model.fit(X_pot_parents, Y, group_dims)
+            
+            # Extract norms to filter connections
+            norms = murgs_model.get_group_norms(group_dims)
+            
+            # Keep parents whose weight block survived the penalty shrinkage
+            surviving_parents = []
+            for p_idx, norm_val in enumerate(norms):
+                if norm_val > self.pruning_threshold:
+                    surviving_parents.append(potential_parents[p_idx])
+                    
+            pa[k] = surviving_parents
 
         self._pa = pa
 
@@ -324,7 +380,6 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
         
         final_parents = {i: [] for i in range(self.G)}
         
-        # Convert positive lags back to negative to match your evaluation framework
         for node, parents in self._pa.items():
             formatted_parents = []
             for p, l in parents:

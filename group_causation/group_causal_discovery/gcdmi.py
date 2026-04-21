@@ -1,5 +1,6 @@
 from typing import Union
 
+import logging
 import numpy as np
 from scipy.stats import ks_2samp
 import torch
@@ -26,7 +27,7 @@ class GaussianKnockoffGenerator:
         Sigma = np.cov(X_centered, rowvar=False)
         if p == 1:
             Sigma = np.array([[np.var(X_centered)]])
-            
+        
         # Add slight jitter for numerical stability (positive definiteness)
         Sigma += np.eye(p) * 1e-6
         
@@ -117,9 +118,12 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
         self.batch_size = self.extra_args.get("batch_size", 128)
         self.lr = self.extra_args.get("learning_rate", 0.005)
         self.max_lag = self.extra_args.get("max_lag", 3) # DeepAR benefits from longer context
+        self.lambda_l1 = self.extra_args.get("lambda_l1", 1e-4) # L1 regularization for sparsity in the learned structure
         
         self.T, self.N = self._data.shape
         self.G = len(self._groups)
+        
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         
         if self.T <= self.max_lag:
             raise ValueError("Time series length T must be strictly greater than max_lag.")
@@ -133,9 +137,9 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
         return np.array(X), np.array(Y)
 
     def _train_structure(self):
-        """Step 1: Structure Learning. Train DeepAR to forecast the multivariate system."""
-        X_seq, Y_seq = self._create_windows(self._data)
-        
+        """Step 1: Structure Learning. Train DeepAR to forecast the multivariate system.
+        Uses early stopping based on validation loss to prevent overfitting and ensure better generalization.
+        """        
         self.device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
         self.model = DeepAR(
             input_dim=self.N, 
@@ -144,18 +148,58 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
         ).to(self.device)
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
-        dataset = TensorDataset(torch.FloatTensor(X_seq), torch.FloatTensor(Y_seq))
-        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+        
+        X_seq, Y_seq = self._create_windows(self._data)
+        
+        # --- SPLIT 80/20 ---
+        split_idx = int(len(X_seq) * 0.8)
+        X_train, Y_train = X_seq[:split_idx], Y_seq[:split_idx]
+        X_val, Y_val = X_seq[split_idx:], Y_seq[split_idx:]
+        
+        dataset_train = TensorDataset(torch.FloatTensor(X_train), torch.FloatTensor(Y_train))
+        loader_train = DataLoader(dataset_train, batch_size=self.batch_size, shuffle=True)
+        
+        X_val_t = torch.FloatTensor(X_val).to(self.device)
+        Y_val_t = torch.FloatTensor(Y_val).to(self.device)
 
-        self.model.train()
-        for _ in range(self.epochs):
-            for batch_x, batch_y in loader:
+        best_val_loss = float('inf')
+        patience_counter = 0
+        patience = 15
+
+        for epoch in range(self.epochs):
+            self.model.train()
+            for batch_x, batch_y in loader_train:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
                 mu, sigma = self.model(batch_x)
+                
                 loss = gaussian_nll_loss(mu, sigma, batch_y)
+                l1_reg = torch.norm(self.model.lstm.weight_ih_l0, 1)
+                loss += self.lambda_l1 * l1_reg
+                
                 loss.backward()
                 optimizer.step()
+                
+            # --- VALIDATION ---
+            self.model.eval()
+            with torch.no_grad():
+                mu_val, sigma_val = self.model(X_val_t)
+                val_loss = gaussian_nll_loss(mu_val, sigma_val, Y_val_t).item()
+                
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                patience_counter = 0
+                best_weights = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+            else:
+                patience_counter += 1
+                
+            if patience_counter >= patience:
+                logging.info(f"Early stopping en epoch {epoch} (Val Loss no mejora).")
+                break
+                
+        # Restaurar el modelo que mejor predice la realidad
+        if 'best_weights' in locals():
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_weights.items()})
 
     def _compute_residuals(self, true_y: np.ndarray, pred_mu: np.ndarray, group_idx: int) -> np.ndarray:
         """
@@ -163,7 +207,7 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
         DeepAR point forecast (mu).
         Formula from paper: e = |Z - Z_hat| / |Z|
         """
-        cols = self._groups[group_idx]
+        cols = list(self._groups[group_idx])
         Z = true_y[:, cols]
         Z_hat = pred_mu[:, cols]
         
@@ -206,16 +250,17 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
                 mu_interv, _ = self.model(torch.FloatTensor(X_interv).to(self.device))
                 Y_pred_interv = mu_interv.cpu().numpy()
                 
-            for j in range(self.G): # Target group
-                if i == j:
-                    continue
-                    
+            for j in range(self.G): # Target group    
                 # Extract residuals for target group j
                 R_j = self._compute_residuals(Y_true, Y_pred_obs, j)
                 R_j_tilde = self._compute_residuals(Y_true, Y_pred_interv, j)
                 
-                # Kolmogorov-Smirnov Test for distribution shift
-                stat, p_val = ks_2samp(R_j, R_j_tilde)
+                # --- NUEVO: Submuestreo para evitar la hipersensibilidad del KS-Test ---
+                max_samples = min(400, len(R_j))
+                idx = np.random.choice(len(R_j), max_samples, replace=False)
+                
+                # Kolmogorov-Smirnov Test en el subconjunto
+                stat, p_val = ks_2samp(R_j[idx], R_j_tilde[idx])
                 
                 # If p-value < alpha, we reject the null hypothesis (invariance broken).
                 # Therefore, group i has a causal effect on group j.
