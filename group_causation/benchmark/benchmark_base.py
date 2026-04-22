@@ -137,10 +137,10 @@ class BenchmarkBase(ABC):
                     os.remove(f'{self.results_folder}/{filename}')
     
     def benchmark_with_toy_data(self, algorithms: Mapping[str, AlgorithmCls],
-                                         parameters_iterator: Iterator[tuple[dict[str, Any], dict[str, Any]]],
-                                         n_executions: int,
-                                         datasets_folder: str,
-                                        )  -> dict[str, list[ dict[str, Any] ]]:
+                                      parameters_iterator: Iterator[tuple[dict[str, Any], dict[str, Any]]],
+                                      n_executions: int,
+                                      datasets_folder: str,
+                                     )  -> dict[str, list[ dict[str, Any] ]]:
         # Delete previous toy data
         if os.path.exists(datasets_folder):
             for filename in os.listdir(datasets_folder):
@@ -148,35 +148,68 @@ class BenchmarkBase(ABC):
         else:
             os.makedirs(datasets_folder)
 
-        for iteration, current_parameters in enumerate(parameters_iterator):
-            current_algorithms_parameters, data_option = current_parameters
+        # 1. Convert iterator to list so it can be traversed twice (Generation Phase and Testing Phase)
+        parameters_list = list(parameters_iterator)
+
+        # ==========================================
+        # PHASE 1: Generate ALL datasets first
+        # ==========================================
+        if self.verbose > 0:
+            logging.info(BLUE + '\nStarting PHASE 1: Generating all datasets...' + RESET)
+
+        all_causal_datasets = []
+        all_dataset_metadata = [] # Keeps track of each dataset's true generation parameters
+
+        for iteration, current_parameters in enumerate(parameters_list):
+            _, data_option = current_parameters
             causal_datasets = self.generate_datasets(iteration, n_executions, datasets_folder, data_option)
             if causal_datasets is None:
                 raise ValueError('generate_datasets returned None.')
             
+            all_causal_datasets.extend(causal_datasets)
+            # Save the generation parameters for each dataset so Phase 2 logs correctly
+            all_dataset_metadata.extend([(iteration, data_option)] * len(causal_datasets))
+
+        if self.verbose > 0:
+            logging.info(GREEN + f'Phase 1 Complete: {len(all_causal_datasets)} total datasets generated.' + RESET)
+
+        # ==========================================
+        # PHASE 2: Test ALL algorithms on ALL datasets
+        # ==========================================
+        if self.verbose > 0:
+            logging.info(BLUE + '\nStarting PHASE 2: Testing algorithms on all datasets...' + RESET)
+
+        for alg_iteration, current_parameters in enumerate(parameters_list):
+            current_algorithms_parameters, _ = current_parameters
+
             if self.verbose > 0:
                 logging.info('\n' + '-'*50)
-                logging.info(BLUE + 'Executing the datasets with option:' + str(data_option) + RESET)
-            
-            # Generate and save results of all algorithms with current dataset options
-            current_results = self.test_algorithms(causal_datasets, algorithms,
+                logging.info(BLUE + f'Executing ALL datasets with algorithm parameters from iteration {alg_iteration}' + RESET)
+
+            # Test on the COMPLETE set of generated datasets instead of just one batch
+            current_results = self.test_algorithms(all_causal_datasets, algorithms,
                                                    current_algorithms_parameters)
             
             for name, algorithm_results in current_results.items():
-                for particular_result in algorithm_results:
-                    particular_result.update(data_option) # Include the parameters in the information for results
-                    particular_result['dataset_iteration'] = iteration
+                for idx, particular_result in enumerate(algorithm_results):
+                    # Retrieve the specific parameters used to generate THIS exact dataset
+                    ds_iteration, ds_data_option = all_dataset_metadata[idx]
+
+                    particular_result.update(ds_data_option) 
+                    particular_result['dataset_iteration'] = ds_iteration
+                    # Add algorithm_iteration to easily identify which algorithm config was tested
+                    particular_result['algorithm_iteration'] = alg_iteration 
                 
-                    # Include current result in the list of result
+                    # Include current result in the list of results
                     self.results[name].append(particular_result)
                 
-                    self.all_algorithms_parameters[name].\
-                                append(copy.deepcopy(current_algorithms_parameters[name]))
-                
+                self.all_algorithms_parameters[name].\
+                            append(copy.deepcopy(current_algorithms_parameters[name]))
+            
             self.save_results()
             if self.verbose > 0:
-                logging.info(f'{iteration+1} combinations executed')
-            
+                logging.info(f'Parameter combination {alg_iteration+1} executed against all datasets.')
+        
         return self.results
     
     def benchmark_with_given_data(self, algorithms: Mapping[str, AlgorithmCls],
