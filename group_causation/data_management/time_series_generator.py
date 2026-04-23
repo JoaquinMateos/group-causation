@@ -67,6 +67,8 @@ def generate_group_causal_process_structure(
         group_links: Dict[int, List[Tuple[int, int]]], 
         n_node_links_per_group_link: int = 2,
         inner_group_density: float = 0.3,
+        latent_confounding_fraction: float = 0.0,
+        maximum_of_nodes_confounded: int = 5,
         max_lag: int = 2,
         contemp_fraction: float = 0.0,
         cross_terms_fraction: float = 0.2, 
@@ -76,18 +78,35 @@ def generate_group_causal_process_structure(
         auto_coeffs: List[float] = [0.4], 
         seed: Union[int, None] = None,
         enforce_stationarity: bool = True
-    ) -> CausalLinks:
+    ) -> Tuple[dict, set]: # <- CHANGED RETURN TYPE
     """
     Generates a node-level causal graph strictly derived from a predefined group-level structure.
     
-    Args:
-        groups: List of lists containing node IDs for each group. E.g. [[0, 1], [2, 3]]
-        group_links: Macro-graph dictionary. Keys are target groups, values are lists of (parent_group, negative_lag).
-                     E.g. {1: [(0, -1)]} means Group 0 causes Group 1 at lag -1.
+    Returns:
+        links: The causal graph structure.
+        latent_nodes: A set containing the integer IDs of the enforced latent confounders.
     """
     rs = np.random.RandomState(seed)
     N = sum(len(g) for g in groups)
     max_tries = 100 if enforce_stationarity else 1
+    
+    # --- PHASE 0: DETERMINE LATENT CONFOUNDERS ---
+    # Convert the fraction to a real number of nodes
+    num_confounders = int(N * latent_confounding_fraction)
+    all_nodes = list(range(N))
+    
+    # We sample which nodes will act as latent confounders
+    if num_confounders > 0:
+        latent_nodes = set(rs.choice(all_nodes, size=num_confounders, replace=False))
+        visible_nodes = list(set(all_nodes) - latent_nodes)
+    else:
+        latent_nodes = set()
+        visible_nodes = all_nodes
+
+    # Quick check: we need at least 2 visible nodes for a confounder to actually confound something
+    if num_confounders > 0 and len(visible_nodes) < 2:
+        raise ValueError("Latent confounding fraction is too high; not enough visible nodes left to be confounded.")
+    # ---------------------------------------------
     
     for attempt in range(max_tries):
         incoming_edges = {i: [] for i in range(N)}
@@ -95,7 +114,6 @@ def generate_group_causal_process_structure(
         # 1. GENERATE INTER GROUP LINKS
         for target_g, parents in group_links.items():
             for parent_g, neg_lag in parents:
-                # Create multiple node-level links for each group-level link
                 for _ in range(n_node_links_per_group_link):
                     node_t = rs.choice(groups[target_g])
                     node_p = rs.choice(groups[parent_g])
@@ -105,7 +123,6 @@ def generate_group_causal_process_structure(
 
         # 2. GENERATE INTRA GROUP LINKS
         for g_idx, group_nodes in enumerate(groups):
-            # Local topological order to prevent contemporaneous cycles within the group
             local_order = list(rs.permutation(group_nodes))
             for i, node_t in enumerate(local_order):
                 for j, node_p in enumerate(local_order):
@@ -113,18 +130,32 @@ def generate_group_causal_process_structure(
                         continue
                     
                     if rs.rand() < inner_group_density:
-                        # If node_p comes before node_t, allow contemporaneous connections with some probability
                         if j < i and rs.rand() < contemp_fraction:
                             neg_lag = 0
                         else:
                             neg_lag = -int(rs.randint(1, max_lag + 1)) if max_lag > 0 else 0
-                            if neg_lag == 0: continue # Prevenir ciclos si i < j
+                            if neg_lag == 0: continue 
                             
                         if (node_p, neg_lag) not in incoming_edges[node_t]:
                             incoming_edges[node_t].append((node_p, neg_lag))
 
+        # --- PHASE 2.5: ENFORCE LATENT CONFOUNDING ---
+        # For every latent node, force it to cause at least two distinct visible nodes
+        for l_node in latent_nodes:
+            # Pick a random number of targets between 2 and max visible nodes
+            n_targets = rs.randint(2, min(maximum_of_nodes_confounded, len(visible_nodes) + 1))
+            targets = rs.choice(visible_nodes, size=n_targets, replace=False)
+            
+            for target in targets:
+                # Randomize lag for the confounding effect
+                c_lag = -int(rs.randint(1, max_lag + 1)) if max_lag > 0 else 0
+                # Make sure we don't accidentally duplicate an edge that was generated naturally in Phase 1 or 2
+                if (l_node, c_lag) not in incoming_edges[target]:
+                    incoming_edges[target].append((l_node, c_lag))
+        # ---------------------------------------------
+
         # 3. GENERATE AUTO-DEPENDENCIES
-        links: CausalLinks = {i: [] for i in range(N)}
+        links = {i: [] for i in range(N)}
         if max_lag > 0 and auto_coeffs:
             for i in range(N):
                 a_coeff = float(rs.choice(auto_coeffs))
@@ -140,7 +171,6 @@ def generate_group_causal_process_structure(
                     parents.pop()
                     continue
                 
-                # Create a multivariate term if there are at least 2 parents and it falls within the probability
                 if len(parents) >= 2 and rs.rand() < cross_terms_fraction:
                     p1 = parents.pop()
                     p2 = parents.pop()
@@ -153,7 +183,7 @@ def generate_group_causal_process_structure(
 
         # 5. CHECK STATIONARITY
         if not enforce_stationarity or _check_linear_stationarity(links, N, max_lag):
-            return links
+            return links, latent_nodes # <- Return both the graph and the identity of the confounders
             
     raise ValueError("A stationary process could not be generated after 100 attempts. Reduce dependency_coeffs.")
 
@@ -221,7 +251,7 @@ if __name__ == '__main__':
     }
     
     # 3. Generamos la estructura a nivel de Nodo (Micro-Grafo)
-    estructura_nodos = generate_group_causal_process_structure(
+    estructura_nodos, latent_confounders = generate_group_causal_process_structure(
         groups=grupos_definidos,
         group_links=enlaces_entre_grupos,
         n_node_links_per_group_link=2, # Crea 2 flechas entre nodos por cada enlace de grupo
