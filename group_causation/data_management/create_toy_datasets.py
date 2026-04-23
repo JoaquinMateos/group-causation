@@ -242,7 +242,7 @@ class CausalDataset:
                         
                         for target in targets:
                             # Asignar un lag válido (preferiblemente < 0 para series temporales)
-                            lag = random.randint(min(-1, -min_lag), -max_lag) 
+                            lag = -random.randint(max(1, min_lag), max_lag) 
                             current_group_links[latent_idx].append((target, lag))
                 
                 # 3. Generate the Micro-Graph structure
