@@ -5,3 +5,4 @@ from .hybrid import HybridGroupCausalDiscovery
 from .adag import ADAG
 from .group_resit import GroupRESITTimeSeriesCausalDiscovery
 from .gcdmi import gCDMICausalDiscovery
+from .proposal import IVAEProposalCausalDiscovery
