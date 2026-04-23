@@ -165,6 +165,7 @@ class CausalDataset:
     def generate_group_toy_data(self, name, T=100, N_vars=20, N_groups=3,
                                 inner_group_crosslinks_density=0.5, outer_group_crosslinks_density=0.5,
                                 latent_confounding_fraction=0.0,
+                                maximum_of_groups_confounded=4,
                                 n_node_links_per_group_link=2, contemp_fraction=.0,
                                 cross_terms_fraction=0.2,
                                 max_lag=3, min_lag=1, dependency_funcs=['linear'],
@@ -216,15 +217,33 @@ class CausalDataset:
                 # 1. Set Groups
                 current_groups = self._generate_groups(total_vars, total_groups)
                 
+                # Define which groups will be visible and which will be latent 
+                #  (for now we keep all as visible, and then we will hide the latent ones by filtering the time series and the parents dict)
+                visible_group_idxs = list(range(N_groups))
+                latent_group_idxs = list(range(N_groups, total_groups))
+                
                 # 2. Set the Macro-Graph (Group Links)
                 current_group_links = group_links
                 if current_group_links is None:
                     current_group_links = self._generate_random_group_links(
-                        N_groups=total_groups, # Use total_groups
+                        N_groups=N_groups, # Just N_groups, no total_groups
                         density=outer_group_crosslinks_density, 
                         max_lag=max_lag, 
                         contemp_fraction=contemp_fraction
                     )
+                    
+                # Inyect latent groups explicitely as confounders
+                    for latent_idx in latent_group_idxs:
+                        if latent_idx not in current_group_links:
+                            current_group_links[latent_idx] = []
+                        # Each latent confounder will affect at least 2 visible groups
+                        n_targets = random.randint(2, maximum_of_groups_confounded)
+                        targets = random.sample(visible_group_idxs, k=n_targets)
+                        
+                        for target in targets:
+                            # Asignar un lag válido (preferiblemente > 0 para series temporales)
+                            lag = random.randint(max(1, min_lag), max_lag) 
+                            current_group_links[latent_idx].append((target, lag))
                 
                 # 3. Generate the Micro-Graph structure
                 global_causal_process = generate_group_causal_process_structure(
@@ -430,7 +449,7 @@ def _extract_subgraph(parents: dict[int, list[tuple[int,int]]],
                     # avoid trivial self-loop with lag==0
                     if not (p == child and lag == 0):
                         new_parents[child_idx].append((idx_of[p], total_lag))
-                    # do *not* walk past a chosen node
+                    # do not walk past a chosen node
                 else:
                     visited.add(p)
                     queue.append((p, total_lag))

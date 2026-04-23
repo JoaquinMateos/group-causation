@@ -148,8 +148,10 @@ class BenchmarkBase(ABC):
         else:
             os.makedirs(datasets_folder)
 
-        # 1. Convert iterator to list so it can be traversed twice (Generation Phase and Testing Phase)
-        parameters_list = list(parameters_iterator)
+        # Convert iterator to list and deepcopy the dictionaries to prevent pass-by-reference overwrites
+        parameters_list = []
+        for alg_params, data_params in parameters_iterator:
+            parameters_list.append((copy.deepcopy(alg_params), copy.deepcopy(data_params)))
 
         # ==========================================
         # PHASE 1: Generate ALL datasets first
@@ -179,14 +181,18 @@ class BenchmarkBase(ABC):
         if self.verbose > 0:
             logging.info(BLUE + '\nStarting PHASE 2: Testing algorithms on all datasets...' + RESET)
 
-        for alg_iteration, current_parameters in enumerate(parameters_list):
-            current_algorithms_parameters, _ = current_parameters
+        # Extract only UNIQUE algorithm parameter configurations to prevent redundant testing
+        unique_alg_params_list = []
+        for alg_params, _ in parameters_list:
+            if alg_params not in unique_alg_params_list:
+                unique_alg_params_list.append(alg_params)
 
+        for alg_iteration, current_algorithms_parameters in enumerate(unique_alg_params_list):
             if self.verbose > 0:
                 logging.info('\n' + '-'*50)
-                logging.info(BLUE + f'Executing ALL datasets with algorithm parameters from iteration {alg_iteration}' + RESET)
+                logging.info(BLUE + f'Executing ALL datasets with algorithm config {alg_iteration+1}/{len(unique_alg_params_list)}' + RESET)
 
-            # Test on the COMPLETE set of generated datasets instead of just one batch
+            # Test on the COMPLETE set of generated datasets
             current_results = self.test_algorithms(all_causal_datasets, algorithms,
                                                    current_algorithms_parameters)
             
@@ -208,7 +214,7 @@ class BenchmarkBase(ABC):
             
             self.save_results()
             if self.verbose > 0:
-                logging.info(f'Parameter combination {alg_iteration+1} executed against all datasets.')
+                logging.info(f'Algorithm configuration {alg_iteration+1} executed against all datasets.')
         
         return self.results
     
