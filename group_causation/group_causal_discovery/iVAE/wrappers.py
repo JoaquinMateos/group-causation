@@ -99,6 +99,7 @@ class _TorchLatentReducer:
 
         if self.use_auxiliary:
             if U is None:
+                logging.warning('use_auxiliary is True but no auxiliary data provided. Using a constant auxiliary variable.')
                 u_values = np.zeros((x_values.shape[0], 1), dtype=np.float32)
             else:
                 u_values = _to_2d_float_array(U, 'U')
@@ -331,7 +332,7 @@ class VAEDimensionalityReduction(_TorchLatentReducer):
 
 def IVAE_wrapper(
     X,
-    U=None,
+    U,
     batch_size=256,
     max_iter=7e4,
     seed=None,

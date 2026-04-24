@@ -78,7 +78,7 @@ def generate_group_causal_process_structure(
         auto_coeffs: List[float] = [0.4], 
         seed: Union[int, None] = None,
         enforce_stationarity: bool = True
-    ) -> Tuple[dict, set]: # <- CHANGED RETURN TYPE
+    ) -> Tuple[dict, set]:
     """
     Generates a node-level causal graph strictly derived from a predefined group-level structure.
     
@@ -187,6 +187,75 @@ def generate_group_causal_process_structure(
             
     raise ValueError("A stationary process could not be generated after 100 attempts. Reduce dependency_coeffs.")
 
+def _apply_non_stationarity(time_series: np.ndarray, params: dict) -> tuple[np.ndarray, dict]:
+    '''
+    Applies non-stationarity to a generated time series (or noise matrix).
+    params can include: 'type' ('regime_shifts', 'random_walk'), 
+    'fraction' (fraction of vars to affect), and type-specific args.
+    '''
+    T, N = time_series.shape
+    non_stationarity_info = {"applied": True, "type": params.get("type", "regime_shifts")}
+    mod_ts = time_series.copy().astype(float)
+    
+    # Select which variables will become non-stationary
+    fraction = params.get("fraction", 0.3)
+    num_vars = max(1, int(N * fraction))
+    affected_vars = np.random.choice(N, size=num_vars, replace=False).tolist()
+    non_stationarity_info["affected_vars"] = affected_vars
+    
+    if non_stationarity_info["type"] == "regime_shifts":
+        num_shifts = params.get("num_shifts", 3)
+        max_mean_mod = params.get("max_mean_mod", 5.0)
+        max_std_mod = params.get("max_std_mod", 3.0) # Used as a multiplier limit
+        
+        non_stationarity_info["num_shifts"] = num_shifts
+        non_stationarity_info["max_mean_mod"] = max_mean_mod
+        non_stationarity_info["max_std_mod"] = max_std_mod
+        non_stationarity_info["shift_details"] = {}
+        
+        # Divide time series into (num_shifts + 1) equal segments
+        num_regimes = num_shifts + 1
+        segment_bounds = np.linspace(0, T, num_regimes + 1, dtype=int)
+        
+        for v in affected_vars:
+            var_shifts = []
+            for r in range(1, num_regimes): # Regime 0 is untouched
+                start_idx = segment_bounds[r]
+                end_idx = segment_bounds[r+1]
+                
+                # Randomize mean shift within [-max_mean_mod, max_mean_mod]
+                mean_shift = np.random.uniform(-max_mean_mod, max_mean_mod)
+                
+                # Randomize std multiplier (50% chance to expand variance, 50% chance to shrink)
+                if np.random.rand() > 0.5:
+                    std_mult = np.random.uniform(1.0, max(1.0, max_std_mod))
+                else:
+                    min_std = 1.0 / max_std_mod if max_std_mod > 1.0 else 1.0
+                    std_mult = np.random.uniform(min_std, 1.0)
+                    
+                var_shifts.append({
+                    "regime": r,
+                    "start": int(start_idx),
+                    "end": int(end_idx),
+                    "mean_shift": float(mean_shift),
+                    "std_mult": float(std_mult),
+                })
+                
+                # Apply the transformation to the current segment
+                mod_ts[start_idx:end_idx, v] = (mod_ts[start_idx:end_idx, v] * std_mult) + mean_shift
+            
+            non_stationarity_info["shift_details"][v] = var_shifts
+            
+    elif non_stationarity_info["type"] == "random_walk":
+        for v in affected_vars:
+            mod_ts[:, v] = np.cumsum(mod_ts[:, v])
+            
+    else:
+        non_stationarity_info["applied"] = False
+        non_stationarity_info["reason"] = f"Unknown type: {non_stationarity_info['type']}"
+        return time_series, non_stationarity_info
+        
+    return mod_ts, non_stationarity_info
 
 def generate_data_from_causal_process_structure(
         links: CausalLinks, 
@@ -194,8 +263,9 @@ def generate_data_from_causal_process_structure(
         noise_dists: List[str] = ['gaussian'], 
         noise_sigmas: List[float] = [0.2], 
         transient_fraction: float = 0.2, 
-        seed: Union[int, None] = None
-    ) -> Tuple[np.ndarray, bool]:
+        seed: Union[int, None] = None,
+        non_stationarity_params: Union[dict, None] = None # NEW ARGUMENT
+    ) -> Tuple[np.ndarray, bool, dict]: # MODIFIED RETURN TO PASS BACK INFO
     """Unrolls the equations over time to generate the synthetic dataset."""
     rs = np.random.RandomState(seed)
     N = len(links)
@@ -209,31 +279,44 @@ def generate_data_from_causal_process_structure(
     transient = int(math.floor(transient_fraction * T))
     total_T = T + transient
 
-    data = np.zeros((total_T, N), dtype='float32')
+    # 1. Pre-generate the pure noise matrix
+    noise_matrix = np.zeros((total_T, N), dtype='float32')
     for j in range(N):
         dist = rs.choice(noise_dists)
         sigma = rs.choice(noise_sigmas)
         
-        if dist == 'gaussian': data[:, j] = rs.normal(0, sigma, total_T)
-        elif dist == 'uniform': data[:, j] = rs.uniform(-sigma, sigma, total_T)
+        if dist == 'gaussian': noise_matrix[:, j] = rs.normal(0, sigma, total_T)
+        elif dist == 'uniform': noise_matrix[:, j] = rs.uniform(-sigma, sigma, total_T)
         elif dist == 'weibull':
             a = 2.0
             mean_w, var_w = math.gamma(1.5), math.gamma(2.0) - math.gamma(1.5)**2
-            data[:, j] = sigma * (rs.weibull(a, total_T) - mean_w) / np.sqrt(var_w)
+            noise_matrix[:, j] = sigma * (rs.weibull(a, total_T) - mean_w) / np.sqrt(var_w)
 
+    # 2. Shift the noise if non-stationarity is requested
+    non_stationarity_info = {"applied": False}
+    if non_stationarity_params is not None:
+        noise_matrix, non_stationarity_info = _apply_non_stationarity(noise_matrix, non_stationarity_params)
+
+    # 3. Unroll causal relationships utilizing the pre-determined noise
+    data = np.zeros((total_T, N), dtype='float32')
     causal_order = _get_topological_order(links, N)
 
     for t in range(max_lag, total_T):
         for j in causal_order:
+            # Inject noise (and any regime shifts) into the node first
+            data[t, j] = noise_matrix[t, j]
+            
             for parent_tuple, coeff, func in links[j]:
-                # Extraer los valores de todos los padres involucrados en este término
+                # Extract values of all parents for this term
                 parent_vals = [data[t + lag, p_i] for p_i, lag in parent_tuple]
                 data[t, j] += coeff * func(*parent_vals) # Multivariate unpacking
 
     data_final = data[transient:]
     nonvalid = bool(np.any(np.isnan(data_final)) or np.any(np.isinf(data_final)))
 
-    return data_final, nonvalid
+    return data_final, nonvalid, non_stationarity_info
+
+
 
 # ==============================================================================
 # EXAMPLE OF USE
@@ -244,7 +327,6 @@ if __name__ == '__main__':
     grupos_definidos = [[0, 1, 2], [3, 4], [5, 6, 7]]
     
     # 2. Definimos el Macro-Grafo causal (Enlaces entre grupos)
-    # Por ejemplo: el Grupo 0 causa al Grupo 1 en lag -1. El Grupo 1 causa al Grupo 2 en lag -2.
     enlaces_entre_grupos = {
         1: [(0, -1)],
         2: [(1, -2)],
@@ -254,27 +336,37 @@ if __name__ == '__main__':
     estructura_nodos, latent_confounders = generate_group_causal_process_structure(
         groups=grupos_definidos,
         group_links=enlaces_entre_grupos,
-        n_node_links_per_group_link=2, # Crea 2 flechas entre nodos por cada enlace de grupo
-        inner_group_density=0.4,       # Ruido causal dentro del propio grupo
+        n_node_links_per_group_link=2, 
+        inner_group_density=0.4,       
         dependency_funcs=[lambda x: x, np.sin],
         multivariate_funcs=[lambda x, y: x * y],
         dependency_coeffs=[-0.3, 0.3],
         seed=42
     )
     
-    # 4. Generamos las series temporales
-    time_series, has_nans = generate_data_from_causal_process_structure(
+    # 4. Generamos las series temporales CON no estacionariedad insertada en el ruido
+    ns_params = {
+        'type': 'regime_shifts', 
+        'fraction': 0.5,            
+        'num_shifts': 2,            
+        'max_mean_mod': 5.0,       
+        'max_std_mod': 2.0          
+    }
+    
+    time_series, has_nans, ns_info = generate_data_from_causal_process_structure(
         links=estructura_nodos,
         T=2000,
-        noise_sigmas=[0.2]
+        noise_sigmas=[0.2],
+        non_stationarity_params=ns_params
     )
     
     print(f"Shape de las series temporales generadas: {time_series.shape}")
+    print("Non-stationarity Info:", ns_info)
     
     import matplotlib.pyplot as plt
     plt.figure(figsize=(12, 6))
     for i in range(time_series.shape[1]):
-        plt.plot(time_series[:, i] + i*5, label=f'Node {i}')  # Desplazamos cada nodo para visualización
+        plt.plot(time_series[:, i] + i*5, label=f'Node {i}')  
     plt.title('Series Temporales Sintéticas con Estructura Causal de Grupos')
     plt.xlabel('Time')
     plt.ylabel('Value (offset for visibility)')

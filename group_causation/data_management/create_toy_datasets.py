@@ -8,7 +8,7 @@ from causal processes, which are defined by ts DAGs.
 from collections import deque
 import os
 import random
-from typing import Callable, Union
+from typing import Any, Callable, Union
 import warnings
 import numpy as np
 import pandas as pd
@@ -55,6 +55,7 @@ class CausalDataset:
         self._groups: Union[list[list[int]], None] = groups
         self.node_parents_dict: dict[int, list[tuple[int, int]]] = {}
         self.max_value_threshold = max_value_threshold
+        self.non_stationarity_info: dict[str, Union[bool, list[int], list[float]]] = {'applied': False}
 
     @property
     def groups(self) -> Union[list[list[int]], None]:
@@ -175,7 +176,11 @@ class CausalDataset:
                                 datasets_folder = None, maximum_tries=100, 
                                 group_links = None,
                                 **kw_generation_args) \
-                            -> tuple[np.ndarray, dict[int, list[tuple[int, int]]], list[list[int]], dict[int, list[tuple[int, int]]]]:
+                            -> tuple[np.ndarray, dict[int,
+                                                    list[tuple[int, int]]],
+                                                    list[list[int]],
+                                                    dict[int, list[tuple[int, int]]],
+                                                    dict[str, Any]]:
         '''
         Generate a toy dataset with a group-based causal process and time series data.
         '''
@@ -223,13 +228,18 @@ class CausalDataset:
 
                 visible_nodes = [n for n in range(total_vars) if n not in latent_nodes]
 
+                non_stationarity_params = kw_generation_args.get('non_stationarity_params', None)
+
                 # 4. Generate full inflated data
-                full_time_series, nonvalid = generate_data_from_causal_process_structure(
+                full_time_series, nonvalid, self.non_stationarity_info = generate_data_from_causal_process_structure(
                     links=global_causal_process,
                     T=T,
                     noise_dists=noise_dists,
-                    noise_sigmas=noise_sigmas
+                    noise_sigmas=noise_sigmas,
+                    non_stationarity_params=non_stationarity_params,
                 )
+                # Backward-compatible alias used by older code paths.
+                self.stationarity_info = self.non_stationarity_info
                 
                 if nonvalid or np.any(np.abs(full_time_series) > self.max_value_threshold):
                     continue
@@ -266,7 +276,7 @@ class CausalDataset:
         assert self.parents_dict is not None
         assert self._groups is not None
         
-        return self.time_series, self.parents_dict, self._groups, self.node_parents_dict
+        return self.time_series, self.parents_dict, self._groups, self.node_parents_dict, self.non_stationarity_info
     
     def extract_group_parents(self, node_parents_dict: dict[int, list[tuple[int, int]]]) -> dict[int, list[tuple[int, int]]]:
         '''
@@ -351,6 +361,11 @@ class CausalDataset:
         with open(f'{dataset_folder}/{name}_node_parents.txt', 'w') as f:
             node_parents_representation = repr(self.node_parents_dict)
             f.write(node_parents_representation)
+        with open(f'{dataset_folder}/{name}_non_stationarity_info.txt', 'w') as f:
+            non_stationarity_representation = repr(self.non_stationarity_info)
+            f.write(non_stationarity_representation)
+    
+    
     
 
 def plot_ts_graph(parents_dict, var_names=None):
@@ -419,7 +434,7 @@ def _extract_subgraph(parents: dict[int, list[tuple[int,int]]],
 if __name__ == '__main__':
     random.seed(0)
     dataset = CausalDataset()
-    time_series, parents_dict, groups, node_parents_dict = dataset.generate_group_toy_data(name='test', T=1000, N_vars=50, N_groups=10,
+    time_series, parents_dict, groups, node_parents_dict, non_stationarity_info = dataset.generate_group_toy_data(name='test', T=1000, N_vars=50, N_groups=10,
                                 inner_group_crosslinks_density=0.2, outer_group_crosslinks_density=0.3,
                                 n_node_links_per_group_link=3, contemp_fraction=.1,
                                 cross_terms_fraction=0.2,

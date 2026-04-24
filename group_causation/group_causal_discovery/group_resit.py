@@ -189,7 +189,7 @@ class SpatioTemporalMURGSRegressor(GroupRegressor):
                 # Apply Spatio-Temporal Group Lasso (MURGS Penalty)
                 reg_loss = 0.0
                 start_idx = 0
-                W_in = self.model.net[0].weight  # Shape: (hidden_dim, input_dim)
+                W_in = torch.tensor(self.model.net[0].weight)  # Shape: (hidden_dim, input_dim)
                 
                 for g_dim in group_dims:
                     end_idx = start_idx + g_dim
@@ -208,7 +208,7 @@ class SpatioTemporalMURGSRegressor(GroupRegressor):
         norms = []
         start_idx = 0
         with torch.no_grad():
-            W_in = self.model.net[0].weight.cpu()
+            W_in = torch.tensor(self.model.net[0].weight.cpu())
             for g_dim in group_dims:
                 end_idx = start_idx + g_dim
                 W_group = W_in[:, start_idx:end_idx]

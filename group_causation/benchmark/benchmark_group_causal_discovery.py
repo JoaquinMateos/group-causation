@@ -1,5 +1,6 @@
 import logging
 import os
+import copy
 from typing import Any
 import numpy as np
 import pandas as pd
@@ -45,9 +46,16 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
             raise ValueError('CausalDataset.groups is required for group benchmarking.')
 
         groups_as_sets = [set(group) for group in causal_dataset.groups]
-        algorithm = causalDiscovery(data=causal_dataset.time_series, groups=groups_as_sets,  **algorithm_parameters)
+        current_algorithm_parameters = copy.deepcopy(algorithm_parameters)
+        if causal_dataset.non_stationarity_info.get('applied', False):
+            current_algorithm_parameters['non_stationarity_info'] = causal_dataset.non_stationarity_info
         
         try:
+            algorithm = causalDiscovery(
+                data=causal_dataset.time_series,
+                groups=groups_as_sets,
+                **current_algorithm_parameters,
+            )
             predicted_parents, time, memory = algorithm.extract_parents_time_and_memory()
             
             # Dynamically extract the lag if the algorithm provides it as a tuple (node, lag).
@@ -167,16 +175,25 @@ def _load_group_datasets(datasets_folder):
             for filename in sorted(files, key=lambda x: int(x.split('_')[0])):
                 if filename.endswith('.csv'):
                     dataset = pd.read_csv(f'{datasets_folder}/{filename}')
+                    dataset_prefix = filename.split("_")[0]
                     parents_filename = f'{datasets_folder}/{filename.split("_")[0]}_parents.txt'
                     with open(parents_filename, 'r') as f:
                         parents_dict = eval(f.read())
                     groups_filename = f'{datasets_folder}/{filename.split("_")[0]}_groups.txt'
                     with open(groups_filename, 'r') as f:
                         groups = eval(f.read())
+                    non_stationarity_filename = f'{datasets_folder}/{dataset_prefix}_non_stationarity_info.txt'
                     
-                    causal_datasets.append(CausalDataset(time_series=dataset.values,
-                                                            parents_dict=parents_dict,
-                                                            groups=groups))
+                    causal_dataset = CausalDataset(
+                        time_series=dataset.values,
+                        parents_dict=parents_dict,
+                        groups=groups,
+                    )
+                    if os.path.exists(non_stationarity_filename):
+                        with open(non_stationarity_filename, 'r') as f:
+                            causal_dataset.non_stationarity_info = eval(f.read())
+
+                    causal_datasets.append(causal_dataset)
         else:
             raise ValueError(f'The dataset folder {datasets_folder} does not exist')
         

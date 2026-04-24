@@ -8,9 +8,6 @@ from group_causation.group_causal_discovery.iVAE.wrappers import IVAE_wrapper
 from group_causation.group_causal_discovery.micro_level import MicroLevelGroupCausalDiscovery
 
 
-
-
-
 class IVAEProposalCausalDiscovery(GroupCausalDiscovery):
     '''
     Group causal discovery algorithm combining iVAE for identifiable dimension 
@@ -19,7 +16,7 @@ class IVAEProposalCausalDiscovery(GroupCausalDiscovery):
     Args:
         data : np.array with the data, shape (n_samples, n_variables)
         u : np.array with the auxiliary variable for iVAE, shape (n_samples, n_aux_vars).
-            This is required for the conditionally factorized prior[cite: 101].
+            This is required for the conditionally factorized prior.
         groups : list[set[int]] list with the sets that will compound each group of variables.
         global_latent_dim : int, the number of latents to extract for the global confounding representation.
         group_latent_dims : Union[int, list[int]], dimensionality for each group's latent space.
@@ -30,7 +27,7 @@ class IVAEProposalCausalDiscovery(GroupCausalDiscovery):
     '''
     def __init__(self, 
                  data: np.ndarray,
-                 u: np.ndarray,
+                 u: Union[np.ndarray, str],
                  groups: list[set[int]],
                  global_latent_dim: int = 5,
                  group_latent_dims: Union[int, list[int]] = 2,
@@ -38,12 +35,48 @@ class IVAEProposalCausalDiscovery(GroupCausalDiscovery):
                  link_assumptions: Union[dict[int, dict[tuple[int, int], str]], None] = None,
                  node_causal_discovery_alg: str = 'pcmci',
                  node_causal_discovery_params: Union[dict[str, Any], None] = None,
+                 non_stationarity_info: dict[str, Any] = {},
                  verbose: int = 0,
                  **kwargs):
         
         super().__init__(data, groups, **kwargs)
         
-        self.u = u
+        if isinstance(u, str):
+            if u == 'time_index':
+                self.u = np.arange(data.shape[0]).reshape(-1, 1)
+            elif u == 'non_stationarity_shift':
+                if non_stationarity_info.get('type') != 'regime_shifts':
+                    raise ValueError("non_stationarity_info must have type 'regime_shifts' when u='non_stationarity_shift'")
+                
+                affected_vars = non_stationarity_info.get('affected_vars', [])
+                if not affected_vars:
+                    raise ValueError("No variables were affected by non-stationarity, cannot build 'u'.")
+                
+                # Extract shift boundaries from the first affected variable
+                first_var = affected_vars[0]
+                shifts = non_stationarity_info['shift_details'][first_var]
+                
+                # The total time generated (including transient) is the end index of the last shift
+                total_T = shifts[-1]['end']
+                u_full = np.zeros(total_T, dtype=int)
+                
+                # Map the regimes (Regime 0 is the base from 0 to the first shift's start)
+                for shift in shifts:
+                    u_full[shift['start']:shift['end']] = shift['regime']
+                
+                # Align with the final dataset by taking the last T elements (transient is discarded)
+                T_data = data.shape[0]
+                u_aligned = u_full[-T_data:]
+                
+                # One-hot encode the regimes for the iVAE
+                num_regimes = non_stationarity_info.get('num_shifts', len(shifts)) + 1
+                u_one_hot = np.zeros((T_data, num_regimes))
+                u_one_hot[np.arange(T_data), u_aligned] = 1
+                
+                self.u = u_one_hot
+        else:
+            self.u = u
+            
         self._global_latent_dim = global_latent_dim
         
         if isinstance(group_latent_dims, int):
