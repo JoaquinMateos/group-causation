@@ -369,17 +369,18 @@ class BenchmarkBase(ABC):
                 ax.errorbar(x, y, yerr=std, label=algorithm_name,
                              fmt='.-', linewidth=1, capsize=3)
                 ax.grid(axis='y')
+                
             ax.set_xlabel(x_axis)
             ax.set_ylabel(score)
             ax.legend()
             
             plt.savefig(f'{results_folder}/plot_{score}.pdf')
-            fig.clf(); plt.close('all') # Clear the figure and close it
+            fig.clf(); plt.close('all')
 
     def plot_particular_result(self, results_folder,
-                                     output_folder=None,
-                                     scores=['shd', 'f1', 'precision', 'recall', 'time', 'memory'],
-                                     dataset_iteration_to_plot=0):
+                           output_folder=None,
+                           scores=['shd', 'f1', 'precision', 'recall', 'time', 'memory'],
+                           dataset_iteration_to_plot=0):
         '''
         Function to plot the result of the benchmark in a particular configuration (in case 
             the csv files has more than one configuration, the first one is shown)
@@ -397,7 +398,7 @@ class BenchmarkBase(ABC):
                                 for filename in results_files}
         
         for score in scores:
-            fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+            fig, ax = plt.subplots(1, 1, figsize=(15, 7.5))
             all_results = []
             for algorithm_name, df_results in results_dataframes.items():
                 if dataset_iteration_to_plot == -1: # Get the results for the last dataset iteration
@@ -407,9 +408,9 @@ class BenchmarkBase(ABC):
                 current_dataset_results['algorithm'] = algorithm_name
                 all_results.append(current_dataset_results)
             
-            all_results_df = pd.concat(all_results)
+            all_results_df = pd.concat(all_results, ignore_index=True)
             sns.violinplot(x='algorithm', y=score, data=all_results_df,
-                           hue='algorithm',ax=ax)
+                           hue='algorithm', ax=ax)
             ax.grid(axis='y')
             
             
@@ -420,10 +421,28 @@ class BenchmarkBase(ABC):
                 ax.set_ylim(bottom=0, top=None)
                 
             algorithms_names = list(results_dataframes.keys())
-            ax.set_xticks(range(len(algorithms_names)), algorithms_names)
+            
+            # --- X-AXIS VERTICAL STEPPING LOGIC ---
+            num_algos = len(algorithms_names)
+            step_count = 1
+            if num_algos > 5:
+                step_count = 2 # Alternate between 2 levels
+            if num_algos > 10:
+                step_count = 3 # Alternate between 3 levels if there are a lot
+                
+            staggered_names = []
+            for i, name in enumerate(algorithms_names):
+                # Multiply the newline character based on the current step cycle
+                prefix = '\n' * (i % step_count)
+                staggered_names.append(prefix + name)
+                
+            ax.set_xticks(range(len(staggered_names)))
+            ax.set_xticklabels(staggered_names)
+            
             ax.set_ylabel(score)
             
-            plt.savefig(f'{output_folder}/comparison_{score}.pdf')
+            # Added bbox_inches='tight' so the new taller labels aren't cropped out
+            plt.savefig(f'{output_folder}/comparison_{score}.pdf', bbox_inches='tight')
             plt.close('all')
 
 

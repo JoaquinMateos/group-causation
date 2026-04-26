@@ -76,6 +76,7 @@ def generate_group_causal_process_structure(
         multivariate_funcs: List[Callable] = [lambda x, y: x * y], 
         dependency_coeffs: List[float] = [-0.4, 0.4], 
         auto_coeffs: List[float] = [0.4], 
+        enforce_autoregression: bool = True,
         seed: Union[int, None] = None,
         enforce_stationarity: bool = True
     ) -> Tuple[dict, set]:
@@ -156,11 +157,22 @@ def generate_group_causal_process_structure(
 
         # 3. GENERATE AUTO-DEPENDENCIES
         links = {i: [] for i in range(N)}
-        if max_lag > 0 and auto_coeffs:
+        if enforce_autoregression and max_lag <= 0:
+            raise ValueError("enforce_autoregression=True requires max_lag > 0.")
+
+        if max_lag > 0:
+            # Always keep a non-zero AR(1) term when enforce_autoregression=True.
+            nonzero_auto_coeffs = [float(c) for c in auto_coeffs if float(c) != 0.0]
+            default_auto_coeff = 0.4
+
             for i in range(N):
-                a_coeff = float(rs.choice(auto_coeffs))
-                if a_coeff != 0.0:
-                    links[i].append(( ((i, -1),), a_coeff, dependency_funcs[0] ))
+                if enforce_autoregression:
+                    a_coeff = float(rs.choice(nonzero_auto_coeffs)) if nonzero_auto_coeffs else default_auto_coeff
+                    links[i].append((((i, -1),), a_coeff, dependency_funcs[0]))
+                elif auto_coeffs:
+                    a_coeff = float(rs.choice(auto_coeffs))
+                    if a_coeff != 0.0:
+                        links[i].append((((i, -1),), a_coeff, dependency_funcs[0]))
 
         # 4. PACKAGE AND APPLY FUNCTIONS (Univariate / Multivariate) FOR CROSS-LINKS
         for target_node, parents in incoming_edges.items():
@@ -198,24 +210,29 @@ def _apply_non_stationarity(time_series: np.ndarray, params: dict) -> tuple[np.n
     mod_ts = time_series.copy().astype(float)
     
     # Select which variables will become non-stationary
-    fraction = params.get("fraction", 0.3)
-    num_vars = max(1, int(N * fraction))
+    fraction = params["fraction"]
+    num_vars = max(0, int(N * fraction))
     affected_vars = np.random.choice(N, size=num_vars, replace=False).tolist()
     non_stationarity_info["affected_vars"] = affected_vars
     
     if non_stationarity_info["type"] == "regime_shifts":
-        num_shifts = params.get("num_shifts", 3)
-        max_mean_mod = params.get("max_mean_mod", 5.0)
-        max_std_mod = params.get("max_std_mod", 3.0) # Used as a multiplier limit
+        num_shifts = params["num_shifts"]
+        max_mean_mod = params["max_mean_mod"]
+        max_std_mod = params["max_std_mod"] # Used as a multiplier limit
         
         non_stationarity_info["num_shifts"] = num_shifts
         non_stationarity_info["max_mean_mod"] = max_mean_mod
         non_stationarity_info["max_std_mod"] = max_std_mod
         non_stationarity_info["shift_details"] = {}
         
-        # Divide time series into (num_shifts + 1) equal segments
+        # Generate random shift points instead of equally spaced segments
         num_regimes = num_shifts + 1
-        segment_bounds = np.linspace(0, T, num_regimes + 1, dtype=int)
+        if num_shifts > 0:
+            # Pick `num_shifts` unique random points between index 1 and T-1, then sort them
+            shift_points = np.sort(np.random.choice(np.arange(1, T), size=num_shifts, replace=False))
+            segment_bounds = np.concatenate(([0], shift_points, [T]))
+        else:
+            segment_bounds = np.array([0, T])
         
         for v in affected_vars:
             var_shifts = []
@@ -264,7 +281,7 @@ def generate_data_from_causal_process_structure(
         noise_sigmas: List[float] = [0.2], 
         transient_fraction: float = 0.2, 
         seed: Union[int, None] = None,
-        non_stationarity_params: Union[dict, None] = None # NEW ARGUMENT
+        non_stationarity_params: dict = {}
     ) -> Tuple[np.ndarray, bool, dict]: # MODIFIED RETURN TO PASS BACK INFO
     """Unrolls the equations over time to generate the synthetic dataset."""
     rs = np.random.RandomState(seed)
@@ -294,7 +311,7 @@ def generate_data_from_causal_process_structure(
 
     # 2. Shift the noise if non-stationarity is requested
     non_stationarity_info = {"applied": False}
-    if non_stationarity_params is not None:
+    if non_stationarity_params != {}:
         noise_matrix, non_stationarity_info = _apply_non_stationarity(noise_matrix, non_stationarity_params)
 
     # 3. Unroll causal relationships utilizing the pre-determined noise

@@ -2,21 +2,20 @@ import numpy as np
 import itertools
 from typing import Any, Optional, Union
 from sklearn.linear_model import LinearRegression
+from scipy.stats import chi2
 import logging
 
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
-from group_causation.group_causal_discovery.group_resit import HSIC_Test
+from group_causation.independence_tests import HSIC_Test
 from group_causation.group_causal_discovery.iVAE.wrappers import IVAE_wrapper
-
-# Assuming HSIC_Test is imported from your library
-# from your_library import HSIC_Test 
+ 
 
 class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
     '''
     Group causal discovery algorithm for non-stationary data.
     Uses iVAE for identifiable dimension reduction (using one-hot background u) on each group, 
     followed by a custom Group-PCMCI that uses HSIC to find causal links directly 
-    between the group embeddings.
+    between the group embeddings. Independence tests are localized per regime.
     '''
     def __init__(self, 
                  data: np.ndarray,
@@ -72,6 +71,8 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
         self._group_latent_dims = [group_latent_dims] * len(self._groups) if isinstance(group_latent_dims, int) else group_latent_dims
         if len(self._group_latent_dims) != len(self._groups):
             raise ValueError("group_latent_dims must have one entry per group.")
+        
+        self._group_latent_dims = [min(dim, len(group)) for dim, group in zip(self._group_latent_dims, self._groups)]
             
         self._ivae_params = ivae_params if ivae_params is not None else {}
         self._pcmci_params = pcmci_params if pcmci_params is not None else {}
@@ -92,7 +93,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
         Run the custom Group-PCMCI algorithm on the iVAE embeddings.
         '''
         if self._verbose > 0:
-            logging.info("Extracting parents using custom Group-PCMCI with Residual-HSIC.")
+            logging.info("Extracting parents using custom Group-PCMCI with localized Residual-HSIC.")
         return self._run_group_pcmci()
 
     def _prepare_group_embeddings(self) -> list[np.ndarray]:
@@ -109,6 +110,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             # Reduce dimensionality
             group_params = dict(self._ivae_params)
             group_params.setdefault('inference_dim', self._group_latent_dims[idx])
+            logging.info(f"iVAE input for group {idx}: {group_data.shape=}, {self.u.shape=}")
             group_latents, _, _, _ = IVAE_wrapper(group_data, self.u, **group_params)
 
             # Append the group representations directly
@@ -118,8 +120,9 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
 
     def _test_ci(self, x_var: int, x_lag: int, y_var: int, y_lag: int, z_list: list[tuple[int, int]]) -> tuple[float, float]:
         '''
-        Evaluates Momentary Conditional Independence using Residual HSIC.
-        $X_{t-tau} \perp\!\!\!\perp Y_t \mid Z$
+        Evaluates localized Momentary Conditional Independence using Residual HSIC.
+        $X_{t-tau} \perp\!\!\!\perp Y_t \mid Z$ is evaluated independently per regime u,
+        then p-values are aggregated using Fisher's method.
         '''
         all_lags = [x_lag, y_lag] + [z_lag for _, z_lag in z_list]
         max_l = max(all_lags) if all_lags else 0
@@ -140,20 +143,82 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             Z_data_list = []
             for z_var, z_lag in z_list:
                 Z_data_list.append(self.group_embeddings[z_var][start_t - z_lag : end_t - z_lag])
-            
             Z_data = np.concatenate(Z_data_list, axis=1)
-            
-            # Partial out Z
-            reg_x = LinearRegression().fit(Z_data, X_data)
-            res_x = X_data - reg_x.predict(Z_data)
-            
-            reg_y = LinearRegression().fit(Z_data, Y_data)
-            res_y = Y_data - reg_y.predict(Z_data)
         else:
-            res_x = X_data
-            res_y = Y_data
+            Z_data = None
+
+        # ---------------------------------------------------------
+        # Localize by Regime 'u' (if applicable)
+        # ---------------------------------------------------------
+        # Align u with the target Y_t
+        u_sliced = self.u[start_t : end_t]
+        
+        # Determine if u is discrete regimes or a continuous time_index
+        # We assume it's continuous if the number of unique values is exceptionally high
+        unique_vals = np.unique(u_sliced, axis=0) if u_sliced.ndim == 2 else np.unique(u_sliced)
+        is_continuous = len(unique_vals) > (len(u_sliced) // 2)
+
+        if is_continuous:
+            # Treat the entire time series as a single global regime
+            regime_masks = [np.ones(len(u_sliced), dtype=bool)]
+        elif u_sliced.ndim == 2 and set(np.unique(u_sliced)).issubset({0, 1}): 
+            # Safely identify one-hot encoded discrete regimes
+            num_regimes = u_sliced.shape[1]
+            regime_masks = [u_sliced[:, r] == 1 for r in range(num_regimes)]
+        else: 
+            # 1D Array categorical regimes
+            if u_sliced.ndim == 2:
+                u_sliced = u_sliced.flatten()
+            regime_masks = [u_sliced == val for val in np.unique(u_sliced)]
+
+        p_values = []
+        stats = []
+
+        for mask in regime_masks:
+            # HSIC requires a minimum number of samples to be mathematically sound. 
+            if np.sum(mask) < 6:
+                logging.warning(f"Regime with {np.sum(mask)} samples is too small for reliable HSIC testing. Skipping this regime.")
+                continue
+
+            X_local = X_data[mask]
+            Y_local = Y_data[mask]
+
+            if Z_data is not None:
+                Z_local = Z_data[mask]
+                
+                # Partial out Z locally for this regime
+                reg_x = LinearRegression().fit(Z_local, X_local)
+                res_x = X_local - reg_x.predict(Z_local)
+                
+                reg_y = LinearRegression().fit(Z_local, Y_local)
+                res_y = Y_local - reg_y.predict(Z_local)
+            else:
+                res_x = X_local
+                res_y = Y_local
+                
+            # Perform HSIC on localized residuals
+            stat, pval = HSIC_Test.test(res_x, res_y,
+                # If a time series is the background variable, we want to preserve local temporal structure by using sequential chunks instead of random subsampling
+                sequential_chunks=is_continuous)
             
-        return HSIC_Test.test(res_x, res_y)
+            # Floor p-value slightly above 0 to prevent issues
+            pval = max(pval, 1e-15)
+            p_values.append(pval)
+            stats.append(stat)
+
+        # If no regime had enough samples to test, assume independence
+        if not p_values:
+            logging.warning(f"No valid regimes with sufficient samples for testing independence between variable {x_var} (lag {x_lag}) and variable {y_var} (lag {y_lag}). Assuming independence.")
+            return 0.0, 1.0
+
+        # Aggregate p-values using Fisher's Method
+        chi2_stat = -2.0 * np.sum(np.log(p_values))
+        degrees_of_freedom = 2 * len(p_values)
+        combined_p_value = float(chi2.sf(chi2_stat, degrees_of_freedom))
+        
+        mean_stat = float(np.mean(stats))
+
+        return mean_stat, combined_p_value
 
     def _run_group_pcmci(self) -> dict[int, list[tuple[int, int]]]:
         '''

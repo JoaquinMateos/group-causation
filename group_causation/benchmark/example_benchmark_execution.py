@@ -9,33 +9,42 @@ import torch
 from group_causation.benchmark import BenchmarkGroupCausalDiscovery
 import os
 
-from group_causation.utils import changing_N_groups, changing_N_variables, changing_N_vars_per_group, changing_alg_params, changing_latent_confounding_fraction, changing_preselection_alpha, static_parameters
+from group_causation.utils import changing_N_groups, changing_N_variables, changing_N_vars_per_group, changing_alg_params, changing_latent_confounding_fraction, changing_non_stationarity_params, changing_preselection_alpha, static_parameters
 from group_causation.group_causal_discovery import DimensionReductionGroupCausalDiscovery
 from group_causation.group_causal_discovery import MicroLevelGroupCausalDiscovery
 from group_causation.group_causal_discovery import HybridGroupCausalDiscovery
 from group_causation.group_causal_discovery import GroupRESITTimeSeriesCausalDiscovery
 from group_causation.group_causal_discovery import gCDMICausalDiscovery
-from group_causation.group_causal_discovery import IVAEProposalCausalDiscovery
 from group_causation.group_causal_discovery import IVAE_GroupPCMCI_Proposal
 
 MIN_LAG = 1
-MAX_LAG = 3
+MAX_LAG = 2
 
 algorithms = {
     'Group-Embedding': HybridGroupCausalDiscovery,
-    'Subgroups': HybridGroupCausalDiscovery,
+    'Group-Embedding - with shift knowledge': HybridGroupCausalDiscovery,
     'PCA+PCMCI': DimensionReductionGroupCausalDiscovery,
+    'PCA+PCMCI - with shift knowledge': DimensionReductionGroupCausalDiscovery,
+    # 'Subgroups': HybridGroupCausalDiscovery,
     # 'PCA+DYNOTEARS': DimensionReductionGroupCausalDiscovery,
     'Micro-Level': MicroLevelGroupCausalDiscovery,
+    'Micro-Level - with shift knowledge': MicroLevelGroupCausalDiscovery,
     # 'GroupRESIT': GroupRESITTimeSeriesCausalDiscovery,
     # 'gCDMI': gCDMICausalDiscovery,
     # 'iVAE-Proposal': IVAEProposalCausalDiscovery,
-    'iVAE-GroupPCMCI-Proposal': IVAE_GroupPCMCI_Proposal,
+    'Proposal': IVAE_GroupPCMCI_Proposal,
+    'Proposal - with shift knowledge': IVAE_GroupPCMCI_Proposal,
 }
 algorithms_parameters = {
     'PCA+PCMCI': {'dimensionality_reduction': 'pca', 'node_causal_discovery_alg': 'pcmci',
                             'node_causal_discovery_params': {'min_lag': MIN_LAG,
                                                              'max_lag': MAX_LAG,
+                                                             'cond_ind_test': 'localized_hsic',
+                                                             'pc_alpha': 0.05}},
+    'PCA+PCMCI - with shift knowledge': {'dimensionality_reduction': 'pca', 'node_causal_discovery_alg': 'pcmci',
+                            'node_causal_discovery_params': {'min_lag': MIN_LAG,
+                                                             'max_lag': MAX_LAG,
+                                                             'cond_ind_test': 'shift_based_local_hsic',
                                                              'pc_alpha': 0.05}},
     
     'PCA+DYNOTEARS': {'dimensionality_reduction': 'pca', 'node_causal_discovery_alg': 'dynotears',
@@ -46,6 +55,12 @@ algorithms_parameters = {
     'Micro-Level': {'node_causal_discovery_alg': 'pcmci',
                             'node_causal_discovery_params': {'min_lag': MIN_LAG,
                                                              'max_lag': MAX_LAG,
+                                                             'cond_ind_test': 'localized_hsic',
+                                                             'pc_alpha': 0.05}},
+    'Micro-Level - with shift knowledge': {'node_causal_discovery_alg': 'pcmci',
+                            'node_causal_discovery_params': {'min_lag': MIN_LAG,
+                                                             'max_lag': MAX_LAG,
+                                                             'cond_ind_test': 'shift_based_local_hsic',
                                                              'pc_alpha': 0.05}},
     
     'Group-Embedding': {'dimensionality_reduction': 'pca', 
@@ -54,6 +69,17 @@ algorithms_parameters = {
                 'node_causal_discovery_alg': 'pcmci',
                 'node_causal_discovery_params': {'min_lag': MIN_LAG,
                                                  'max_lag': MAX_LAG,
+                                                 'cond_ind_test': 'localized_hsic',
+                                                 'pc_alpha': 0.05},
+                'verbose': 2},
+    
+    'Group-Embedding - with shift knowledge': {'dimensionality_reduction': 'pca', 
+               'dimensionality_reduction_params': {'explained_variance_threshold': 0.3,
+                                                   'groups_division_method': 'group_embedding'},
+                'node_causal_discovery_alg': 'pcmci',
+                'node_causal_discovery_params': {'min_lag': MIN_LAG,
+                                                 'max_lag': MAX_LAG,
+                                                 'cond_ind_test': 'shift_based_local_hsic',
                                                  'pc_alpha': 0.05},
                 'verbose': 2},
     
@@ -68,10 +94,10 @@ algorithms_parameters = {
     'GroupRESIT': {
                 'min_lag': MIN_LAG,
                 'max_lag': MAX_LAG,
-                'epochs': 200,
+                'epochs': 500,
                 'hidden_dim': 64,
                 # MURGS hyperparameters
-                'lambda_reg': 1e-2,
+                'lambda_reg': 2e-2,
                 'pruning_threshold': 1e-1,
         },
     'gCDMI': {
@@ -84,22 +110,16 @@ algorithms_parameters = {
                 'alpha': 0.5,
                 'learning_rate': 0.001,
                 'lambda_l1': 1e-4},
-    'iVAE-Proposal': {
-                'min_lag': MIN_LAG,
-                'max_lag': MAX_LAG,
-                # Auxiliary variable u: time index for each sample t
-                # Shape must be (n_samples, n_aux_vars)
-                'u': None,
-                # Proposal-level settings
-                'global_latent_dim': 8,
+    
+    'Proposal': {
+                'u': 'time_index',
+                'global_latent_dim': 5,
                 'group_latent_dims': 3,
-                'node_causal_discovery_alg': 'pcmci',
-                'node_causal_discovery_params': {
-                    'min_lag': MIN_LAG,
-                    'max_lag': MAX_LAG,
+                'pcmci_params': {
+                    'tau_max': MAX_LAG,
                     'pc_alpha': 0.05,
+                    'max_conds_dim': 3,
                 },
-                # iVAE network/training settings used by IVAE_wrapper
                 'ivae_params': {
                     'batch_size': 128,
                     'max_iter': 1000,
@@ -113,17 +133,17 @@ algorithms_parameters = {
                     'activation': 'lrelu',
                     'slope': 0.1,
                     'discrete': False,
-                    'inference_dim': 3,
                     'anneal': True,
                     'scheduler_tol': 5,
                 },
                 'verbose': 1,
     },
-    'iVAE-GroupPCMCI-Proposal': {
+    
+    'Proposal - with shift knowledge': {
                 # Use generated non-stationarity metadata as iVAE auxiliary context.
                 'u': 'non_stationarity_shift',
-                'global_latent_dim': 8,
-                'group_latent_dims': 3,
+                'global_latent_dim': 5,
+                'group_latent_dims': 1,
                 'pcmci_params': {
                     'tau_max': MAX_LAG,
                     'pc_alpha': 0.05,
@@ -152,16 +172,16 @@ algorithms_parameters = {
 data_generation_options = {
     'T': 2000, # Number of time points in the dataset
     'N_vars': 20, # Number of variables in the dataset
-    'N_groups': 6, # Number of groups in the dataset
-    'inner_group_crosslinks_density': 0.2, # Density of possible links between nodes of the same group that are created
-    'outer_group_crosslinks_density': 0.3, # Density of possible links between groups that are created (if the groups are connected at group level)
+    'N_groups': 5, # Number of groups in the dataset
+    'inner_group_crosslinks_density': 0.1, # Density of possible links between nodes of the same group that are created
+    'outer_group_crosslinks_density': 0.2, # Density of possible links between groups that are created (if the groups are connected at group level)
     # Confounding params
     'latent_confounding_fraction': 0, # Fraction of latent confounders at the group level (these are groups that are generated but then hidden, so they create latent confounding between the visible groups)
-    'maximum_of_nodes_confounded': 4,
+    'maximum_of_nodes_confounded': 3, # Maximum number of nodes per group that can be affected by a single latent confounder
     
-    'n_node_links_per_group_link': 4, # Number of links between nodes of two groups that are connected at group level
+    'n_node_links_per_group_link': 2, # Number of links between nodes of two groups that are connected at group level
     'contemp_fraction': 0, # Fraction of links that are contemporaneous (lag 0)
-    'cross_terms_fraction': 0.2, # Fraction of links that are cross-terms (multivariate interactions from multiple parents, instead of simple univariate functions of each parent)
+    'cross_terms_fraction': 0.3, # Fraction of links that are cross-terms (multivariate interactions from multiple parents, instead of simple univariate functions of each parent)
     
     # Dependency functions
     'max_lag': MAX_LAG,
@@ -172,22 +192,21 @@ data_generation_options = {
                          lambda x: 2 * min(x**2, 100), # La correlación de Pearson no detecta relaciones cuadráticas
                           lambda x: 1 / (1 + np.exp(-x)) # Sigmoidal
                          ], # Options: 'linear', 'negative-exponential', 'sin', 'cos', 'step'
-    'multivariate_funcs': [lambda x, y: 2 * min(x * y, 100)], # Función multiplicativa con capping para evitar valores extremadamente grandes
-    'dependency_coeffs': [-0.3, -0.2, 0.2, 0.3], # Coefficients for the parent dependencies (these are the :math:`\\beta_{ij}` in the equation in the docstring of generate_toy_data)
-    'auto_coeffs': [0.3], # Coefficients for the auto-dependencies (lags of the same variable)
-    'noise_dists': ['gaussian', 'weibull'], # List of noise distributions for each variable (in {'gaussian'}, or a function that generates noise given the number of samples)
-    'noise_sigmas': [0.2], # Noise standard deviations for each variable (if noise_dists is 'gaussian', these are the standard deviations of the Gaussian noise)
+    'multivariate_funcs': [lambda x, y: 2 * np.clip(x, -10, 10) * np.clip(y, -10, 10)], # Función multiplicativa con capping para evitar valores extremadamente grandes
+    'dependency_coeffs': [-0.6, 0.6], # Coefficients for the parent dependencies (these are the :math:`\\beta_{ij}` in the equation in the docstring of generate_toy_data)
+    'auto_coeffs': [0.6], # Coefficients for the auto-dependencies (lags of the same variable)
+    'noise_dists': ['gaussian'],# , 'weibull'], # List of noise distributions for each variable (in {'gaussian'}, or a function that generates noise given the number of samples)
+    'noise_sigmas': [0.1], # Noise standard deviations for each variable (if noise_dists is 'gaussian', these are the standard deviations of the Gaussian noise)
     'group_links': None,
     
     # Stationarity options
-    'non_stationarity_params': {}
-        # 'type': 'regime_shifts',
-        #     'fraction': 0.2,            # Fractions of variables affected of variables
-        #     'num_shifts': 3,            # Divides the timeline into 4 equal segments
-        #     'max_mean_mod': 10.0,       # Shifts the mean anywhere between -10 and +10
-        #     'max_std_mod': 2.0          # Scales the variance anywhere between 0.5x and 2.0x
-        # }
-    
+    'non_stationarity_params': {
+        'type': 'regime_shifts',
+            'fraction': 0.5,            # Fractions of variables affected of variables
+            'num_shifts': 3,            # Divides the timeline into 4 equal segments
+            'max_mean_mod': 5.0,       # Shifts the base mean anywhere between -max_mean_mod and +max_mean_mod
+            'max_std_mod': 2.0          # Scales the variance anywhere between 0.5x and 2.0x
+        }
 }
 
 benchmark_options = {
@@ -207,6 +226,12 @@ benchmark_options = {
     
     'increasing_latent_confounding': (changing_latent_confounding_fraction,
                                     {'list_latent_confounding_fraction': [0, 0.17, 0.33, 0.5]}),
+
+    'increasing_non_stationarity': (changing_non_stationarity_params,
+                                    {'list_non_stationarity_params': \
+                                        [{'type': 'regime_shifts', 'fraction': fraction, 'num_shifts': num_shifts, 'max_mean_mod': 10.0, 'max_std_mod': 5.0} \
+                                            for num_shifts, fraction in zip([3]*4, np.linspace(0, 0.5, 4))
+                                        ],}),
     
     'changing_alg_params': (changing_alg_params,
                                     {'alg_name': 'subgroups',
@@ -233,12 +258,12 @@ if __name__ == '__main__':
     results_folder = 'results'
     datasets_folder = f'{results_folder}/toy_data'
     
-    execute_benchmark = True
     generate_toy_data = True
+    execute_benchmark = True
     plot_graphs = True
     n_executions = 5
     
-    dataset_iteration_to_plot = 0
+    dataset_iteration_to_plot = -1
     plot_x_axis = 'N_vars'
 
     options_generator, options_kwargs = benchmark_options[chosen_option]
@@ -278,4 +303,5 @@ if __name__ == '__main__':
                                         scores=[f'{score}_summary' for score in \
                                                         ['shd', 'f1', 'precision', 'recall']],
                                         dataset_iteration_to_plot=dataset_iteration_to_plot)
-    
+
+        benchmark.plot_ts_datasets(datasets_folder)

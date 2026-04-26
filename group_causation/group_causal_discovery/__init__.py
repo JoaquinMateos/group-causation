@@ -5,5 +5,4 @@ from .hybrid import HybridGroupCausalDiscovery
 from .adag import ADAG
 from .group_resit import GroupRESITTimeSeriesCausalDiscovery
 from .gcdmi import gCDMICausalDiscovery
-from .proposal_latent_confounders import IVAEProposalCausalDiscovery
 from .proposal_non_stationarity import IVAE_GroupPCMCI_Proposal

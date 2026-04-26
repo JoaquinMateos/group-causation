@@ -89,6 +89,23 @@ def changing_latent_confounding_fraction(
         
         yield algorithms_parameters, options
 
+def changing_non_stationarity_params(
+    options: dict[str, Any],
+    algorithms_parameters: dict[str, Any],
+    list_non_stationarity_params: Union[list[dict[str, Any]], None] = None
+) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
+    if list_non_stationarity_params is None:
+        list_non_stationarity_params = [
+            {'type': 'regime_shifts', 'fraction': 0.1, 'num_shifts': 2, 'max_mean_mod': 5.0, 'max_std_mod': 2.0},
+        ]
+    
+    for non_stationarity_params in list_non_stationarity_params:
+        options['non_stationarity_params'] = non_stationarity_params
+        options['num_shifts'] = non_stationarity_params['num_shifts']
+        options['drift_fraction'] = non_stationarity_params['fraction']
+        
+        yield algorithms_parameters, options
+
 def increasing_N_vars_per_group(
     options: dict[str, Any],
     algorithms_parameters: dict[str, Any],

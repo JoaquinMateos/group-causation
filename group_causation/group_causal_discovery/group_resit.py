@@ -9,102 +9,11 @@ from abc import abstractmethod
 
 # Assuming GroupCausalDiscovery is defined elsewhere in your project
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
+from group_causation.independence_tests import HSIC_Test
 
 
 # ---------------------------------------------------------------------------
-# 1. HSIC Independence Test (Unchanged - Used for Phase I)
-# ---------------------------------------------------------------------------
-class HSIC_Test:
-    """Hilbert-Schmidt Independence Criterion using Gamma approximation."""
-    
-    @staticmethod
-    def get_kernel_width(X: np.ndarray, sample_cut: int = 100) -> float:
-        n_samples = X.shape[0]
-        if n_samples > sample_cut:
-            X_med = X[:sample_cut, :]
-            n_samples = sample_cut
-        else:
-            X_med = X
-
-        G = np.sum(X_med * X_med, 1).reshape(n_samples, 1)
-        dists = G + G.T - 2 * np.dot(X_med, X_med.T)
-        dists = dists - np.tril(dists)
-        dists = dists.reshape(n_samples**2, 1)
-        med = np.median(dists[dists > 0])
-        return np.sqrt(0.5 * med) if med > 0 else 1.0
-
-    @staticmethod
-    def get_gram_matrix(X: np.ndarray, width: float) -> tuple[np.ndarray, np.ndarray]:
-        n = X.shape[0]
-        G = np.sum(X * X, axis=1)
-        H = G[None, :] + G[:, None] - 2 * np.dot(X, X.T)
-        K = np.exp(-H / (2 * (width**2)))
-        
-        K_colsums = K.sum(axis=0)
-        K_rowsums = K.sum(axis=1)
-        K_allsum = K_rowsums.sum()
-        Kc = K - (K_colsums[None, :] + K_rowsums[:, None]) / n + (K_allsum / n**2)
-        return K, Kc
-
-    @classmethod
-    def test(cls, X: np.ndarray, Y: np.ndarray, max_samples=500, n_ensembles=5) -> tuple[float, float]:
-        X = X.reshape(-1, 1) if X.ndim == 1 else X
-        Y = Y.reshape(-1, 1) if Y.ndim == 1 else Y
-        n = X.shape[0]
-        
-        if n <= max_samples:
-            return cls._single_test(X, Y)
-            
-        p_vals = []
-        stats = []
-        
-        for _ in range(n_ensembles):
-            idx = np.random.choice(n, max_samples, replace=False)
-            s, p = cls._single_test(X[idx], Y[idx])
-            p_vals.append(p)
-            stats.append(s)
-            
-        return float(np.mean(stats)), float(np.median(p_vals))
-
-    @classmethod
-    def _single_test(cls, X: np.ndarray, Y: np.ndarray) -> tuple[float, float]:
-        X = X.reshape(-1, 1) if X.ndim == 1 else X
-        Y = Y.reshape(-1, 1) if Y.ndim == 1 else Y
-        n = X.shape[0]
-        
-        if n < 6:
-            return 0.0, 1.0 
-
-        width_x = cls.get_kernel_width(X)
-        width_y = cls.get_kernel_width(Y)
-
-        K, Kc = cls.get_gram_matrix(X, width_x)
-        L, Lc = cls.get_gram_matrix(Y, width_y)
-
-        test_stat = (1 / n) * np.sum(Kc.T * Lc)
-
-        var = (1 / 6 * Kc * Lc) ** 2
-        var = (1 / (n * (n - 1))) * (np.sum(var) - np.trace(var))
-        var = 72 * (n - 4) * (n - 5) / (n * (n - 1) * (n - 2) * (n - 3)) * var
-
-        K[np.diag_indices(n)] = 0
-        L[np.diag_indices(n)] = 0
-        mu_X = 1 / (n * (n - 1)) * K.sum()
-        mu_Y = 1 / (n * (n - 1)) * L.sum()
-        
-        mean = 1 / n * (1 + mu_X * mu_Y - mu_X - mu_Y)
-        
-        if var <= 0 or mean <= 0:
-            return float(test_stat), 1.0
-
-        alpha = mean**2 / var
-        beta = var * n / mean
-        p_val = gamma.sf(test_stat, alpha, scale=beta)
-
-        return float(test_stat), float(p_val)
-
-# ---------------------------------------------------------------------------
-# 2. MLP Regressors (Standard & Spatio-Temporal MURGS)
+# MLP Regressors (Standard & Spatio-Temporal MURGS)
 # ---------------------------------------------------------------------------
 class MultiOutputMLP(nn.Module):
     def __init__(self, input_dim: int, output_dim: int, hidden_dim: int = 100):
@@ -189,11 +98,11 @@ class SpatioTemporalMURGSRegressor(GroupRegressor):
                 # Apply Spatio-Temporal Group Lasso (MURGS Penalty)
                 reg_loss = 0.0
                 start_idx = 0
-                W_in = torch.tensor(self.model.net[0].weight)  # Shape: (hidden_dim, input_dim)
+                W_in = self.model.net[0].weight
                 
                 for g_dim in group_dims:
                     end_idx = start_idx + g_dim
-                    W_group = W_in[:, start_idx:end_idx]
+                    W_group = W_in[:, start_idx:end_idx] # type: ignore
                     # MURGS functional: sqrt(d_g) * ||W_g||_F
                     reg_loss += math.sqrt(g_dim) * torch.norm(W_group, p='fro')
                     start_idx = end_idx
@@ -208,16 +117,16 @@ class SpatioTemporalMURGSRegressor(GroupRegressor):
         norms = []
         start_idx = 0
         with torch.no_grad():
-            W_in = torch.tensor(self.model.net[0].weight.cpu())
+            W_in = self.model.net[0].weight.cpu()
             for g_dim in group_dims:
                 end_idx = start_idx + g_dim
-                W_group = W_in[:, start_idx:end_idx]
+                W_group = W_in[:, start_idx:end_idx] # type: ignore
                 norms.append(float(torch.norm(W_group, p='fro')))
                 start_idx = end_idx
         return norms
 
 # ---------------------------------------------------------------------------
-# 3. Time-Series GroupRESIT-MURGS Algorithm
+# Time-Series GroupRESIT-MURGS Algorithm
 # ---------------------------------------------------------------------------
 class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
     '''

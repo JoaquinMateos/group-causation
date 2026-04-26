@@ -175,6 +175,7 @@ class CausalDataset:
                                 noise_dists=['gaussian'], noise_sigmas=[0.5, 2],
                                 datasets_folder = None, maximum_tries=100, 
                                 group_links = None,
+                                non_stationarity_params={},
                                 **kw_generation_args) \
                             -> tuple[np.ndarray, dict[int,
                                                     list[tuple[int, int]]],
@@ -223,12 +224,11 @@ class CausalDataset:
                     multivariate_funcs=multivariate_funcs,
                     dependency_coeffs=dependency_coeffs,
                     auto_coeffs=auto_coeffs,
-                    enforce_stationarity=True 
+                    enforce_stationarity=(non_stationarity_params != {})
                 )
 
                 visible_nodes = [n for n in range(total_vars) if n not in latent_nodes]
 
-                non_stationarity_params = kw_generation_args.get('non_stationarity_params', None)
 
                 # 4. Generate full inflated data
                 full_time_series, nonvalid, self.non_stationarity_info = generate_data_from_causal_process_structure(
@@ -406,6 +406,15 @@ def _extract_subgraph(parents: dict[int, list[tuple[int,int]]],
             curr, cum_lag = queue.popleft()
             
             for p, lag in parents.get(curr, []):
+                # Keep direct autoregressive links of the chosen node.
+                # Without this, (child, -1) can be dropped by the visited check and
+                # only delayed self-paths (e.g., -2) may remain after marginalization.
+                if curr == child and p == child and lag < 0:
+                    edge = (idx_of[p], cum_lag + lag)
+                    if edge not in new_parents[child_idx]:
+                        new_parents[child_idx].append(edge)
+                    continue
+
                 if p in visited:
                     continue
                 total_lag = cum_lag + lag

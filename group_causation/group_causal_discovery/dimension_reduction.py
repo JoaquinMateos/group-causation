@@ -4,7 +4,7 @@ from typing import Any, Union
 
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.micro_causal_discovery.causal_discovery_causalnex import DynotearsWrapper
-from group_causation.micro_causal_discovery.causal_discovery_tigramite import PCMCIWrapper, PCStableWrapper
+from group_causation.micro_causal_discovery.causal_discovery_tigramite import PCMCIWrapper
 from group_causation.micro_causal_discovery.micro_causal_discovery_base import MicroCausalDiscovery
 
 class DimensionReductionGroupCausalDiscovery(GroupCausalDiscovery):
@@ -90,8 +90,6 @@ class DimensionReductionGroupCausalDiscovery(GroupCausalDiscovery):
         '''
         if self.node_causal_discovery_alg == 'pcmci':
             return PCMCIWrapper(data=self._groups_data, **self.node_causal_discovery_params)
-        elif self.node_causal_discovery_alg == 'pc-stable':
-            return PCStableWrapper(data=self._groups_data, **self.node_causal_discovery_params)
         elif self.node_causal_discovery_alg == 'dynotears':
             return DynotearsWrapper(data=self._groups_data, **self.node_causal_discovery_params)
         else:

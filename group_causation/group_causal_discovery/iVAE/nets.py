@@ -68,6 +68,10 @@ def log_laplace(x, mu, b, broadcast_size=False):
     return -torch.log(2 * b) - (x - mu).abs().div(b)
 
 
+from numbers import Number
+import torch.nn as nn
+import torch.nn.functional as F
+
 class MLP(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dim, n_layers, activation='none', slope=.1, device='cpu'):
         super().__init__()
@@ -75,6 +79,8 @@ class MLP(nn.Module):
         self.output_dim = output_dim
         self.n_layers = n_layers
         self.device = device
+        
+        # 1. Setup hidden dimensions
         if isinstance(hidden_dim, Number):
             self.hidden_dim = [hidden_dim] * (self.n_layers - 1)
         elif isinstance(hidden_dim, list):
@@ -82,13 +88,16 @@ class MLP(nn.Module):
         else:
             raise ValueError('Wrong argument type for hidden_dim: {}'.format(hidden_dim))
 
+        # 2. Setup activations
         if isinstance(activation, str):
             self.activation = [activation] * (self.n_layers - 1)
         elif isinstance(activation, list):
-            self.hidden_dim = activation
+            # FIX: Previously you were assigning this to self.hidden_dim by mistake
+            self.activation = activation 
         else:
             raise ValueError('Wrong argument type for activation: {}'.format(activation))
 
+        # 3. Define activation functions
         self._act_f = []
         for act in self.activation:
             if act == 'lrelu':
@@ -96,19 +105,27 @@ class MLP(nn.Module):
             elif act == 'xtanh':
                 self._act_f.append(lambda x: self.xtanh(x, alpha=slope))
             elif act == 'sigmoid':
-                self._act_f.append(F.sigmoid)
+                self._act_f.append(torch.sigmoid)
             elif act == 'none':
                 self._act_f.append(lambda x: x)
             else:
-                ValueError('Incorrect activation: {}'.format(act))
+                raise ValueError('Incorrect activation: {}'.format(act))
 
+        # 4. Build Linear Layers
+        _fc_list = []
         if self.n_layers == 1:
-            _fc_list = [nn.Linear(self.input_dim, self.output_dim)]
+            _fc_list.append(nn.Linear(self.input_dim, self.output_dim))
         else:
-            _fc_list = [nn.Linear(self.input_dim, self.hidden_dim[0])]
+            # Input to first hidden
+            _fc_list.append(nn.Linear(self.input_dim, self.hidden_dim[0]))
+            
+            # Hidden to hidden
             for i in range(1, self.n_layers - 1):
                 _fc_list.append(nn.Linear(self.hidden_dim[i - 1], self.hidden_dim[i]))
-            _fc_list.append(nn.Linear(self.hidden_dim[self.n_layers - 2], self.output_dim))
+            
+            # Last hidden to output
+            _fc_list.append(nn.Linear(self.hidden_dim[-1], self.output_dim))
+            
         self.fc = nn.ModuleList(_fc_list)
         self.to(self.device)
 
@@ -121,8 +138,10 @@ class MLP(nn.Module):
         h = x
         for c in range(self.n_layers):
             if c == self.n_layers - 1:
+                # Output layer: no activation
                 h = self.fc[c](h)
             else:
+                # Hidden layers: linear + activation
                 h = self._act_f[c](self.fc[c](h))
         return h
 
@@ -301,11 +320,11 @@ class Normal(Dist):
         super().__init__()
         self.device = device
         self.c = 2 * np.pi * torch.ones(1).to(self.device)
-        self._dist = dist.normal.Normal(torch.zeros(1).to(self.device), torch.ones(1).to(self.device))
+        self._dist = dist.normal.Normal(torch.tensor(0.0).to(self.device), torch.tensor(1.0).to(self.device))
         self.name = 'gauss'
 
     def sample(self, mu, v):
-        eps = self._dist.sample(mu.size()).squeeze()
+        eps = torch.randn_like(mu)
         scaled = eps.mul(v.sqrt())
         return scaled.add(mu)
 
@@ -353,7 +372,7 @@ class Laplace(Dist):
     def __init__(self, device='cpu'):
         super().__init__()
         self.device = device
-        self._dist = dist.laplace.Laplace(torch.zeros(1).to(self.device), torch.ones(1).to(self.device) / np.sqrt(2))
+        self._dist = dist.laplace.Laplace(torch.tensor(0.0).to(self.device), torch.tensor(1.0 / np.sqrt(2)).to(self.device))
         self.name = 'laplace'
 
     def sample(self, mu, b):
@@ -376,7 +395,7 @@ class Bernoulli(Dist):
     def __init__(self, device='cpu'):
         super().__init__()
         self.device = device
-        self._dist = dist.bernoulli.Bernoulli(0.5 * torch.ones(1).to(self.device))
+        self._dist = dist.bernoulli.Bernoulli(torch.tensor(0.5).to(self.device))
         self.name = 'bernoulli'
 
     def sample(self, p):

@@ -184,3 +184,5 @@ data/
 code/comparisons/main/custom_benchmark/benchmark_causal_discovery.py
 code/comparisons/main/custom_benchmark/docs/source/conf.py
 src/docs
+group_causation/benchmark/example_benchmark_execution.py
+logs.txt

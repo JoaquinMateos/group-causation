@@ -47,8 +47,36 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
 
         groups_as_sets = [set(group) for group in causal_dataset.groups]
         current_algorithm_parameters = copy.deepcopy(algorithm_parameters)
+
+        # Safe defaults so finally can always compute a result, even after interrupts.
+        predicted_parents = {}
+        predicted_parents_window = {}
+        predicted_parents_summary = {}
+        time = np.nan
+        memory = np.nan
+
         if causal_dataset.non_stationarity_info.get('applied', False):
-            current_algorithm_parameters['non_stationarity_info'] = causal_dataset.non_stationarity_info
+            non_stationarity_info = copy.deepcopy(causal_dataset.non_stationarity_info)
+            # Keep top-level propagation for algorithms that consume it directly.
+            current_algorithm_parameters['non_stationarity_info'] = non_stationarity_info
+
+            # Also propagate to node-level discovery params used by:
+            # - Group-Embedding (Hybrid)
+            # - PCA+PCMCI (DimensionReduction)
+            # - Micro-Level
+            node_params = current_algorithm_parameters.get('node_causal_discovery_params')
+            if isinstance(node_params, dict):
+                node_params = copy.deepcopy(node_params)
+                node_params['non_stationarity_info'] = non_stationarity_info
+                current_algorithm_parameters['node_causal_discovery_params'] = node_params
+
+            if self.verbose > 1:
+                has_node_ns = isinstance(current_algorithm_parameters.get('node_causal_discovery_params'), dict) and \
+                              ('non_stationarity_info' in current_algorithm_parameters['node_causal_discovery_params'])
+                logging.info(
+                    f"{causalDiscovery.__name__}: propagated "
+                    f"{non_stationarity_info=}"
+                )
         
         try:
             algorithm = causalDiscovery(
@@ -89,16 +117,21 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
             
         finally:
             result = {'time': time, 'memory': memory}
-            actual_parents = causal_dataset.parents_dict
-            actual_parents_summary = window_to_summary_graph(actual_parents)
+            # Work on a copy to avoid mutating the dataset object in-place.
+            actual_parents = {
+                son: list(parents)
+                for son, parents in causal_dataset.parents_dict.items()
+            }
             
+            n_nodes = len(actual_parents)
+
+            actual_parents_summary = window_to_summary_graph(actual_parents)
+
             if self.verbose > 1:
                 logging.info(f'Predicted parents: \t{ {parent: sorted(sons) for parent, sons in predicted_parents.items()} }')
                 logging.info(f'Actual parents: \t\t{ {parent: sorted(sons) for parent, sons in actual_parents.items()} }')
                 logging.info(f'Predicted parents summary: \t{ {parent: sorted(sons) for parent, sons in predicted_parents_summary.items()} }')
                 logging.info(f'Actual parents summary: \t\t{ {parent: sorted(sons) for parent, sons in actual_parents_summary.items()} }')
-                
-            n_nodes = len(actual_parents)
             
             # --- 1. SPLIT THE WINDOW GRAPHS ---
             gt_lagged, gt_contemp = split_lagged_and_contemporaneous(actual_parents)
