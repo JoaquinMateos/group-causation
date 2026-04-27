@@ -348,7 +348,7 @@ class BenchmarkBase(ABC):
         plt.subplots_adjust(hspace=0.5)
             
     def plot_moving_results(self, results_folder, scores=['shd', 'f1', 'precision', 'recall', 'time', 'memory'],
-                            x_axis='max_lag'):
+                        x_axis='max_lag'):
         '''
         Function to plot the results of the benchmark in when a parameter is varied
         '''
@@ -372,10 +372,15 @@ class BenchmarkBase(ABC):
                 
             ax.set_xlabel(x_axis)
             ax.set_ylabel(score)
-            ax.legend()
             
-            plt.savefig(f'{results_folder}/plot_{score}.pdf')
-            fig.clf(); plt.close('all')
+            # 1. Position the legend outside the axes (centered on the right side)
+            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            
+            # 2. Use bbox_inches='tight' to ensure the external legend isn't cropped out
+            plt.savefig(f'{results_folder}/plot_{score}.pdf', bbox_inches='tight')
+            
+            fig.clf()
+            plt.close('all')
 
     def plot_particular_result(self, results_folder,
                            output_folder=None,

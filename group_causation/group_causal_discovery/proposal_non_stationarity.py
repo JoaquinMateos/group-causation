@@ -1,14 +1,15 @@
 import numpy as np
 import itertools
+import math
 from typing import Any, Optional, Union
-from sklearn.linear_model import LinearRegression
 from scipy.stats import chi2
 import logging
+import torch
 
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.independence_tests import HSIC_Test
 from group_causation.group_causal_discovery.iVAE.wrappers import IVAE_wrapper
- 
+
 
 class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
     '''
@@ -21,7 +22,8 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                  data: np.ndarray,
                  groups: list[set[int]],
                  u: Union[np.ndarray, str, None] = 'time_index',
-                 group_latent_dims: Union[int, list[int]] = 2,
+                 num_chunks_of_time_index: Union[int, None] = None,
+                 group_latent_dims_fraction: float = 0.33,
                  ivae_params: Union[dict[str, Any], None] = None,
                  pcmci_params: Union[dict[str, Any], None] = None,
                  non_stationarity_info: Optional[dict[str, Any]] = None,
@@ -33,11 +35,18 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
         u = 'time_index' if u is None else u
         
         # ---------------------------------------------------------
-        # 1. Background 'u' Construction
+        # 1. Background 'u' Construction (CPU - only runs once)
         # ---------------------------------------------------------
         if isinstance(u, str):
             if u == 'time_index':
-                self.u = np.arange(data.shape[0]).reshape(-1, 1)
+                if num_chunks_of_time_index is None:
+                    raise ValueError("num_chunks_of_time_index must be specified when u='time_index'")
+                T_data = data.shape[0]
+                chunk_indices = np.repeat(np.arange(num_chunks_of_time_index), int(np.ceil(T_data / num_chunks_of_time_index)))[:T_data]
+                u_one_hot = np.zeros((T_data, num_chunks_of_time_index))
+                u_one_hot[np.arange(T_data), chunk_indices] = 1
+                self.u = u_one_hot
+                
             elif u == 'non_stationarity_shift':
                 if non_stationarity_info.get('type') != 'regime_shifts':
                     raise ValueError("non_stationarity_info must have type 'regime_shifts' when u='non_stationarity_shift'")
@@ -53,7 +62,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                 u_full = np.zeros(total_T, dtype=int)
                 
                 for shift in shifts:
-                    u_full[shift['start']:shift['end']] = shift['regime']
+                    u_full[shift['start']:shift['end']] = shift['regime'] - 1
                 
                 T_data = data.shape[0]
                 u_aligned = u_full[-T_data:]
@@ -68,38 +77,51 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
         else:
             self.u = u
             
-        self._group_latent_dims = [group_latent_dims] * len(self._groups) if isinstance(group_latent_dims, int) else group_latent_dims
-        if len(self._group_latent_dims) != len(self._groups):
+        raw_group_latent_dims = [group_latent_dims_fraction * len(group) for group in self._groups]
+        if len(raw_group_latent_dims) != len(self._groups):
             raise ValueError("group_latent_dims must have one entry per group.")
-        
-        self._group_latent_dims = [min(dim, len(group)) for dim, group in zip(self._group_latent_dims, self._groups)]
+
+        self._group_latent_dims = [
+            max(1, min(int(np.ceil(dim)), len(group)))
+            for dim, group in zip(raw_group_latent_dims, self._groups)
+        ]
             
         self._ivae_params = ivae_params if ivae_params is not None else {}
         self._pcmci_params = pcmci_params if pcmci_params is not None else {}
         self._verbose = verbose
         
-        # PCMCI Default settings
-        self.tau_max = self._pcmci_params.get('tau_max', 1)
-        self.pc_alpha = self._pcmci_params.get('pc_alpha', 0.05)
-        self.max_conds_dim = self._pcmci_params.get('max_conds_dim', 3)
+        self.tau_max = self._pcmci_params['tau_max']
+        self.pc_alpha = self._pcmci_params['pc_alpha']
+        self.max_conds_dim = self._pcmci_params['max_conds_dim']
+        
+        self.device = self._get_device()
+        
+        if isinstance(self.u, np.ndarray):
+            self.u = torch.tensor(self.u, dtype=torch.float32, device=self.device)
+        elif self.u is not None and not isinstance(self.u, torch.Tensor):
+            self.u = torch.tensor(self.u, dtype=torch.float32, device=self.device)
         
         # ---------------------------------------------------------
         # 2. Extract Representations via iVAE
         # ---------------------------------------------------------
         self.group_embeddings = self._prepare_group_embeddings()
 
+    def _get_device(self):
+        if torch.cuda.is_available():
+            logging.info("CUDA is available. Using GPU for computations.")
+            return torch.device('cuda')
+        elif torch.backends.mps.is_available():
+            logging.info("MPS (Apple Silicon) is available. Using GPU for computations.")
+            return torch.device('mps')
+        logging.info("No GPU available. Using CPU for computations.")
+        return torch.device('cpu')
+    
     def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
-        '''
-        Run the custom Group-PCMCI algorithm on the iVAE embeddings.
-        '''
         if self._verbose > 0:
-            logging.info("Extracting parents using custom Group-PCMCI with localized Residual-HSIC.")
+            logging.info("Extracting parents using custom Group-PCMCI with localized HSIC.")
         return self._run_group_pcmci()
 
-    def _prepare_group_embeddings(self) -> list[np.ndarray]:
-        '''
-        Reduces dimensionality of each group. Returns a list of embeddings.
-        '''
+    def _prepare_group_embeddings(self) -> list[torch.Tensor]:
         group_embeddings = []
         for idx, group in enumerate(self._groups):
             if self._verbose > 0:
@@ -107,77 +129,64 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
 
             group_data = self._data[:, list(group)]
             
-            # Reduce dimensionality
             group_params = dict(self._ivae_params)
             group_params.setdefault('inference_dim', self._group_latent_dims[idx])
             logging.info(f"iVAE input for group {idx}: {group_data.shape=}, {self.u.shape=}")
-            group_latents, _, _, _ = IVAE_wrapper(group_data, self.u, **group_params)
+            group_latents, _, _, _ = IVAE_wrapper(group_data, self.u, device=self.device, **group_params)
 
-            # Append the group representations directly
+            group_latents = group_latents.detach().clone().to(dtype=torch.float32, device=self.device)
             group_embeddings.append(group_latents)
             
         return group_embeddings
 
     def _test_ci(self, x_var: int, x_lag: int, y_var: int, y_lag: int, z_list: list[tuple[int, int]]) -> tuple[float, float]:
-        '''
-        Evaluates localized Momentary Conditional Independence using Residual HSIC.
-        $X_{t-tau} \perp\!\!\!\perp Y_t \mid Z$ is evaluated independently per regime u,
-        then p-values are aggregated using Fisher's method.
-        '''
-        all_lags = [x_lag, y_lag] + [z_lag for _, z_lag in z_list]
-        max_l = max(all_lags) if all_lags else 0
-        
         T = self.group_embeddings[0].shape[0]
-        start_t = max_l
+        start_t = 2 * self.tau_max 
         end_t = T
         
-        # If the required lag exceeds our time series length, safely assume independent
-        if start_t >= end_t - 5: 
+        if start_t >= end_t - 5:
+            logging.warning("Not enough samples to test independence. Assuming independence.")
             return 0.0, 1.0
 
-        # Extract aligned time series segments
-        X_data = self.group_embeddings[x_var][start_t - x_lag : end_t - x_lag]
-        Y_data = self.group_embeddings[y_var][start_t - y_lag : end_t - y_lag]
+        X_data = self.group_embeddings[x_var][start_t - x_lag : end_t - x_lag].to(torch.float64)
+        Y_data = self.group_embeddings[y_var][start_t - y_lag : end_t - y_lag].to(torch.float64)
         
         if z_list:
-            Z_data_list = []
-            for z_var, z_lag in z_list:
-                Z_data_list.append(self.group_embeddings[z_var][start_t - z_lag : end_t - z_lag])
-            Z_data = np.concatenate(Z_data_list, axis=1)
+            Z_data_list = [self.group_embeddings[z_var][start_t - z_lag : end_t - z_lag].to(torch.float64) for z_var, z_lag in z_list]
+            Z_data = torch.cat(Z_data_list, dim=1)
         else:
             Z_data = None
 
-        # ---------------------------------------------------------
-        # Localize by Regime 'u' (if applicable)
-        # ---------------------------------------------------------
-        # Align u with the target Y_t
         u_sliced = self.u[start_t : end_t]
         
-        # Determine if u is discrete regimes or a continuous time_index
-        # We assume it's continuous if the number of unique values is exceptionally high
-        unique_vals = np.unique(u_sliced, axis=0) if u_sliced.ndim == 2 else np.unique(u_sliced)
+        if u_sliced.ndim == 2:
+            unique_vals = torch.unique(u_sliced, dim=0)
+        else:
+            unique_vals = torch.unique(u_sliced)
+            
         is_continuous = len(unique_vals) > (len(u_sliced) // 2)
 
         if is_continuous:
-            # Treat the entire time series as a single global regime
-            regime_masks = [np.ones(len(u_sliced), dtype=bool)]
-        elif u_sliced.ndim == 2 and set(np.unique(u_sliced)).issubset({0, 1}): 
-            # Safely identify one-hot encoded discrete regimes
+            regime_masks = [torch.ones(len(u_sliced), dtype=torch.bool, device=self.device)]
+        elif u_sliced.ndim == 2 and torch.all((u_sliced == 0) | (u_sliced == 1)): 
             num_regimes = u_sliced.shape[1]
             regime_masks = [u_sliced[:, r] == 1 for r in range(num_regimes)]
         else: 
-            # 1D Array categorical regimes
             if u_sliced.ndim == 2:
-                u_sliced = u_sliced.flatten()
-            regime_masks = [u_sliced == val for val in np.unique(u_sliced)]
+                unique_rows = torch.unique(u_sliced, dim=0)
+                regime_masks = [torch.all(u_sliced == row, dim=1) for row in unique_rows]
+            else:
+                regime_masks = [u_sliced == val for val in torch.unique(u_sliced)]
 
         p_values = []
         stats = []
-
+        
         for mask in regime_masks:
-            # HSIC requires a minimum number of samples to be mathematically sound. 
-            if np.sum(mask) < 6:
-                logging.warning(f"Regime with {np.sum(mask)} samples is too small for reliable HSIC testing. Skipping this regime.")
+            num_samples = mask.sum().item()
+            if num_samples < 20:
+                logging.warning(f"Regime with {num_samples} samples is too small. Skipping."
+                                f"{u_sliced=}"
+                                f"{regime_masks=}")
                 continue
 
             X_local = X_data[mask]
@@ -186,58 +195,46 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             if Z_data is not None:
                 Z_local = Z_data[mask]
                 
-                # Partial out Z locally for this regime
-                reg_x = LinearRegression().fit(Z_local, X_local)
-                res_x = X_local - reg_x.predict(Z_local)
-                
-                reg_y = LinearRegression().fit(Z_local, Y_local)
-                res_y = Y_local - reg_y.predict(Z_local)
+                stat, pval = HSIC_Test.conditional_test(
+                    X_local, Y_local, Z_local, 
+                    sequential_chunks=is_continuous,
+                    max_samples=500 if is_continuous else X_local.shape[0] + 1
+                )
             else:
-                res_x = X_local
-                res_y = Y_local
-                
-            # Perform HSIC on localized residuals
-            stat, pval = HSIC_Test.test(res_x, res_y,
-                # If a time series is the background variable, we want to preserve local temporal structure by using sequential chunks instead of random subsampling
-                sequential_chunks=is_continuous)
+                stat, pval = HSIC_Test.test(
+                    X_local, Y_local, 
+                    sequential_chunks=is_continuous,
+                    max_samples=500 if is_continuous else X_local.shape[0] + 1
+                )
             
-            # Floor p-value slightly above 0 to prevent issues
             pval = max(pval, 1e-15)
             p_values.append(pval)
             stats.append(stat)
 
-        # If no regime had enough samples to test, assume independence
         if not p_values:
-            logging.warning(f"No valid regimes with sufficient samples for testing independence between variable {x_var} (lag {x_lag}) and variable {y_var} (lag {y_lag}). Assuming independence.")
             return 0.0, 1.0
 
-        # Aggregate p-values using Fisher's Method
-        chi2_stat = -2.0 * np.sum(np.log(p_values))
+        # Aggregate using pure Python instead of NumPy to avoid transferring small lists
+        chi2_stat = -2.0 * sum(math.log(p) for p in p_values)
         degrees_of_freedom = 2 * len(p_values)
-        combined_p_value = float(chi2.sf(chi2_stat, degrees_of_freedom))
         
-        mean_stat = float(np.mean(stats))
+        # Scipy's chi2 is CPU bound, but evaluating a single float is extremely fast and negligible
+        combined_p_value = float(chi2.sf(chi2_stat, degrees_of_freedom))
+        mean_stat = sum(stats) / len(stats)
 
         return mean_stat, combined_p_value
 
     def _run_group_pcmci(self) -> dict[int, list[tuple[int, int]]]:
-        '''
-        Implements a streamlined PCMCI logic natively.
-        Phase 1: PC1 Condition Selection
-        Phase 2: MCI Evaluation
-        '''
         N = len(self._groups)
         
-        # ---------------------------------------------------------
-        # Phase 1: PC1 Algorithm (Identify candidate superset of parents)
-        # ---------------------------------------------------------
-        # Initialize fully connected pasts
+        # Phase 1: PC1 Algorithm
         parents = {j: [(i, tau) for i in range(N) for tau in range(1, self.tau_max + 1)] for j in range(N)}
         
         for j in range(N):
             p = 0
             while p <= self.max_conds_dim:
                 candidate_parents = list(parents[j])
+                to_remove = [] 
                 
                 for (i, tau) in candidate_parents:
                     available_conds = [c for c in parents[j] if c != (i, tau)]
@@ -245,34 +242,31 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                     if len(available_conds) < p:
                         continue
                         
-                    # Test combinations of condition size `p`
                     for Z in itertools.combinations(available_conds, p):
                         _, pval = self._test_ci(i, tau, j, 0, list(Z))
                         
                         if pval > self.pc_alpha:
-                            parents[j].remove((i, tau))
-                            break # Link removed, move to next candidate parent
+                            to_remove.append((i, tau))
+                            break
+                            
+                for node in to_remove:
+                    if node in parents[j]:
+                        parents[j].remove(node)
+                
                 p += 1
 
-        # ---------------------------------------------------------
-        # Phase 2: MCI Algorithm (Momentary Conditional Independence)
-        # ---------------------------------------------------------
+        # Phase 2: MCI Algorithm
         final_parents = {j: [] for j in range(N)}
         
         for j in range(N):
             for (i, tau) in parents[j]:
-                # Conditioning set: P(j) \ {(i, tau)} U P(i) shifted by tau
                 Z_j = [c for c in parents[j] if c != (i, tau)]
-                
-                # Shift parents of 'i' by tau. Only keep if shift is within bounds
                 Z_i = [(k, tau_k + tau) for (k, tau_k) in parents[i]]
                 
-                # Deduplicate conditions
                 Z = list(set(Z_j + Z_i))
                 
                 stat, pval = self._test_ci(i, tau, j, 0, Z)
                 
-                # If dependent under maximum conditioning, accept the causal link
                 if pval <= self.pc_alpha:
                     final_parents[j].append((i, -tau))
                     

@@ -236,6 +236,16 @@ def _apply_non_stationarity(time_series: np.ndarray, params: dict) -> tuple[np.n
         
         for v in affected_vars:
             var_shifts = []
+            
+            # Explicitly record the baseline Regime 0
+            var_shifts.append({
+                "regime": 0,
+                "start": int(segment_bounds[0]),
+                "end": int(segment_bounds[1]),
+                "mean_shift": 0.0,
+                "std_mult": 1.0,
+            })
+            
             for r in range(1, num_regimes): # Regime 0 is untouched
                 start_idx = segment_bounds[r]
                 end_idx = segment_bounds[r+1]
@@ -310,7 +320,7 @@ def generate_data_from_causal_process_structure(
             noise_matrix[:, j] = sigma * (rs.weibull(a, total_T) - mean_w) / np.sqrt(var_w)
 
     # 2. Shift the noise if non-stationarity is requested
-    non_stationarity_info = {"applied": False}
+    non_stationarity_info: dict = {"applied": False}
     if non_stationarity_params != {}:
         noise_matrix, non_stationarity_info = _apply_non_stationarity(noise_matrix, non_stationarity_params)
 
@@ -330,6 +340,30 @@ def generate_data_from_causal_process_structure(
 
     data_final = data[transient:]
     nonvalid = bool(np.any(np.isnan(data_final)) or np.any(np.isinf(data_final)))
+    
+    # --- Adjust non-stationarity indices to account for the sliced transient data ---
+    if non_stationarity_info.get("applied") and non_stationarity_info.get("type") == "regime_shifts":
+        adjusted_shift_details = {}
+        for var, shifts in non_stationarity_info["shift_details"].items():
+            new_shifts = []
+            for shift in shifts:
+                # Shift indices backwards by the transient amount
+                new_start = shift["start"] - transient
+                new_end = shift["end"] - transient
+                
+                # If the entire regime happened during the warmup, it's discarded
+                if new_end <= 0:
+                    continue
+                    
+                # If the regime started in the warmup but ended in the visible data, clamp start to 0
+                if new_start < 0:
+                    new_start = 0
+                    
+                shift["start"] = new_start
+                shift["end"] = new_end
+                new_shifts.append(shift)
+            adjusted_shift_details[var] = new_shifts
+        non_stationarity_info["shift_details"] = adjusted_shift_details
 
     return data_final, nonvalid, non_stationarity_info
 

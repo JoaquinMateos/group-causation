@@ -217,7 +217,8 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
 
     def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         """
-        Execute Steps 1 (Learning), 2 (Interventions), and 3 (Invariance Testing).
+        Execute Steps 1 (Learning), 2 (Interventions), and 3 (Invariance Testing)
+        adapted for specific-lag causal discovery.
         """
         # Step 1: Learn the structural temporal dependencies via DeepAR
         self._train_structure()
@@ -228,6 +229,9 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
         # Get baseline (observational) sequences and their true targets
         X_obs, Y_true = self._create_windows(self._data)
         
+        # Window the knockoffs so we can swap specific time steps
+        X_knockoffs_obs, _ = self._create_windows(self._knockoffs)
+        
         self.model.eval()
         with torch.no_grad():
             mu_obs, _ = self.model(torch.FloatTensor(X_obs).to(self.device))
@@ -235,38 +239,42 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
 
         causal_graph = {i: [] for i in range(self.G)}
 
-        # Step 2 & 3: Group Interventions & Model Invariance Test
-        for i in range(self.G): # Candidate cause group
+        # Step 2 & 3: Lag-Specific Group Interventions & Model Invariance Test
+        for i in range(self.G):  # Candidate cause group
+            cols_i = list(self._groups[i])
             
-            # Create interventional data: Replace group `i` entirely with its knockoff
-            interventional_data = self._data.copy()
-            cols_i = self._groups[i]
-            interventional_data[:, cols_i] = self._knockoffs[:, cols_i]
-            
-            # Reconstruct the temporal windows using the interventional sequence
-            X_interv, _ = self._create_windows(interventional_data)
-            
-            with torch.no_grad():
-                mu_interv, _ = self.model(torch.FloatTensor(X_interv).to(self.device))
-                Y_pred_interv = mu_interv.cpu().numpy()
+            # Iterate through each specific lag in the window
+            for lag in range(1, self.max_lag + 1):
                 
-            for j in range(self.G): # Target group    
-                # Extract residuals for target group j
-                R_j = self._compute_residuals(Y_true, Y_pred_obs, j)
-                R_j_tilde = self._compute_residuals(Y_true, Y_pred_interv, j)
+                # Create interventional data by copying the observational windows
+                X_interv = X_obs.copy()
                 
-                # --- NUEVO: Submuestreo para evitar la hipersensibilidad del KS-Test ---
-                max_samples = min(400, len(R_j))
-                idx = np.random.choice(len(R_j), max_samples, replace=False)
+                # Calculate the exact time index within the sequence window.
+                # If sequence length is max_lag, index (max_lag - lag) targets the exact past step.
+                time_idx = self.max_lag - lag
                 
-                # Kolmogorov-Smirnov Test en el subconjunto
-                stat, p_val = ks_2samp(R_j[idx], R_j_tilde[idx])
+                # Replace only the specific lag of group i with its knockoff
+                X_interv[:, time_idx, cols_i] = X_knockoffs_obs[:, time_idx, cols_i]
                 
-                # If p-value < alpha, we reject the null hypothesis (invariance broken).
-                # Therefore, group i has a causal effect on group j.
-                if p_val < self.alpha:
-                    # Time-series causality is interpreted as the past of i causes the present of j.
-                    # We format this as a lag of -1 to match the evaluation framework expectations.
-                    causal_graph[j].append((i, -1))
+                with torch.no_grad():
+                    mu_interv, _ = self.model(torch.FloatTensor(X_interv).to(self.device))
+                    Y_pred_interv = mu_interv.cpu().numpy()
+                    
+                for j in range(self.G):  # Target group    
+                    # Extract residuals for target group j
+                    R_j = self._compute_residuals(Y_true, Y_pred_obs, j)
+                    R_j_tilde = self._compute_residuals(Y_true, Y_pred_interv, j)
+                    
+                    # Subsampling to avoid KS-Test hypersensitivity
+                    max_samples = min(400, len(R_j))
+                    idx = np.random.choice(len(R_j), max_samples, replace=False)
+                    
+                    # Kolmogorov-Smirnov Test on the subset
+                    stat, p_val = ks_2samp(R_j[idx], R_j_tilde[idx])
+                    
+                    # If p-value < alpha, invariance is broken for this specific lag
+                    if p_val < self.alpha:
+                        # Record the specific lag that caused the invariance break
+                        causal_graph[j].append((i, -lag))
 
         return causal_graph

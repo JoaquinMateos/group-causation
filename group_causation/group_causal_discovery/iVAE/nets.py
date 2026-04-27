@@ -5,6 +5,7 @@ https://github.com/ilkhem/iVAE
 
 
 from numbers import Number
+from typing import Union
 
 import numpy as np
 import torch
@@ -73,7 +74,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim, n_layers, activation='none', slope=.1, device='cpu'):
+    def __init__(self, input_dim, output_dim, hidden_dim, n_layers, activation='none', slope=.1, device: Union[str, torch.device]='cpu'):
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -316,7 +317,7 @@ class Dist:
 
 
 class Normal(Dist):
-    def __init__(self, device='cpu'):
+    def __init__(self, device: Union[str, torch.device]='cpu'):
         super().__init__()
         self.device = device
         self.c = 2 * np.pi * torch.ones(1).to(self.device)
@@ -369,7 +370,7 @@ class Normal(Dist):
 
 
 class Laplace(Dist):
-    def __init__(self, device='cpu'):
+    def __init__(self, device: Union[str, torch.device]='cpu'):
         super().__init__()
         self.device = device
         self._dist = dist.laplace.Laplace(torch.tensor(0.0).to(self.device), torch.tensor(1.0 / np.sqrt(2)).to(self.device))
@@ -392,7 +393,7 @@ class Laplace(Dist):
 
 
 class Bernoulli(Dist):
-    def __init__(self, device='cpu'):
+    def __init__(self, device: Union[str, torch.device]='cpu'):
         super().__init__()
         self.device = device
         self._dist = dist.bernoulli.Bernoulli(torch.tensor(0.5).to(self.device))
@@ -415,7 +416,7 @@ class Bernoulli(Dist):
 
 class iVAE(nn.Module):
     def __init__(self, latent_dim, data_dim, aux_dim, prior=None, decoder=None, encoder=None,
-                 n_layers=3, hidden_dim=50, activation='lrelu', slope=.1, device='cpu', anneal=False):
+                 n_layers=3, hidden_dim=50, activation='lrelu', slope=.1, device: Union[str, torch.device]='cpu', anneal=False):
         super().__init__()
 
         self.data_dim = data_dim
@@ -513,7 +514,7 @@ class iVAE(nn.Module):
 
 class DiscreteIVAE(nn.Module):
     def __init__(self, latent_dim, data_dim, aux_dim,
-                 n_layers=2, hidden_dim=20, activation='lrelu', slope=.1, device='cpu'):
+                 n_layers=2, hidden_dim=20, activation='lrelu', slope=.1, device: Union[str, torch.device]='cpu'):
         super().__init__()
         self.data_dim = data_dim
         self.latent_dim = latent_dim
@@ -573,7 +574,7 @@ class DiscreteIVAE(nn.Module):
 class VAE(nn.Module):
 
     def __init__(self, latent_dim, data_dim, decoder=None, encoder=None,
-                 n_layers=3, hidden_dim=50, activation='lrelu', slope=.1, device='cpu'):
+                 n_layers=3, hidden_dim=50, activation='lrelu', slope=.1, device: Union[str, torch.device]='cpu'):
         super().__init__()
         self.data_dim = data_dim
         self.latent_dim = latent_dim
@@ -591,7 +592,7 @@ class VAE(nn.Module):
             self.encoder_dist = Normal(device=device)
         else:
             self.encoder_dist = encoder
-        self.prior_dist = Normal(device)
+        self.prior_dist = Normal(device=device)
         self.prior_mean = torch.zeros(1).to(device)
         self.prior_var = torch.ones(1).to(device)
 
@@ -626,7 +627,7 @@ class VAE(nn.Module):
 
 class DiscreteVAE(nn.Module):
     def __init__(self, latent_dim, data_dim,
-                 n_layers=2, hidden_dim=20, activation='lrelu', slope=.1, device='cpu'):
+                 n_layers=2, hidden_dim=20, activation='lrelu', slope=.1, device: Union[str, torch.device]='cpu'):
         super().__init__()
         self.data_dim = data_dim
         self.latent_dim = latent_dim
@@ -694,11 +695,11 @@ class GaussianMLP(nn.Module):
     def log_pdf(self, x, *params, **kwargs):
         return self.distribution.log_pdf(x, *params, **kwargs)
 
-    def forward(self, *input):
-        if len(input) > 1:
-            x = torch.cat(input, dim=1)
+    def forward(self, first_input: torch.Tensor, *other_inputs: torch.Tensor):
+        if len(other_inputs) > 0:
+            x = torch.cat([first_input] + list(other_inputs), dim=1)
         else:
-            x = input[0]
+            x = first_input
         return self.mean(x), self.log_var(x).exp()
 
 
@@ -724,11 +725,11 @@ class LaplaceMLP(nn.Module):
     def log_pdf(self, x, *params, **kwargs):
         return self.distribution.log_pdf(x, *params, **kwargs)
 
-    def forward(self, *input):
-        if len(input) > 1:
-            x = torch.cat(input, dim=1)
+    def forward(self, first_input: torch.Tensor, *other_inputs: torch.Tensor):
+        if len(other_inputs) > 0:
+            x = torch.cat([first_input] + list(other_inputs), dim=1)
         else:
-            x = input[0]
+            x = first_input
         return self.mean(x), self.log_var(x).exp()
 
 
