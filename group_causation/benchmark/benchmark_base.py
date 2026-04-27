@@ -230,7 +230,8 @@ class BenchmarkBase(ABC):
         
         datasets_iterator = iter(causal_datasets)
         
-        for current_algorithms_parameters, data_option in parameters_iterator:
+        
+        for dataset_iteration, (current_algorithms_parameters, data_option) in enumerate(parameters_iterator):
             if self.verbose > 0:
                 logging.info('\n' + '-'*50)
                 logging.info(BLUE + 'Datasets have been loaded.' + RESET)
@@ -247,10 +248,9 @@ class BenchmarkBase(ABC):
                                                     current_algorithms_parameters)
             logging.info(f'{current_results=}')
             for name, algorithm_results in current_results.items():
-                iteration = -1
                 for particular_result in algorithm_results:
                     particular_result.update(data_option) # Include the parameters in the information for results
-                    particular_result['dataset_iteration'] = (iteration:=iteration+1) // n_executions_per_data_param
+                    particular_result['dataset_iteration'] = dataset_iteration
 
                     # Include current result in the list of result
                     self.results[name].append(particular_result)
