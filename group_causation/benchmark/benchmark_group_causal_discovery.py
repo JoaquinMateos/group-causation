@@ -26,7 +26,7 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
             logging.info('Generating datasets...')
         return _generate_group_dataset(iteration, n_datasets, datasets_folder, data_option)
     
-    def load_datasets(self, datasets_folder):
+    def load_datasets(self, datasets_folder) -> list[CausalDataset]:
         '''
         Function to load the datasets for the benchmark
         '''
@@ -194,7 +194,7 @@ def _generate_group_dataset(iteration, n_datasets, datasets_folder, data_option)
     return causal_datasets
 
 
-def _load_group_datasets(datasets_folder):
+def _load_group_datasets(datasets_folder) -> list[CausalDataset]:
         '''
         Function to load the datasets for the benchmark
         

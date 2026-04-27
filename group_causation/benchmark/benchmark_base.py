@@ -57,7 +57,7 @@ class BenchmarkBase(ABC):
         pass
     
     @abstractmethod
-    def load_datasets(self, datasets_folder):
+    def load_datasets(self, datasets_folder) -> list[CausalDataset]:
         '''
         To be implemented by subclasses.
         '''
@@ -227,13 +227,23 @@ class BenchmarkBase(ABC):
         if causal_datasets is None:
             raise ValueError('load_datasets returned None.')
         # Execute the algorithms with the given datasets
+        
+        datasets_iterator = iter(causal_datasets)
+        
         for current_algorithms_parameters, data_option in parameters_iterator:
             if self.verbose > 0:
                 logging.info('\n' + '-'*50)
                 logging.info(BLUE + 'Datasets have been loaded.' + RESET)
             
+            # Get the next n_executions_per_data_param datasets for the current data_option
+            try:
+                current_datasets = [ next(datasets_iterator) for _ in range(n_executions_per_data_param) ]
+            except StopIteration:
+                raise ValueError("Not enough datasets provided for the number of executions per data parameter. Please check the datasets_folder and n_executions_per_data_param.")
+            
+            
             # Generate and save results of all algorithms with given datasets
-            current_results = self.test_algorithms(causal_datasets, algorithms,
+            current_results = self.test_algorithms(current_datasets, algorithms,
                                                     current_algorithms_parameters)
             logging.info(f'{current_results=}')
             for name, algorithm_results in current_results.items():

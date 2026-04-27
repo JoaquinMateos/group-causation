@@ -35,7 +35,7 @@ class BenchmarkCausalDiscovery(BenchmarkBase):
         return _generate_micro_dataset(iteration=iteration, n_datasets=n_datasets,
                                        datasets_folder=datasets_folder, data_option=data_option)
     
-    def load_datasets(self, datasets_folder):
+    def load_datasets(self, datasets_folder) -> list[CausalDataset]:
         '''
         Function to load the datasets for the benchmark
         
