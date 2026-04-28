@@ -21,18 +21,17 @@ MIN_LAG = 1
 MAX_LAG = 3
 
 algorithms = {
-    'Group-Embedding': HybridGroupCausalDiscovery,
+    # 'Group-Embedding': HybridGroupCausalDiscovery,
     # 'Group-Embedding - with shift knowledge': HybridGroupCausalDiscovery,
-    'PCA+PCMCI': DimensionReductionGroupCausalDiscovery,
+    # 'PCA+PCMCI': DimensionReductionGroupCausalDiscovery,
     # 'PCA+PCMCI - with shift knowledge': DimensionReductionGroupCausalDiscovery,
-    # 'Subgroups': HybridGroupCausalDiscovery,
     # 'PCA+DYNOTEARS': DimensionReductionGroupCausalDiscovery,
-    'Micro-Level': MicroLevelGroupCausalDiscovery,
-    'Micro-Level - with shift knowledge': MicroLevelGroupCausalDiscovery,
+    # 'Micro-Level': MicroLevelGroupCausalDiscovery,
+    # 'Micro-Level - with shift knowledge': MicroLevelGroupCausalDiscovery,
     # 'GroupRESIT': GroupRESITTimeSeriesCausalDiscovery,
     # 'gCDMI': gCDMICausalDiscovery,
     # 'Proposal': IVAE_GroupPCMCI_Proposal,
-    # 'Proposal - with shift knowledge': IVAE_GroupPCMCI_Proposal,
+    'Proposal - with shift knowledge': IVAE_GroupPCMCI_Proposal,
 }
 algorithms_parameters = {
     'PCA+PCMCI': {'dimensionality_reduction': 'pca', 'node_causal_discovery_alg': 'pcmci',
@@ -60,21 +59,18 @@ algorithms_parameters = {
                 'dimensionality_reduction_params': {'explained_variance_threshold': 0.3,
                                                    'groups_division_method': 'group_embedding'},
                 'node_causal_discovery_alg': 'pcmci',
+                
+                'apply_adag_optimization': True,
+                'conditional_independence_test_for_adag': 'max_corr',
+                'pc_alpha_for_adag': 0.05,
+                'target_c_ind': 0.6,
+                
                 'node_causal_discovery_params': {'min_lag': MIN_LAG,
                                                  'max_lag': MAX_LAG,
                                                  'cond_ind_test': 'localized_parcorr', # 'localized_hsic',
                                                  'pc_alpha': 0.05},
                 'verbose': 2},
-    
-    'Subgroups': {'dimensionality_reduction': 'pca', 
-               'dimensionality_reduction_params': {'explained_variance_threshold': 0.3,
-                                                   'groups_division_method': 'subgroups'},
-                'node_causal_discovery_alg': 'pcmci',
-                'node_causal_discovery_params': {'min_lag': MIN_LAG,
-                                                 'max_lag': MAX_LAG,
-                                                 'num_generated_regimes_if_no_shift_info': 5,
-                                                 'pc_alpha': 0.05},
-                'verbose': 0},
+
     'GroupRESIT': {
                 'min_lag': MIN_LAG,
                 'max_lag': MAX_LAG,
@@ -98,18 +94,20 @@ algorithms_parameters = {
     'Proposal': {
                 'u': 'time_index',
                 'num_chunks_of_time_index': 5,
-                'group_latent_dims_fraction': 0.33,
+                'apply_adag_optimization': False,
+                'target_c_ind': 0.6,
+                'fallback_latent_dims_fraction': 0.4, # Only used if apply_adag_optimization=False
                 'pcmci_params': {
                     'tau_max': MAX_LAG,
                     'pc_alpha': 0.05,
-                    'max_conds_dim': 2,
+                    'max_conds_dim': 3,
                 },
                 'ivae_params': {
                     'batch_size': 256,
-                    'max_iter': 2000,
+                    'max_iter': 5000,
                     'seed': 42,
                     'n_layers': 2,
-                    'hidden_dim': 64,
+                    'hidden_dim': 128,
                     'lr': 1e-3,
                     'activation': 'lrelu',
                     'slope': 0.1,
@@ -124,7 +122,6 @@ algorithms_parameters = {
 algorithms_parameters['Group-Embedding - with shift knowledge'] = copy.deepcopy(algorithms_parameters['Group-Embedding'])
 algorithms_parameters['Group-Embedding - with shift knowledge']['node_causal_discovery_params']['cond_ind_test'] = 'shift_based_local_parcorr'
 
-
 algorithms_parameters['PCA+PCMCI - with shift knowledge'] = copy.deepcopy(algorithms_parameters['PCA+PCMCI'])
 algorithms_parameters['PCA+PCMCI - with shift knowledge']['node_causal_discovery_params']['cond_ind_test'] = 'shift_based_local_parcorr'
 
@@ -138,8 +135,8 @@ algorithms_parameters['Proposal - with shift knowledge']['u'] = 'non_stationarit
 
 data_generation_options = {
     'T': 2_000, # Number of time points in the dataset
-    'N_vars': 20, # Number of variables in the dataset
-    'N_groups': 5, # Number of groups in the dataset
+    'N_vars': 50, # Number of variables in the dataset
+    'N_groups': 8, # Number of groups in the dataset
     'inner_group_crosslinks_density': 0.2, # Density of possible links between nodes of the same group that are created
     'outer_group_crosslinks_density': 0.3, # Density of possible links between groups that are created (if the groups are connected at group level)
     # Confounding params
@@ -221,11 +218,11 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     
     benchmark = BenchmarkGroupCausalDiscovery()
-    results_folder = 'results_high_non_stationarity'
+    results_folder = 'results_CAEPIA'
     datasets_folder = f'{results_folder}/toy_data'
     
     generate_toy_data = False
-    execute_benchmark = False
+    execute_benchmark = True
     plot_graphs = True
     n_executions = 5
     

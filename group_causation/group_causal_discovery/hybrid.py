@@ -1,105 +1,220 @@
 import numpy as np
+import torch
 from sklearn.decomposition import PCA
 from typing import Any, Union
 import logging
+
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.group_causal_discovery.micro_level import MicroLevelGroupCausalDiscovery
+from group_causation.independence_tests import conditional_independence_tests
+from group_causation.independence_tests.conditional_independence_base import ConditionalIndependence_base
 
 class HybridGroupCausalDiscovery(GroupCausalDiscovery):
     '''
     Class that implements a group causal discovery algorithm which combines dimension reduction
     techniques with microlevel causal discovery.
-    To do so, given a set of groups of variables, the algorithm will apply a dimension reduction
-    technique to reduce the dimensionality of the problem. However, the dimension reduction won't
-    necessarily give a one-dimensional time series, but it might give a set of time series (microgroups)
-    with less variables than the original problem. Then, a microlevel causal discovery algorithm will
-    be applied to the reduced time series, and the group causal graph will be extracted from the
-    microgroups one.
     
-    
-    Args:
-        data : np.array with the data, shape (n_samples, n_variables)
-        groups : list[set[int]] list with the sets that will compound each group of variables.
-                We will suppose that the groups are known beforehand.
-                The index of a group will be considered as its position in groups list.
-        dimensionality_reduction : str indicating the type of dimensionality reduction technique
-                that is applied to groups. options=['pca']. default='pca'
-        dimensionality_reduction_params : dict with the parameters for the dimensionality reduction algorithm.
-        node_causal_discovery_alg : str indicating the algorithm that will be used to discover the causal
-                relationships between the variables of each group. options=['pcmci', 'pc-stable', 'dynotears']
-        node_causal_discovery_params : dict with the parameters for the node causal discovery algorithm.
-        link_assumptions (dict) : Dictionary of form {j:{(i, -tau): link_type, …}, …} specifying assumptions about links.
-                This initializes the graph with entries graph[i,j,tau] = link_type. For example, graph[i,j,0] = ‘–>’ 
-                implies that a directed link from i to j at lag 0 must exist. Valid link types are ‘o-o’, ‘–>’, ‘<–’.
-                In addition, the middle mark can be ‘?’ instead of ‘-’. Then ‘-?>’ implies that this link may not 
-                exist, but if it exists, its orientation is ‘–>’. Link assumptions need to be consistent, i.e., 
-                graph[i,j,0] = ‘–>’ requires graph[j,i,0] = ‘<–’ and acyclicity must hold. If a link does not appear
-                in the dictionary, it is assumed absent. That is, if link_assumptions is not None, then all links have 
-                to be specified or the links are assumed absent.
+    Includes Adag (Adaptive Aggregation) optimization to automatically tune the PCA 
+    latent dimensions based on the c_ind (independence consistency) score.
     '''
     def __init__(self, data: np.ndarray,
-                    groups: list[set[int]],
-                    dimensionality_reduction_params: dict[str, Any],
-                    link_assumptions: Union[dict[int, dict[tuple[int, int], str]], None] = None,
-                    dimensionality_reduction: str = 'pca',
-                    node_causal_discovery_alg: str = 'pcmci',
-                    node_causal_discovery_params: Union[dict[str, Any], None] = None,
-                    verbose: int = 0,
-                    **kwargs):
+                 groups: list[set[int]],
+                 dimensionality_reduction_params: dict[str, Any],
+                 link_assumptions: Union[dict[int, dict[tuple[int, int], str]], None] = None,
+                 dimensionality_reduction: str = 'pca',
+                 node_causal_discovery_alg: str = 'pcmci',
+                 node_causal_discovery_params: Union[dict[str, Any], None] = None,
+                 apply_adag_optimization: bool = True,
+                 conditional_independence_test_for_adag: str = 'max_corr',
+                 pc_alpha_for_adag: float = 0.05,
+                 target_c_ind: float = 0.85,
+                 verbose: int = 0,
+                 **kwargs):
+        
         super().__init__(data, groups, **kwargs)
         
         self._node_causal_discovery_alg = node_causal_discovery_alg
         self._node_causal_discovery_params = node_causal_discovery_params if node_causal_discovery_params is not None else {}
+        self._link_assumptions = link_assumptions
+        self._dimensionality_reduction = dimensionality_reduction
+        self._dimensionality_reduction_params = dimensionality_reduction_params
         self._verbose = verbose
         
-        if dimensionality_reduction == 'pca':
-            # Normalize data before applying PCA
+        # Adag specific parameters
+        self.apply_adag_optimization = apply_adag_optimization
+        self.target_c_ind = target_c_ind
+        self.pc_alpha = pc_alpha_for_adag
+        
+        if conditional_independence_test_for_adag not in conditional_independence_tests:
+            raise ValueError(f"Unsupported independence test: {conditional_independence_test_for_adag}")
+        self.ci_test: ConditionalIndependence_base = conditional_independence_tests[conditional_independence_test_for_adag]
+
+        # Device mapping for raw data CI testing
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+        
+        # Normalize data once
+        if self._dimensionality_reduction == 'pca':
             self._data = (self._data - self._data.mean(axis=0))
-            if np.all((std:=self._data.std(axis=0))!=0): self._data /= std
-            self.micro_groups, self.micro_data = self._prepare_micro_groups_pca(**dimensionality_reduction_params)
+            if np.all((std := self._data.std(axis=0)) != 0): 
+                self._data /= std
         else:
             raise ValueError(f'Dimensionality reduction technique {dimensionality_reduction} not supported.')
+
+        # Pre-slice raw data into tensors for fast Adag c_ind evaluation
+        self._raw_group_data = [
+            torch.tensor(self._data[:, list(group)], dtype=torch.float32, device=self.device) 
+            for group in self._groups
+        ]
         
-        micro_link_assumptions = _convert_link_assumptions(link_assumptions, self.micro_groups)
-        
-        self._node_causal_discovery_params['link_assumptions'] = micro_link_assumptions
-        self.micro_level_causal_discovery = MicroLevelGroupCausalDiscovery(self.micro_data, self.micro_groups,
-                                                                    self._node_causal_discovery_alg, self._node_causal_discovery_params)
-    
+        # Placeholders for final state (populated during extract_parents)
+        self.micro_groups = None
+        self.micro_data = None
+
     def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         '''
-        Extract the parents of each group of variables using the dimension reduction algorithm
-        
-        Returns:
-            Dictionary with the parents of each group of variables.
+        Extract the parents of each group of variables. Branches depending on Adag hyperparameter.
         '''
-        group_parents = self.micro_level_causal_discovery.extract_parents()
+        if self.apply_adag_optimization:
+            if self._verbose > 0:
+                print(f"Extracting parents: Adag optimization ENABLED (target c_ind={self.target_c_ind}).")
+            return self._run_adag()
+        else:
+            if self._verbose > 0:
+                print("Extracting parents: Adag optimization DISABLED. Using fixed PCA parameters.")
+            
+            # Legacy initialization logic
+            self.micro_groups, self.micro_data = self._prepare_micro_groups_pca(**self._dimensionality_reduction_params)
+            self._setup_micro_cd_algorithm(self.micro_groups, self.micro_data)
+            
+            return self.micro_level_causal_discovery.extract_parents()
+
+    def _run_adag(self) -> dict[int, list[tuple[int, int]]]:
+        """Iterative aggregation loop to find the optimal PCA dimensionality."""
+        N = len(self._groups)
+        m = [1] * N
+        max_m = [len(group) for group in self._groups]
         
-        return group_parents
-    
-    
+        c_ind_score = 0.0
+        final_parents = {}
+        
+        while c_ind_score < self.target_c_ind:
+            if self._verbose > 0:
+                print(f"Adag Iteration | Current PCA components m: {m}")
+                
+            # 1. Reduce dimensionality using exactly m components per group
+            micro_groups, micro_data = self._prepare_micro_groups_pca_adag(m)
+            
+            # 2. Setup and run Micro-Level Causal Discovery
+            self._setup_micro_cd_algorithm(micro_groups, micro_data)
+            group_parents = self.micro_level_causal_discovery.extract_parents()
+            
+            # 3. Compute consistency score against raw data
+            c_ind_score = self._compute_c_ind(group_parents)
+            
+            if self._verbose > 0:
+                print(f"Target c_ind: {self.target_c_ind} | Achieved c_ind: {c_ind_score:.3f}")
+            
+            # 4. Save state
+            final_parents = group_parents
+            self.micro_groups = micro_groups
+            self.micro_data = micro_data
+            
+            # 5. Check termination
+            if c_ind_score >= self.target_c_ind or m == max_m:
+                if self._verbose > 0:
+                    print("Adag termination condition met.")
+                break
+                
+            # 6. Increment dimensions
+            for i in range(N):
+                if m[i] < max_m[i]:
+                    m[i] += 1
+                    
+        return final_parents
+
+    def _setup_micro_cd_algorithm(self, micro_groups, micro_data):
+        """Helper to safely re-initialize the inner CD algorithm with new micro data."""
+        micro_link_assumptions = _convert_link_assumptions(self._link_assumptions, micro_groups)
+        params = self._node_causal_discovery_params.copy()
+        params['link_assumptions'] = micro_link_assumptions
+        
+        self.micro_level_causal_discovery = MicroLevelGroupCausalDiscovery(
+            micro_data, micro_groups, self._node_causal_discovery_alg, params
+        )
+
+    def _compute_c_ind(self, group_parents: dict[int, list[tuple[int, int]]]) -> float:
+        """
+        Evaluates independence consistency on the raw un-aggregated data.
+        Infers conditional independencies from the absence of edges in the discovered group graph.
+        """
+        C_ind_count = 0
+        I_ind_count = 0
+        N = len(self._groups)
+        
+        for j in range(N):
+            # Extract all groups identified as parents of j (collapsing over time lags for the cond set)
+            parents_of_j = list(set([p[0] for p in group_parents.get(j, [])]))
+            
+            for i in range(N):
+                if i == j: 
+                    continue
+                    
+                # If i is not a parent of j, the algorithm determined they are independent 
+                # (or d-separated) given j's Markov blanket. We verify this on raw data.
+                if i not in parents_of_j:
+                    pval = self._test_ci_raw(i, j, parents_of_j)
+                    
+                    if pval > self.pc_alpha:
+                        C_ind_count += 1
+                    else:
+                        I_ind_count += 1
+                        
+        total = C_ind_count + I_ind_count
+        return C_ind_count / total if total > 0 else 1.0
+
+    def _test_ci_raw(self, i: int, j: int, cond_groups: list[int]) -> float:
+        """Tests conditional independence between raw high-dimensional groups."""
+        X = self._raw_group_data[i]
+        Y = self._raw_group_data[j]
+        
+        if cond_groups:
+            Z = torch.cat([self._raw_group_data[k] for k in cond_groups], dim=1)
+            _, pval = self.ci_test.conditional_test(X, Y, Z)
+        else:
+            _, pval = self.ci_test.test(X, Y)
+            
+        return pval
+
+    def _prepare_micro_groups_pca_adag(self, m_list: list[int]) -> tuple[list[set[int]], np.ndarray]:
+        """Specific PCA execution for the Adag loop, forcing exactly m components per group."""
+        micro_groups = []
+        micro_data = []
+        current_number_of_variables = 0
+        
+        for idx, group in enumerate(self._groups):
+            group_data = self._data[:, list(group)]
+            m = m_list[idx]
+            
+            pca = PCA(n_components=m)
+            group_data_pca = pca.fit_transform(group_data)
+            
+            n_variables = group_data_pca.shape[1]
+            micro_group = set(range(current_number_of_variables, current_number_of_variables + n_variables))
+            
+            micro_groups.append(micro_group)
+            micro_data.append(group_data_pca)
+            current_number_of_variables += n_variables
+            
+        micro_data = np.concatenate(micro_data, axis=1)
+        return micro_groups, micro_data
+
     def _prepare_micro_groups_pca(self, explained_variance_threshold: float = 0.5,
-                                    embedding_ratio: Union[float, None] = None,
-                                    embedding_size: Union[int, None] = None,
-                                    groups_division_method: str='group_embedding') -> tuple[list[set[int]], np.ndarray]:
+                                  embedding_ratio: Union[float, None] = None,
+                                  embedding_size: Union[int, None] = None,
+                                  groups_division_method: str='group_embedding') -> tuple[list[set[int]], np.ndarray]:
         '''
         Execute the PCA dimensionality reduction algorithm to the groups of variables,
         in order to obtain a univariate time series for each group.
-        
-        Args:
-            explained_variance_threshold : float indicating the minimum explained variance that the PCA
-                        algorithm must achieve to stop the dimensionality reduction.
-            embedding_ratio : float indicating the ratio between the number of variables in the original dataset
-                        and the number of variables in the reduced dataset. If None, the explained_variance_threshold
-                        will be used to calculate the explained variance threshold.
-            groups_compresion_method : string indicating the method that will be used to compress the
-                        groups of variables. options=['group_embedding', 'subgroups']
-        
-        Returns:
-            micro_groups : list[ set[int] ] where keys are original groups, and values are the indexes of
-                                    associated microvariables.
-            micro_groups_data : np.ndarray where each column is the univariate time series of each group
-                            of variables after the dimensionality reduction
         '''
         if embedding_ratio is not None and embedding_size is not None:
             raise ValueError('Only one of embedding_ratio or embedding_size can be specified.')
@@ -109,6 +224,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
             self._explained_variance_threshold = self._get_variance_threshold_from_embedding_size_pca(embedding_size)
         else:
             self._explained_variance_threshold = explained_variance_threshold
+            
         # Admit a low error when explained_variance_threshold is 0.0
         if self._explained_variance_threshold == 0.0:
             self._explained_variance_threshold = 0.05
@@ -146,19 +262,6 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         return micro_groups, micro_data
 
     def _get_group_embedding(self, group: list[int], current_number_of_variables: int) -> tuple[set[int], np.ndarray]:
-        '''
-        Function that applies PCA to a group of variables and returns the microgroup
-        and the data of the microgroup.
-        
-        Args:
-            group : set[int] indicating the indexes of the variables in the group.
-            current_number_of_variables : int indicating the current number of variables in the microlevel data.
-        
-        Returns:
-            micro_group : set[int] indicating the indexes of the variables in the microgroup.
-            group_data_pca : np.ndarray where each column is the univariate time series of each microvariable
-                            of the group after the dimensionality reduction
-        '''
         group_data = self._data[:, list(group)]
                 
         # Extract the principal components of the group
@@ -173,20 +276,14 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         return micro_group, group_data_pca
     
     def _divide_subgroups(self, current_subgroup: list[int], current_number_of_variables: int = 0) -> tuple[list[int], np.ndarray]:
-        '''
-        Recursive function that divides the group in 2 subgroups until the explained variance
-        of the first PC represents at least a "explained_variance_threshold" fraction of the total
-        '''
         current_subgroup_data = self._data[:, list(current_subgroup)]
         pca = PCA(n_components=1)
         group_data_pca = pca.fit_transform(current_subgroup_data)
         if pca.explained_variance_ratio_[0] >= self._explained_variance_threshold or len(current_subgroup) == 1:
-            # We have reached the desired explained variance; one single pc is enough
             used_subgroup = [current_number_of_variables]
             current_number_of_variables += 1
             return used_subgroup, group_data_pca
         else:
-            # Divide the half of the variables that have highest importance in PC1
             ordered_nodes = np.argsort(pca.components_[0])
             half = len(current_subgroup) // 2
             first_half = ordered_nodes[:half]
@@ -202,11 +299,6 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
             return first_subgroup + second_subgroup, np.concatenate([first_subgroup_data, second_subgroup_data], axis=1)
     
     def _get_variance_threshold_from_embedding_ratio_pca(self, embedding_ratio: Union[float, None] = None) -> float:
-        '''
-        Function that calculates the explained variance threshold from the embedding ratio.
-        The embedding ratio is the ratio between the number of variables in the original dataset
-        and the number of variables in the reduced dataset.
-        '''
         if embedding_ratio is None:
             raise ValueError('embedding_ratio must be provided when using embedding_ratio mode.')
 
@@ -221,13 +313,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         
         return explained_variance_threshold
     
-    
     def _get_variance_threshold_from_embedding_size_pca(self, embedding_size: Union[int, None] = None) -> float:
-        '''
-        Function that calculates the explained variance threshold from the embedding size.
-        The embedding ratio is the ratio between the number of variables in the original dataset
-        and the number of variables in the reduced dataset.
-        '''
         if embedding_size is None:
             raise ValueError('embedding_size must be provided when using embedding_size mode.')
 
@@ -244,21 +330,8 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         explained_variance_threshold = float(np.mean(variance_thresholds))
         
         return explained_variance_threshold
-    
-
-
 
 def _convert_link_assumptions(link_assumptions: Union[dict[int, dict[tuple[int, int], str]], None], micro_groups: list[set[int]]) -> Union[dict[int, dict[tuple[int, int], str]], None]:
-    '''
-    Convert the link assumptions from the original groups to the microgroups
-    
-    Args:
-        link_assumptions : dict[int, dict[tuple[int, int], str]]. Dictionary with the link assumptions.
-        micro_groups : list[ set[int] ]. List with the microgroups.
-    
-    Returns:
-        micro_link_assumptions : dict[int, dict[tuple[int, int], str]]. Dictionary with the link assumptions for each microgroup.
-    '''
     if link_assumptions is None:
         return None
     

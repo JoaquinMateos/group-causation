@@ -3,7 +3,9 @@ import math
 import statistics
 from scipy.stats import gamma
 
-class HSIC_Test:
+from group_causation.independence_tests.conditional_independence_base import ConditionalIndependence_base
+
+class HSIC_Test(ConditionalIndependence_base):
     """Hilbert-Schmidt Independence Criterion using Gamma approximation (PyTorch Accelerated)."""
     
     @staticmethod

@@ -106,6 +106,12 @@ class BenchmarkBase(ABC):
         
         # A list whose items are the lists of dictionaries of results and parameters of the different executions
         self.results = {alg: list() for alg in algorithms.keys()}
+
+        # Clean up old CSV results ONCE at the start of the benchmark
+        if os.path.exists(self.results_folder):
+            for filename in os.listdir(self.results_folder):
+                if filename.endswith('.csv'):
+                    os.remove(f'{self.results_folder}/{filename}')
         
         if generate_toy_data:
             self.benchmark_with_toy_data(algorithms, parameters_iterator, n_executions, datasets_folder)
@@ -116,25 +122,22 @@ class BenchmarkBase(ABC):
     
     
     def save_results(self):
-        if os.path.exists(self.results_folder):
-            # If the folder does not exist, create it
-            if not os.path.exists(self.results_folder):
-                os.makedirs(self.results_folder)
-            # Save the results in a csv file
-            for name in self.algorithms.keys():
-                # Create a dataframe with the results and the parameters
-                df = pd.concat([pd.DataFrame(self.results[name]),
-                                pd.DataFrame(self.all_algorithms_parameters[name]) ],
-                                axis=1)
-                # Set dataset_iteration as the first column
+        # If the folder does not exist, create it
+        if not os.path.exists(self.results_folder):
+            os.makedirs(self.results_folder)
+            
+        # Save the results in a csv file
+        for name in self.algorithms.keys():
+            # Create a dataframe with the results and the parameters
+            df = pd.concat([pd.DataFrame(self.results[name]),
+                            pd.DataFrame(self.all_algorithms_parameters[name]) ],
+                            axis=1)
+            
+            # Set dataset_iteration as the first column (safeguard check if it exists)
+            if 'dataset_iteration' in df.columns:
                 df.insert(0, 'dataset_iteration', df.pop('dataset_iteration'))
-                               
-                df.to_csv(f'{self.results_folder}/results_{name}.csv', index=False)
-        else:
-            # If it does exist, delete previous results
-            for filename in os.listdir(self.results_folder):
-                if filename.endswith('.csv'):
-                    os.remove(f'{self.results_folder}/{filename}')
+                                               
+            df.to_csv(f'{self.results_folder}/results_{name}.csv', index=False)
     
     def benchmark_with_toy_data(self, algorithms: Mapping[str, AlgorithmCls],
                                       parameters_iterator: Iterator[tuple[dict[str, Any], dict[str, Any]]],
