@@ -1,13 +1,12 @@
 import math
+import logging
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from scipy.stats import gamma
-from typing import Union
-from abc import abstractmethod
+from typing import Union, Optional
 
-# Assuming GroupCausalDiscovery is defined elsewhere in your project
+# Assuming GroupCausalDiscovery and HSIC_Test are defined elsewhere in your project
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.independence_tests import HSIC_Test
 
@@ -16,17 +15,20 @@ from group_causation.independence_tests import HSIC_Test
 # MLP Regressors (Standard & Spatio-Temporal MURGS)
 # ---------------------------------------------------------------------------
 class MultiOutputMLP(nn.Module):
-    def __init__(self, input_dim: int, output_dim: int, hidden_dim: int = 100):
+    def __init__(self, input_dim: int, u_dim: int, output_dim: int, hidden_dim: int = 100):
         super().__init__()
+        # Input dimension expanded to accommodate u_dim
         self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
+            nn.Linear(input_dim + u_dim, hidden_dim),
             nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.Tanh(),
             nn.Linear(hidden_dim, output_dim)
         )
 
-    def forward(self, x):
+    def forward(self, x, u=None):
+        if u is not None:
+            x = torch.cat([x, u], dim=-1)
         return self.net(x)
 
 class GroupRegressor:
@@ -37,32 +39,47 @@ class GroupRegressor:
         self.lr = lr
         self.hidden_dim = hidden_dim
 
-    def fit(self, X: np.ndarray, Y: np.ndarray):
+    def fit(self, X: np.ndarray, Y: np.ndarray, U: Optional[np.ndarray] = None):
         input_dim = X.shape[1]
+        u_dim = U.shape[1] if U is not None else 0
         output_dim = Y.shape[1]
         
         self.device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
-        self.model = MultiOutputMLP(input_dim, output_dim, self.hidden_dim).to(self.device)
+        self.model = MultiOutputMLP(input_dim, u_dim, output_dim, self.hidden_dim).to(self.device)
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr)
         criterion = nn.MSELoss()
 
-        dataset = TensorDataset(torch.FloatTensor(X), torch.FloatTensor(Y))
+        if U is not None:
+            dataset = TensorDataset(torch.FloatTensor(X), torch.FloatTensor(U), torch.FloatTensor(Y))
+        else:
+            dataset = TensorDataset(torch.FloatTensor(X), torch.FloatTensor(Y))
+            
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
         self.model.train()
         for _ in range(self.epochs):
-            for batch_x, batch_y in loader:
+            for batch in loader:
+                if U is not None:
+                    batch_x, batch_u, batch_y = batch
+                    batch_u = batch_u.to(self.device)
+                else:
+                    batch_x, batch_y = batch
+                    batch_u = None
+                    
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
-                preds = self.model(batch_x)
+                
+                preds = self.model(batch_x, batch_u)
                 loss = criterion(preds, batch_y)
                 loss.backward()
                 optimizer.step()
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray, U: Optional[np.ndarray] = None) -> np.ndarray:
         self.model.eval()
         with torch.no_grad():
-            preds = self.model(torch.FloatTensor(X).to(self.device))
+            X_t = torch.FloatTensor(X).to(self.device)
+            U_t = torch.FloatTensor(U).to(self.device) if U is not None else None
+            preds = self.model(X_t, U_t)
         return preds.cpu().numpy()
 
 class SpatioTemporalMURGSRegressor(GroupRegressor):
@@ -74,25 +91,37 @@ class SpatioTemporalMURGSRegressor(GroupRegressor):
         super().__init__(epochs, batch_size, lr, hidden_dim)
         self.lambda_reg = lambda_reg
 
-    def fit(self, X: np.ndarray, Y: np.ndarray, group_dims: list[int]):
+    def fit(self, X: np.ndarray, Y: np.ndarray, group_dims: list[int], U: Optional[np.ndarray] = None):
         input_dim = X.shape[1]
+        u_dim = U.shape[1] if U is not None else 0
         output_dim = Y.shape[1]
         
         self.device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
-        self.model = MultiOutputMLP(input_dim, output_dim, self.hidden_dim).to(self.device)
+        self.model = MultiOutputMLP(input_dim, u_dim, output_dim, self.hidden_dim).to(self.device)
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr)
         criterion = nn.MSELoss()
 
-        dataset = TensorDataset(torch.FloatTensor(X), torch.FloatTensor(Y))
+        if U is not None:
+            dataset = TensorDataset(torch.FloatTensor(X), torch.FloatTensor(U), torch.FloatTensor(Y))
+        else:
+            dataset = TensorDataset(torch.FloatTensor(X), torch.FloatTensor(Y))
+            
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
         self.model.train()
         for _ in range(self.epochs):
-            for batch_x, batch_y in loader:
+            for batch in loader:
+                if U is not None:
+                    batch_x, batch_u, batch_y = batch
+                    batch_u = batch_u.to(self.device)
+                else:
+                    batch_x, batch_y = batch
+                    batch_u = None
+                    
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
                 
-                preds = self.model(batch_x)
+                preds = self.model(batch_x, batch_u)
                 mse_loss = criterion(preds, batch_y)
                 
                 # Apply Spatio-Temporal Group Lasso (MURGS Penalty)
@@ -100,10 +129,11 @@ class SpatioTemporalMURGSRegressor(GroupRegressor):
                 start_idx = 0
                 W_in = self.model.net[0].weight
                 
+                # Note: Because group_dims sum to input_dim, this loop naturally
+                # skips penalizing the last u_dim columns associated with U.
                 for g_dim in group_dims:
                     end_idx = start_idx + g_dim
                     W_group = W_in[:, start_idx:end_idx] # type: ignore
-                    # MURGS functional: sqrt(d_g) * ||W_g||_F
                     reg_loss += math.sqrt(g_dim) * torch.norm(W_group, p='fro')
                     start_idx = end_idx
                 
@@ -112,7 +142,6 @@ class SpatioTemporalMURGSRegressor(GroupRegressor):
                 optimizer.step()
 
     def get_group_norms(self, group_dims: list[int]) -> list[float]:
-        """Returns the Frobenius norm of the input weights associated with each feature group."""
         self.model.eval()
         norms = []
         start_idx = 0
@@ -135,18 +164,20 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
     Phase II: Spatio-Temporal MURGS pruning via Group-Lasso Neural Networks.
     '''
     def __init__(self, data: np.ndarray, groups: Union[list[set[int]], None] = None,
-                 standarize: bool=True, **kwargs):
-        super().__init__(data, groups, standarize, **kwargs)
+                 standarize: bool=True, non_stationarity_info: Union[dict, None] = None, 
+                 use_nonstationarity_info: bool = False,
+                 verbose: int = 0, **kwargs):
+                 
+        super().__init__(data, groups, standarize, non_stationarity_info, **kwargs)
         
-        # Hyperparameters
         self.epochs = self.extra_args.get("epochs", 200)
         self.hidden_dim = self.extra_args.get("hidden_dim", 100)
         self.max_lag = self.extra_args.get("max_lag", 1)
         self.min_lag = self.extra_args.get("min_lag", 1) 
         
-        # MURGS specific hyperparameters
-        self.lambda_reg = self.extra_args.get("lambda_reg", 0.05) # Regularization strength
-        self.pruning_threshold = self.extra_args.get("pruning_threshold", 1e-3) # Threshold to drop edge
+        self.lambda_reg = self.extra_args.get("lambda_reg", 0.05)
+        self.pruning_threshold = self.extra_args.get("pruning_threshold", 1e-3)
+        self._verbose = verbose
         
         self.T = self._data.shape[0]
         self.G = len(self._groups)
@@ -155,8 +186,42 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
             raise ValueError("Time series length T must be strictly greater than max_lag.")
         if self.min_lag > self.max_lag:
             raise ValueError("min_lag cannot be strictly greater than max_lag.")
+            
+        # ---------------------------------------------------------
+        # Conditional Background 'u' Construction
+        # ---------------------------------------------------------
+        self.use_nonstationarity_info = use_nonstationarity_info
+        self.u = None
         
-        # Internal state
+        if self.use_nonstationarity_info:
+            non_stationarity_info = non_stationarity_info if non_stationarity_info is not None else {}
+            
+            if non_stationarity_info.get('type') != 'regime_shifts':
+                raise ValueError("non_stationarity_info must have type 'regime_shifts' when use_nonstationarity_info=True")
+            
+            affected_vars = non_stationarity_info.get('affected_vars', [])
+            if not affected_vars:
+                if self._verbose > 0:
+                    logging.info("Notice: No variables affected by non-stationarity. Falling back to default model.")
+                self.use_nonstationarity_info = False
+            else:
+                first_var = affected_vars[0]
+                shifts = non_stationarity_info['shift_details'][first_var]
+                
+                total_T = shifts[-1]['end']
+                u_full = np.zeros(total_T, dtype=int)
+                
+                for shift in shifts:
+                    u_full[shift['start']:shift['end']] = shift['regime'] - 1
+                
+                u_aligned = u_full[-self.T:]
+                
+                num_regimes = non_stationarity_info.get('num_shifts', len(shifts)) + 1
+                u_one_hot = np.zeros((self.T, num_regimes))
+                u_one_hot[np.arange(self.T), u_aligned] = 1
+                
+                self.u = u_one_hot
+        
         self._causal_order = [] 
         self._pa = {}           
 
@@ -171,7 +236,7 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
         blocks = []
         dims = []
         for g, l in vars_list:
-            cols = list(self._groups[g]) # Ensure it's list-like for indexing
+            cols = list(self._groups[g])
             start_idx = self.max_lag - l
             end_idx = self.T - l
             blocks.append(self._data[start_idx:end_idx, cols])
@@ -190,6 +255,9 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
         
         start_lag = max(1, self.min_lag)
         past_vars = [(g, l) for g in range(self.G) for l in range(start_lag, self.max_lag + 1)]
+        
+        # Extract contemporaneous background variables if needed
+        U_sliced = self.u[self.max_lag:] if self.use_nonstationarity_info else None
 
         while S:
             if len(S) == 1:
@@ -212,15 +280,15 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
                     
                 X, _ = self._get_data_and_dims_for_vars(regressors)
 
-                # Standard Regression for conditional independence testing
                 regressor = GroupRegressor(epochs=self.epochs, hidden_dim=self.hidden_dim)
-                regressor.fit(X, Y)
-                Y_pred = regressor.predict(X)
+                regressor.fit(X, Y, U_sliced)
+                Y_pred = regressor.predict(X, U_sliced)
                 
                 residuals = Y - Y_pred
                 residuals = (residuals - residuals.mean(axis=0)) / (residuals.std(axis=0) + 1e-8)
                 X_std = (X - X.mean(axis=0)) / (X.std(axis=0) + 1e-8)
                 
+                # HSIC Test on structurally independent variables vs residuals
                 test_stat, p_val = HSIC_Test.test(residuals, X_std)
                 
                 if test_stat < least_dependent_stat:
@@ -242,6 +310,8 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
         start_lag = max(1, self.min_lag)
         past_vars = [(g, l) for g in range(self.G) for l in range(start_lag, self.max_lag + 1)]
 
+        U_sliced = self.u[self.max_lag:] if self.use_nonstationarity_info else None
+
         for i, k in enumerate(self._causal_order):
             contemp_preds = [(p, 0) for p in self._causal_order[:i]] if self.min_lag == 0 else []
             potential_parents = contemp_preds + past_vars
@@ -250,26 +320,21 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
                 pa[k] = []
                 continue
 
-            # Extract data and group dimensions for all potential parents simultaneously
             X_pot_parents, group_dims = self._get_data_and_dims_for_vars(potential_parents)
             Y, _ = self._get_data_and_dims_for_vars([(k, 0)])
             
-            # Standardize
             X_pot_parents = (X_pot_parents - X_pot_parents.mean(axis=0)) / (X_pot_parents.std(axis=0) + 1e-8)
             Y = (Y - Y.mean(axis=0)) / (Y.std(axis=0) + 1e-8)
 
-            # Fit MURGS model with group-lasso penalty across space and time
             murgs_model = SpatioTemporalMURGSRegressor(
                 epochs=self.epochs, 
                 hidden_dim=self.hidden_dim, 
                 lambda_reg=self.lambda_reg
             )
-            murgs_model.fit(X_pot_parents, Y, group_dims)
+            murgs_model.fit(X_pot_parents, Y, group_dims, U_sliced)
             
-            # Extract norms to filter connections
             norms = murgs_model.get_group_norms(group_dims)
             
-            # Keep parents whose weight block survived the penalty shrinkage
             surviving_parents = []
             for p_idx, norm_val in enumerate(norms):
                 if norm_val > self.pruning_threshold:

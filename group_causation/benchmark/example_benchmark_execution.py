@@ -143,14 +143,14 @@ data_generation_options = {
     'latent_confounding_fraction': 0, # Fraction of latent confounders at the group level (these are groups that are generated but then hidden, so they create latent confounding between the visible groups)
     'maximum_of_nodes_confounded': 3, # Maximum number of nodes per group that can be affected by a single latent confounder
     
-    'n_node_links_per_group_link': 2, # Number of links between nodes of two groups that are connected at group level
+    'n_node_links_per_group_link': 3, # Number of links between nodes of two groups that are connected at group level
     'contemp_fraction': 0, # Fraction of links that are contemporaneous (lag 0)
-    'cross_terms_fraction': 0.1, # Fraction of links that are cross-terms (multivariate interactions from multiple parents, instead of simple univariate functions of each parent)
+    'cross_terms_fraction': 0.05, # Fraction of links that are cross-terms (multivariate interactions from multiple parents, instead of simple univariate functions of each parent)
     
     # Dependency functions
     'max_lag': MAX_LAG,
     'min_lag': MIN_LAG,
-    'dependency_funcs': [#  lambda x: x,
+    'dependency_funcs': [lambda x: x,
                         lambda x: np.sin(x),
                         lambda x: 2 * min(x**2, 100), # La correlación de Pearson no detecta relaciones cuadráticas
                         lambda x: 1 / (1 + np.exp(-x)) # Sigmoidal
@@ -221,10 +221,10 @@ if __name__ == '__main__':
     results_folder = 'results_CAEPIA'
     datasets_folder = f'{results_folder}/toy_data'
     
-    generate_toy_data = False
-    execute_benchmark = True
-    plot_graphs = True
-    n_executions = 5
+    generate_toy_data = True
+    execute_benchmark = False
+    plot_graphs = False
+    n_executions = 10
     
     dataset_iteration_to_plot = -1
     plot_x_axis = 'drift_fraction'

@@ -1,5 +1,4 @@
-from typing import Union
-
+from typing import Union, Optional, Any
 import logging
 import numpy as np
 from scipy.stats import ks_2samp
@@ -23,27 +22,22 @@ class GaussianKnockoffGenerator:
         mu = np.mean(X, axis=0)
         X_centered = X - mu
         
-        # Empirical covariance
         Sigma = np.cov(X_centered, rowvar=False)
         if p == 1:
             Sigma = np.array([[np.var(X_centered)]])
         
-        # Add slight jitter for numerical stability (positive definiteness)
         Sigma += np.eye(p) * 1e-6
         
         eigenvalues = np.linalg.eigvalsh(Sigma)
         lambda_min = min(eigenvalues)
         
-        # S matrix: diagonal matrix with s_i. Ensure 2*Sigma - S is PSD.
         s = min(1.0, 2 * lambda_min) * 0.99
         S = np.eye(p) * s
         
-        # Calculate knockoff distribution parameters
         Sigma_inv = np.linalg.inv(Sigma)
         mu_tilde = X_centered - X_centered @ Sigma_inv @ S
         V = 2 * S - S @ Sigma_inv @ S
         
-        # Sample knockoffs
         noise = np.random.multivariate_normal(np.zeros(p), V, size=n)
         X_knockoff = mu_tilde + noise + mu
         
@@ -57,44 +51,41 @@ class DeepAR(nn.Module):
     Deep Autoregressive Recurrent Network for Probabilistic Forecasting.
     Models the temporal dynamics of the system and outputs parameters 
     for a Gaussian distribution (mu, sigma) at the next time step.
+    Accepts background variables (u) concatenated to inputs if provided.
     """
-    def __init__(self, input_dim: int, hidden_dim: int, num_layers: int = 1, dropout: float = 0.1):
+    def __init__(self, input_dim: int, u_dim: int, hidden_dim: int, num_layers: int = 1, dropout: float = 0.1):
         super().__init__()
         self.lstm = nn.LSTM(
-            input_size=input_dim, 
+            input_size=input_dim + u_dim, 
             hidden_size=hidden_dim, 
             num_layers=num_layers, 
             batch_first=True, 
             dropout=dropout if num_layers > 1 else 0
         )
         
-        # Projection layers to map LSTM hidden state to distribution parameters
         self.mu_layer = nn.Linear(hidden_dim, input_dim)
         self.sigma_layer = nn.Linear(hidden_dim, input_dim)
-        
-        # Softplus ensures standard deviation is strictly positive
         self.softplus = nn.Softplus()
 
-    def forward(self, x):
+    def forward(self, x, u=None):
         """
         x shape: (batch_size, sequence_length, features)
-        Returns mu and sigma for the time step immediately following the sequence.
+        u shape: (batch_size, sequence_length, u_dim) - optional
         """
+        if u is not None:
+            x = torch.cat([x, u], dim=-1)
+            
         lstm_out, _ = self.lstm(x)
         
-        # We only care about predicting the next step after the historical window
         last_hidden_state = lstm_out[:, -1, :]
         
         mu = self.mu_layer(last_hidden_state)
-        # Add epsilon to prevent sigma from becoming exactly zero
         sigma = self.softplus(self.sigma_layer(last_hidden_state)) + 1e-6 
         
         return mu, sigma
 
 def gaussian_nll_loss(mu: torch.Tensor, sigma: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Computes the Negative Log-Likelihood of a Gaussian Distribution."""
     distribution = torch.distributions.Normal(mu, sigma)
-    # We want to minimize the negative log probability
     return -distribution.log_prob(target).mean()
 
 # ---------------------------------------------------------------------------
@@ -105,62 +96,119 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
     Group Interventions on Deep Networks for Causal Discovery (gCDMI).
     Uses a DeepAR formulation for structure learning, group-wise knockoff interventions,
     and infers causality via Model Invariance Testing (KS Test).
+    Can optionally incorporate background variables to handle non-stationarity.
     '''
     def __init__(self, data: np.ndarray, groups: Union[list[set[int]], None] = None,
-                 standarize: bool=True, **kwargs):
-        super().__init__(data, groups, standarize, **kwargs)
+                 standarize: bool=True, non_stationarity_info: Union[dict, None] = None, 
+                 use_nonstationarity_info: bool = False,
+                 verbose: int = 0, **kwargs):
+                 
+        super().__init__(data, groups, standarize, non_stationarity_info, **kwargs)
         
-        # Hyperparameters
-        self.alpha = self.extra_args.get("alpha", 0.05) # Significance level for KS-Test
+        self.alpha = self.extra_args.get("alpha", 0.05)
         self.epochs = self.extra_args.get("epochs", 150)
         self.hidden_dim = self.extra_args.get("hidden_dim", 64)
         self.num_layers = self.extra_args.get("num_layers", 2)
         self.batch_size = self.extra_args.get("batch_size", 128)
         self.lr = self.extra_args.get("learning_rate", 0.005)
-        self.max_lag = self.extra_args.get("max_lag", 3) # DeepAR benefits from longer context
-        self.lambda_l1 = self.extra_args.get("lambda_l1", 1e-4) # L1 regularization for sparsity in the learned structure
+        self.max_lag = self.extra_args.get("max_lag", 3)
+        self.lambda_l1 = self.extra_args.get("lambda_l1", 1e-4)
+        self._verbose = verbose
         
         self.T, self.N = self._data.shape
         self.G = len(self._groups)
         
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-        
         if self.T <= self.max_lag:
             raise ValueError("Time series length T must be strictly greater than max_lag.")
+            
+        # ---------------------------------------------------------
+        # Conditional Background 'u' Construction
+        # ---------------------------------------------------------
+        self.use_nonstationarity_info = use_nonstationarity_info
+        self.u = None
+        
+        if self.use_nonstationarity_info:
+            non_stationarity_info = non_stationarity_info if non_stationarity_info is not None else {}
+            
+            if non_stationarity_info.get('type') != 'regime_shifts':
+                raise ValueError("non_stationarity_info must have type 'regime_shifts' when use_nonstationarity_info=True")
+            
+            affected_vars = non_stationarity_info.get('affected_vars', [])
+            if not affected_vars:
+                if self._verbose > 0:
+                    logging.info("Notice: No variables affected by non-stationarity. Falling back to default model.")
+                self.use_nonstationarity_info = False
+            else:
+                first_var = affected_vars[0]
+                shifts = non_stationarity_info['shift_details'][first_var]
+                
+                total_T = shifts[-1]['end']
+                u_full = np.zeros(total_T, dtype=int)
+                
+                for shift in shifts:
+                    u_full[shift['start']:shift['end']] = shift['regime'] - 1
+                
+                u_aligned = u_full[-self.T:]
+                
+                num_regimes = non_stationarity_info.get('num_shifts', len(shifts)) + 1
+                u_one_hot = np.zeros((self.T, num_regimes))
+                u_one_hot[np.arange(self.T), u_aligned] = 1
+                
+                self.u = u_one_hot
 
-    def _create_windows(self, data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        self.u_dim = self.u.shape[1] if self.u is not None else 0
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+
+    def _create_windows(self, data: np.ndarray, u_data: Optional[np.ndarray] = None) -> tuple:
         """Creates sliding autoregressive windows for DeepAR forecasting."""
         X, Y = [], []
+        U = [] if u_data is not None else None
+        
         for i in range(self.T - self.max_lag):
             X.append(data[i : i + self.max_lag, :])
             Y.append(data[i + self.max_lag, :])
+            if u_data is not None:
+                U.append(u_data[i : i + self.max_lag, :])
+                
+        if U is not None:
+            return np.array(X), np.array(U), np.array(Y)
         return np.array(X), np.array(Y)
 
     def _train_structure(self):
-        """Step 1: Structure Learning. Train DeepAR to forecast the multivariate system.
-        Uses early stopping based on validation loss to prevent overfitting and ensure better generalization.
-        """        
+        """Step 1: Structure Learning. Train DeepAR to forecast the multivariate system."""        
         self.device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+        
         self.model = DeepAR(
             input_dim=self.N, 
+            u_dim=self.u_dim,
             hidden_dim=self.hidden_dim, 
             num_layers=self.num_layers
         ).to(self.device)
+        
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
-        
-        X_seq, Y_seq = self._create_windows(self._data)
-        
+        if self.use_nonstationarity_info:
+            X_seq, U_seq, Y_seq = self._create_windows(self._data, self.u)
+        else:
+            X_seq, Y_seq = self._create_windows(self._data)
+            
         # --- SPLIT 80/20 ---
         split_idx = int(len(X_seq) * 0.8)
         X_train, Y_train = X_seq[:split_idx], Y_seq[:split_idx]
         X_val, Y_val = X_seq[split_idx:], Y_seq[split_idx:]
         
-        dataset_train = TensorDataset(torch.FloatTensor(X_train), torch.FloatTensor(Y_train))
-        loader_train = DataLoader(dataset_train, batch_size=self.batch_size, shuffle=True)
-        
         X_val_t = torch.FloatTensor(X_val).to(self.device)
         Y_val_t = torch.FloatTensor(Y_val).to(self.device)
+        
+        if self.use_nonstationarity_info:
+            U_train, U_val = U_seq[:split_idx], U_seq[split_idx:]
+            dataset_train = TensorDataset(torch.FloatTensor(X_train), torch.FloatTensor(U_train), torch.FloatTensor(Y_train))
+            U_val_t = torch.FloatTensor(U_val).to(self.device)
+        else:
+            dataset_train = TensorDataset(torch.FloatTensor(X_train), torch.FloatTensor(Y_train))
+            U_val_t = None
+            
+        loader_train = DataLoader(dataset_train, batch_size=self.batch_size, shuffle=True)
 
         best_val_loss = float('inf')
         patience_counter = 0
@@ -168,10 +216,19 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
 
         for epoch in range(self.epochs):
             self.model.train()
-            for batch_x, batch_y in loader_train:
+            
+            for batch in loader_train:
+                if self.use_nonstationarity_info:
+                    batch_x, batch_u, batch_y = batch
+                    batch_u = batch_u.to(self.device)
+                else:
+                    batch_x, batch_y = batch
+                    batch_u = None
+                    
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
-                mu, sigma = self.model(batch_x)
+                
+                mu, sigma = self.model(batch_x, batch_u)
                 
                 loss = gaussian_nll_loss(mu, sigma, batch_y)
                 l1_reg = torch.norm(self.model.lstm.weight_ih_l0, 1)
@@ -183,7 +240,7 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
             # --- VALIDATION ---
             self.model.eval()
             with torch.no_grad():
-                mu_val, sigma_val = self.model(X_val_t)
+                mu_val, sigma_val = self.model(X_val_t, U_val_t)
                 val_loss = gaussian_nll_loss(mu_val, sigma_val, Y_val_t).item()
                 
             if val_loss < best_val_loss:
@@ -194,87 +251,70 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
                 patience_counter += 1
                 
             if patience_counter >= patience:
-                logging.info(f"Early stopping en epoch {epoch} (Val Loss no mejora).")
+                if self._verbose > 0:
+                    logging.info(f"Early stopping en epoch {epoch} (Val Loss no mejora).")
                 break
                 
-        # Restaurar el modelo que mejor predice la realidad
         if 'best_weights' in locals():
             self.model.load_state_dict({k: v.to(self.device) for k, v in best_weights.items()})
 
     def _compute_residuals(self, true_y: np.ndarray, pred_mu: np.ndarray, group_idx: int) -> np.ndarray:
-        """
-        Calculates the relative absolute errors for a specific group based on the 
-        DeepAR point forecast (mu).
-        Formula from paper: e = |Z - Z_hat| / |Z|
-        """
         cols = list(self._groups[group_idx])
         Z = true_y[:, cols]
         Z_hat = pred_mu[:, cols]
-        
-        # Add epsilon to denominator to prevent division by zero in zero-scaled data
         residuals = np.abs(Z - Z_hat) / (np.abs(Z) + 1e-8)
-        return residuals.flatten() # Flatten to 1D distribution array for the KS-test
+        return residuals.flatten() 
 
     def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
-        """
-        Execute Steps 1 (Learning), 2 (Interventions), and 3 (Invariance Testing)
-        adapted for specific-lag causal discovery.
-        """
-        # Step 1: Learn the structural temporal dependencies via DeepAR
         self._train_structure()
         
-        # Generate knockoffs for the entire dataset
         self._knockoffs = GaussianKnockoffGenerator.generate(self._data)
         
         # Get baseline (observational) sequences and their true targets
-        X_obs, Y_true = self._create_windows(self._data)
-        
-        # Window the knockoffs so we can swap specific time steps
-        X_knockoffs_obs, _ = self._create_windows(self._knockoffs)
+        if self.use_nonstationarity_info:
+            X_obs, U_obs, Y_true = self._create_windows(self._data, self.u)
+            U_obs_t = torch.FloatTensor(U_obs).to(self.device)
+        else:
+            X_obs, Y_true = self._create_windows(self._data)
+            U_obs_t = None
+            
+        # Knockoffs only need the main data windows
+        if self.use_nonstationarity_info:
+            X_knockoffs_obs, _, _ = self._create_windows(self._knockoffs, self.u)
+        else:
+            X_knockoffs_obs, _ = self._create_windows(self._knockoffs)
         
         self.model.eval()
         with torch.no_grad():
-            mu_obs, _ = self.model(torch.FloatTensor(X_obs).to(self.device))
+            mu_obs, _ = self.model(torch.FloatTensor(X_obs).to(self.device), U_obs_t)
             Y_pred_obs = mu_obs.cpu().numpy()
 
         causal_graph = {i: [] for i in range(self.G)}
 
-        # Step 2 & 3: Lag-Specific Group Interventions & Model Invariance Test
-        for i in range(self.G):  # Candidate cause group
+        for i in range(self.G): 
             cols_i = list(self._groups[i])
             
-            # Iterate through each specific lag in the window
             for lag in range(1, self.max_lag + 1):
-                
-                # Create interventional data by copying the observational windows
                 X_interv = X_obs.copy()
-                
-                # Calculate the exact time index within the sequence window.
-                # If sequence length is max_lag, index (max_lag - lag) targets the exact past step.
                 time_idx = self.max_lag - lag
                 
-                # Replace only the specific lag of group i with its knockoff
+                # Intervene on the specific lag with knockoff data
                 X_interv[:, time_idx, cols_i] = X_knockoffs_obs[:, time_idx, cols_i]
                 
                 with torch.no_grad():
-                    mu_interv, _ = self.model(torch.FloatTensor(X_interv).to(self.device))
+                    mu_interv, _ = self.model(torch.FloatTensor(X_interv).to(self.device), U_obs_t)
                     Y_pred_interv = mu_interv.cpu().numpy()
                     
-                for j in range(self.G):  # Target group    
-                    # Extract residuals for target group j
+                for j in range(self.G):  
                     R_j = self._compute_residuals(Y_true, Y_pred_obs, j)
                     R_j_tilde = self._compute_residuals(Y_true, Y_pred_interv, j)
                     
-                    # Subsampling to avoid KS-Test hypersensitivity
                     max_samples = min(400, len(R_j))
                     idx = np.random.choice(len(R_j), max_samples, replace=False)
                     
-                    # Kolmogorov-Smirnov Test on the subset
                     stat, p_val = ks_2samp(R_j[idx], R_j_tilde[idx])
                     
-                    # If p-value < alpha, invariance is broken for this specific lag
                     if p_val < self.alpha:
-                        # Record the specific lag that caused the invariance break
                         causal_graph[j].append((i, -lag))
 
         return causal_graph

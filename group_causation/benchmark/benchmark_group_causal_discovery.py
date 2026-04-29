@@ -10,9 +10,9 @@ from group_causation.benchmark.benchmark_causal_discovery import BenchmarkCausal
 from group_causation.benchmark.benchmark_base import parent_to_node
 from group_causation.data_management.create_toy_datasets import CausalDataset
 from group_causation.utils import (
-    get_cpdag_and_edge_set, get_f1, get_false_positive_ratio, get_precision, 
-    get_recall, get_shd, window_to_summary_graph, 
-    split_lagged_and_contemporaneous, get_dag_edge_set, get_global_window_metrics # <-- Added here
+    get_cpdag_and_edge_set, get_f1, get_false_positive_ratio, get_precision,
+    get_recall, get_shd, window_to_summary_graph,
+    split_lagged_and_contemporaneous, get_dag_edge_set, get_global_window_metrics
 )
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 
@@ -55,6 +55,7 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
         time = np.nan
         memory = np.nan
 
+        # Propagate non-stationarity info if available, as some algorithms can directly consume it or pass it to their
         if causal_dataset.non_stationarity_info.get('applied', False):
             non_stationarity_info = copy.deepcopy(causal_dataset.non_stationarity_info)
             # Keep top-level propagation for algorithms that consume it directly.

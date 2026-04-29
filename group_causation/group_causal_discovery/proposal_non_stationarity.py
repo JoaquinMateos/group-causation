@@ -74,7 +74,6 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                         
                         self.u = u_one_hot
 
-                # This is now an 'if' instead of 'elif' to allow the fallback above to cascade into it
                 if u == 'time_index':
                     if num_chunks_of_time_index is None:
                         raise ValueError("num_chunks_of_time_index must be specified when u='time_index' (or when falling back to it)")
