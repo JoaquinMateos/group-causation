@@ -152,9 +152,16 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
 
             X_local = X_data[mask]
             Y_local = Y_data[mask]
+            Z_local = Z_data[mask] if Z_data is not None else None
             
-            if Z_data is not None:
-                Z_local = Z_data[mask]
+            # --- Move to CPU if in Mac to avoid non-implementation errors ---
+            if self.device.type == 'mps':
+                X_local = X_local.cpu()
+                Y_local = Y_local.cpu()
+                if Z_local is not None:
+                    Z_local = Z_local.cpu()
+
+            if Z_local is not None:
                 stat, pval = self.conditional_independence_test.conditional_test(X_local, Y_local, Z_local)
             else:
                 stat, pval = self.conditional_independence_test.test(X_local, Y_local)
