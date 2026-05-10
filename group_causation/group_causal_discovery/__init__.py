@@ -2,7 +2,6 @@ from .group_causal_discovery_base import GroupCausalDiscovery
 from .micro_level import MicroLevelGroupCausalDiscovery
 from .dimension_reduction import DimensionReductionGroupCausalDiscovery
 from .hybrid import HybridGroupCausalDiscovery
-from .adag import ADAG
 from .group_resit import GroupRESITTimeSeriesCausalDiscovery
 from .gcdmi import gCDMICausalDiscovery
 from .proposal_non_stationarity import IVAE_GroupPCMCI_Proposal

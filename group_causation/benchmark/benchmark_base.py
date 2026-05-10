@@ -106,12 +106,6 @@ class BenchmarkBase(ABC):
         
         # A list whose items are the lists of dictionaries of results and parameters of the different executions
         self.results = {alg: list() for alg in algorithms.keys()}
-
-        # Clean up old CSV results ONCE at the start of the benchmark
-        if os.path.exists(self.results_folder):
-            for filename in os.listdir(self.results_folder):
-                if filename.endswith('.csv'):
-                    os.remove(f'{self.results_folder}/{filename}')
         
         if generate_toy_data:
             self.benchmark_with_toy_data(algorithms, parameters_iterator, n_executions, datasets_folder)

@@ -1,13 +1,15 @@
 import numpy as np
 import torch
 from sklearn.decomposition import PCA
-from typing import Any, Union
+from typing import Any, Union, List, Tuple, Set, Optional
 import logging
 
+from group_causation.dimensionality_reduction.adag_wrapper import AdagWrapper, TunablePCA
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.group_causal_discovery.micro_level import MicroLevelGroupCausalDiscovery
 from group_causation.independence_tests import conditional_independence_tests
 from group_causation.independence_tests.conditional_independence_base import ConditionalIndependence_base
+
 
 class HybridGroupCausalDiscovery(GroupCausalDiscovery):
     '''
@@ -24,7 +26,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
                  dimensionality_reduction: str = 'pca',
                  node_causal_discovery_alg: str = 'pcmci',
                  node_causal_discovery_params: Union[dict[str, Any], None] = None,
-                 apply_adag_optimization: bool = True,
+                 apply_adag_optimization: bool = False,
                  conditional_independence_test_for_adag: str = 'max_corr',
                  pc_alpha_for_adag: float = 0.05,
                  target_c_ind: float = 0.85,
@@ -42,6 +44,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         
         # Adag specific parameters
         self.apply_adag_optimization = apply_adag_optimization
+        logging.info(f"Adag optimization is {'ENABLED' if apply_adag_optimization else 'DISABLED'}.")
         self.target_c_ind = target_c_ind
         self.pc_alpha = pc_alpha_for_adag
         
@@ -77,7 +80,49 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         if self.apply_adag_optimization:
             if self._verbose > 0:
                 print(f"Extracting parents: Adag optimization ENABLED (target c_ind={self.target_c_ind}).")
-            return self._run_adag()
+            
+            # 1. Initialize Adag Components
+            adag_wrapper = AdagWrapper(
+                ci_test_class=self.ci_test,
+                groups=self._groups,
+                max_lag=self._node_causal_discovery_params.get('max_lag', 5),
+                p_val_threshold=self.pc_alpha,
+                num_regimes=self._node_causal_discovery_params.get('num_regimes', 1)
+            )
+            aggregator = TunablePCA()
+            
+            # We track the last found parents to avoid running CD one extra time at the end
+            last_parents = {}
+            
+            # 2. Define the callback function for Adag
+            def discovery_func(Z_m: List[torch.Tensor]) -> dict[int, list[tuple[int, int]]]:
+                nonlocal last_parents
+                
+                # Format Z_m back to the micro_data / micro_groups layout
+                micro_groups, micro_data = self._format_z_m_to_micro(Z_m)
+                
+                # Save to class state
+                self.micro_groups = micro_groups
+                self.micro_data = micro_data
+                
+                # Run the inner algorithm
+                self._setup_micro_cd_algorithm(micro_groups, micro_data)
+                last_parents = self.micro_level_causal_discovery.extract_parents()
+                return last_parents
+
+            # 3. Execute Adag Loop
+            Z_m, c_ind_score, final_m = adag_wrapper.run(
+                X_data=self._raw_group_data,
+                discovery_func=discovery_func,
+                aggregator=aggregator,
+                target_alpha_q=self.target_c_ind
+            )
+            
+            if self._verbose > 0:
+                print(f"Adag optimization finished with components m={final_m} and c_ind={c_ind_score:.3f}")
+                
+            return last_parents
+
         else:
             if self._verbose > 0:
                 print("Extracting parents: Adag optimization DISABLED. Using fixed PCA parameters.")
@@ -88,49 +133,24 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
             
             return self.micro_level_causal_discovery.extract_parents()
 
-    def _run_adag(self) -> dict[int, list[tuple[int, int]]]:
-        """Iterative aggregation loop to find the optimal PCA dimensionality."""
-        N = len(self._groups)
-        m = [1] * N
-        max_m = [len(group) for group in self._groups]
+    def _format_z_m_to_micro(self, Z_m: List[torch.Tensor]) -> Tuple[List[Set[int]], np.ndarray]:
+        """Converts the list of aggregated tensors back into the micro_groups/micro_data format."""
+        micro_groups = []
+        micro_data = []
+        current_number_of_variables = 0
         
-        c_ind_score = 0.0
-        final_parents = {}
-        
-        while c_ind_score < self.target_c_ind:
-            if self._verbose > 0:
-                print(f"Adag Iteration | Current PCA components m: {m}")
-                
-            # 1. Reduce dimensionality using exactly m components per group
-            micro_groups, micro_data = self._prepare_micro_groups_pca_adag(m)
+        for z in Z_m:
+            z_np = z.cpu().numpy()
+            n_variables = z_np.shape[1]
             
-            # 2. Setup and run Micro-Level Causal Discovery
-            self._setup_micro_cd_algorithm(micro_groups, micro_data)
-            group_parents = self.micro_level_causal_discovery.extract_parents()
+            micro_group = set(range(current_number_of_variables, current_number_of_variables + n_variables))
+            micro_groups.append(micro_group)
+            micro_data.append(z_np)
             
-            # 3. Compute consistency score against raw data
-            c_ind_score = self._compute_c_ind(group_parents)
+            current_number_of_variables += n_variables
             
-            if self._verbose > 0:
-                print(f"Target c_ind: {self.target_c_ind} | Achieved c_ind: {c_ind_score:.3f}")
-            
-            # 4. Save state
-            final_parents = group_parents
-            self.micro_groups = micro_groups
-            self.micro_data = micro_data
-            
-            # 5. Check termination
-            if c_ind_score >= self.target_c_ind or m == max_m:
-                if self._verbose > 0:
-                    print("Adag termination condition met.")
-                break
-                
-            # 6. Increment dimensions
-            for i in range(N):
-                if m[i] < max_m[i]:
-                    m[i] += 1
-                    
-        return final_parents
+        micro_data_concat = np.concatenate(micro_data, axis=1)
+        return micro_groups, micro_data_concat
 
     def _setup_micro_cd_algorithm(self, micro_groups, micro_data):
         """Helper to safely re-initialize the inner CD algorithm with new micro data."""
@@ -141,72 +161,6 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         self.micro_level_causal_discovery = MicroLevelGroupCausalDiscovery(
             micro_data, micro_groups, self._node_causal_discovery_alg, params
         )
-
-    def _compute_c_ind(self, group_parents: dict[int, list[tuple[int, int]]]) -> float:
-        """
-        Evaluates independence consistency on the raw un-aggregated data.
-        Infers conditional independencies from the absence of edges in the discovered group graph.
-        """
-        C_ind_count = 0
-        I_ind_count = 0
-        N = len(self._groups)
-        
-        for j in range(N):
-            # Extract all groups identified as parents of j (collapsing over time lags for the cond set)
-            parents_of_j = list(set([p[0] for p in group_parents.get(j, [])]))
-            
-            for i in range(N):
-                if i == j: 
-                    continue
-                    
-                # If i is not a parent of j, the algorithm determined they are independent 
-                # (or d-separated) given j's Markov blanket. We verify this on raw data.
-                if i not in parents_of_j:
-                    pval = self._test_ci_raw(i, j, parents_of_j)
-                    
-                    if pval > self.pc_alpha:
-                        C_ind_count += 1
-                    else:
-                        I_ind_count += 1
-                        
-        total = C_ind_count + I_ind_count
-        return C_ind_count / total if total > 0 else 1.0
-
-    def _test_ci_raw(self, i: int, j: int, cond_groups: list[int]) -> float:
-        """Tests conditional independence between raw high-dimensional groups."""
-        X = self._raw_group_data[i]
-        Y = self._raw_group_data[j]
-        
-        if cond_groups:
-            Z = torch.cat([self._raw_group_data[k] for k in cond_groups], dim=1)
-            _, pval = self.ci_test.conditional_test(X, Y, Z)
-        else:
-            _, pval = self.ci_test.test(X, Y)
-            
-        return pval
-
-    def _prepare_micro_groups_pca_adag(self, m_list: list[int]) -> tuple[list[set[int]], np.ndarray]:
-        """Specific PCA execution for the Adag loop, forcing exactly m components per group."""
-        micro_groups = []
-        micro_data = []
-        current_number_of_variables = 0
-        
-        for idx, group in enumerate(self._groups):
-            group_data = self._data[:, list(group)]
-            m = m_list[idx]
-            
-            pca = PCA(n_components=m)
-            group_data_pca = pca.fit_transform(group_data)
-            
-            n_variables = group_data_pca.shape[1]
-            micro_group = set(range(current_number_of_variables, current_number_of_variables + n_variables))
-            
-            micro_groups.append(micro_group)
-            micro_data.append(group_data_pca)
-            current_number_of_variables += n_variables
-            
-        micro_data = np.concatenate(micro_data, axis=1)
-        return micro_groups, micro_data
 
     def _prepare_micro_groups_pca(self, explained_variance_threshold: float = 0.5,
                                   embedding_ratio: Union[float, None] = None,

@@ -6,6 +6,7 @@ from causal processes, which are defined by ts DAGs.
 
 
 from collections import deque
+import logging
 import os
 import random
 from typing import Any, Callable, Union
@@ -263,7 +264,7 @@ class CausalDataset:
                 break
                 
             except Exception as e:
-                print(f'Generation attempt {it}/{maximum_tries} failed: {str(e)}')
+                logging.exception(f'Generation attempt {it}/{maximum_tries} failed: {str(e)}')
                 if it == maximum_tries:
                     raise ValueError(f'Could not generate a dataset after {maximum_tries} tries. Last error: {str(e)}')
         

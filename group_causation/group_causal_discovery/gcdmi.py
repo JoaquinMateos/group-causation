@@ -10,37 +10,34 @@ from group_causation.group_causal_discovery.group_causal_discovery_base import G
 # ---------------------------------------------------------------------------
 # 1. Knockoff Generator (Gaussian Second-Order)
 # ---------------------------------------------------------------------------
-class GaussianKnockoffGenerator:
+class TimeSeriesKnockoffGenerator:
     """
-    Generates Second-Order Gaussian Knockoffs.
-    Knockoffs are in-distribution variables that preserve the covariance 
-    structure but are uncorrelated with the original variables.
+    Generates Time-Series Knockoffs using Fourier Phase Randomization.
+    Preserves autocorrelation (power spectrum) while destroying causal cross-correlations.
     """
     @staticmethod
     def generate(X: np.ndarray) -> np.ndarray:
         n, p = X.shape
-        mu = np.mean(X, axis=0)
-        X_centered = X - mu
+        X_knockoff = np.zeros_like(X)
         
-        Sigma = np.cov(X_centered, rowvar=False)
-        if p == 1:
-            Sigma = np.array([[np.var(X_centered)]])
-        
-        Sigma += np.eye(p) * 1e-6
-        
-        eigenvalues = np.linalg.eigvalsh(Sigma)
-        lambda_min = min(eigenvalues)
-        
-        s = min(1.0, 2 * lambda_min) * 0.99
-        S = np.eye(p) * s
-        
-        Sigma_inv = np.linalg.inv(Sigma)
-        mu_tilde = X_centered - X_centered @ Sigma_inv @ S
-        V = 2 * S - S @ Sigma_inv @ S
-        
-        noise = np.random.multivariate_normal(np.zeros(p), V, size=n)
-        X_knockoff = mu_tilde + noise + mu
-        
+        for i in range(p):
+            # 1. Transform to frequency domain
+            fft_coeffs = np.fft.rfft(X[:, i])
+            
+            # 2. Extract amplitudes and phases
+            amplitudes = np.abs(fft_coeffs)
+            phases = np.angle(fft_coeffs)
+            
+            # 3. Randomize phases (keep the first phase 0 for zero-frequency/DC component)
+            random_phases = np.random.uniform(0, 2 * np.pi, len(phases))
+            random_phases[0] = phases[0] 
+            
+            # 4. Reconstruct complex coefficients
+            new_coeffs = amplitudes * np.exp(1j * random_phases)
+            
+            # 5. Inverse FFT back to time domain
+            X_knockoff[:, i] = np.fft.irfft(new_coeffs, n=n)
+            
         return X_knockoff
 
 # ---------------------------------------------------------------------------
@@ -77,10 +74,8 @@ class DeepAR(nn.Module):
             
         lstm_out, _ = self.lstm(x)
         
-        last_hidden_state = lstm_out[:, -1, :]
-        
-        mu = self.mu_layer(last_hidden_state)
-        sigma = self.softplus(self.sigma_layer(last_hidden_state)) + 1e-6 
+        mu = self.mu_layer(lstm_out)
+        sigma = self.softplus(self.sigma_layer(lstm_out)) + 1e-6 
         
         return mu, sigma
 
@@ -103,7 +98,7 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
                  use_nonstationarity_info: bool = False,
                  verbose: int = 0, **kwargs):
                  
-        super().__init__(data, groups, standarize, non_stationarity_info, **kwargs)
+        super().__init__(data, groups, standarize, **kwargs)
         
         self.alpha = self.extra_args.get("alpha", 0.05)
         self.epochs = self.extra_args.get("epochs", 150)
@@ -164,10 +159,10 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
         X, Y = [], []
         U = [] if u_data is not None else None
         
-        for i in range(self.T - self.max_lag):
+        for i in range(len(data) - self.max_lag):
             X.append(data[i : i + self.max_lag, :])
-            Y.append(data[i + self.max_lag, :])
-            if u_data is not None:
+            Y.append(data[i + 1 : i + self.max_lag + 1, :])
+            if U is not None and u_data is not None:
                 U.append(u_data[i : i + self.max_lag, :])
                 
         if U is not None:
@@ -260,29 +255,41 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
 
     def _compute_residuals(self, true_y: np.ndarray, pred_mu: np.ndarray, group_idx: int) -> np.ndarray:
         cols = list(self._groups[group_idx])
-        Z = true_y[:, cols]
-        Z_hat = pred_mu[:, cols]
-        residuals = np.abs(Z - Z_hat) / (np.abs(Z) + 1e-8)
-        return residuals.flatten() 
+        Z = true_y[:, :, cols]       # Shape: (batch, time, features)
+        Z_hat = pred_mu[:, :, cols]  # Shape: (batch, time, features)
+        
+        # Calculate step-by-step relative error
+        step_errors = np.abs(Z - Z_hat) / (np.abs(Z) + 1e-8)
+        
+        # Average over the time dimension (axis 1)
+        window_residuals = np.mean(step_errors, axis=1)
+        
+        return window_residuals.flatten()
 
     def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         self._train_structure()
         
-        self._knockoffs = GaussianKnockoffGenerator.generate(self._data)
+        self._knockoffs = TimeSeriesKnockoffGenerator.generate(self._data)
+        
+        # Only use the 20% validation/test data for causality testing
+        split_idx = int(self.T * 0.8)
+        test_data = self._data[split_idx:]
+        test_u = self.u[split_idx:] if self.u is not None else None
+        test_knockoffs = self._knockoffs[split_idx:]
         
         # Get baseline (observational) sequences and their true targets
         if self.use_nonstationarity_info:
-            X_obs, U_obs, Y_true = self._create_windows(self._data, self.u)
+            X_obs, U_obs, Y_true = self._create_windows(test_data, test_u)
             U_obs_t = torch.FloatTensor(U_obs).to(self.device)
         else:
-            X_obs, Y_true = self._create_windows(self._data)
+            X_obs, Y_true = self._create_windows(test_data)
             U_obs_t = None
             
         # Knockoffs only need the main data windows
         if self.use_nonstationarity_info:
-            X_knockoffs_obs, _, _ = self._create_windows(self._knockoffs, self.u)
+            X_knockoffs_obs, _, _ = self._create_windows(test_knockoffs, test_u)
         else:
-            X_knockoffs_obs, _ = self._create_windows(self._knockoffs)
+            X_knockoffs_obs, _ = self._create_windows(test_knockoffs)
         
         self.model.eval()
         with torch.no_grad():

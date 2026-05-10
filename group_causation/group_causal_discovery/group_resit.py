@@ -5,8 +5,6 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Union, Optional
-
-# Assuming GroupCausalDiscovery and HSIC_Test are defined elsewhere in your project
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.independence_tests import HSIC_Test
 
@@ -17,7 +15,6 @@ from group_causation.independence_tests import HSIC_Test
 class MultiOutputMLP(nn.Module):
     def __init__(self, input_dim: int, u_dim: int, output_dim: int, hidden_dim: int = 100):
         super().__init__()
-        # Input dimension expanded to accommodate u_dim
         self.net = nn.Sequential(
             nn.Linear(input_dim + u_dim, hidden_dim),
             nn.Tanh(),
@@ -30,6 +27,7 @@ class MultiOutputMLP(nn.Module):
         if u is not None:
             x = torch.cat([x, u], dim=-1)
         return self.net(x)
+
 
 class GroupRegressor:
     """Standard Regressor used for Phase I residual computation."""
@@ -81,6 +79,7 @@ class GroupRegressor:
             U_t = torch.FloatTensor(U).to(self.device) if U is not None else None
             preds = self.model(X_t, U_t)
         return preds.cpu().numpy()
+
 
 class SpatioTemporalMURGSRegressor(GroupRegressor):
     """
@@ -154,6 +153,7 @@ class SpatioTemporalMURGSRegressor(GroupRegressor):
                 start_idx = end_idx
         return norms
 
+
 # ---------------------------------------------------------------------------
 # Time-Series GroupRESIT-MURGS Algorithm
 # ---------------------------------------------------------------------------
@@ -168,7 +168,7 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
                  use_nonstationarity_info: bool = False,
                  verbose: int = 0, **kwargs):
                  
-        super().__init__(data, groups, standarize, non_stationarity_info, **kwargs)
+        super().__init__(data, groups, standarize, **kwargs)
         
         self.epochs = self.extra_args.get("epochs", 200)
         self.hidden_dim = self.extra_args.get("hidden_dim", 100)
@@ -256,8 +256,8 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
         start_lag = max(1, self.min_lag)
         past_vars = [(g, l) for g in range(self.G) for l in range(start_lag, self.max_lag + 1)]
         
-        # Extract contemporaneous background variables if needed
-        U_sliced = self.u[self.max_lag:] if self.use_nonstationarity_info else None
+        # FIXED: Checking directly if `self.u is not None` to prevent slicing errors
+        U_sliced = self.u[self.max_lag:] if self.u is not None else None
 
         while S:
             if len(S) == 1:
@@ -310,7 +310,7 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
         start_lag = max(1, self.min_lag)
         past_vars = [(g, l) for g in range(self.G) for l in range(start_lag, self.max_lag + 1)]
 
-        U_sliced = self.u[self.max_lag:] if self.use_nonstationarity_info else None
+        U_sliced = self.u[self.max_lag:] if self.u is not None else None
 
         for i, k in enumerate(self._causal_order):
             contemp_preds = [(p, 0) for p in self._causal_order[:i]] if self.min_lag == 0 else []

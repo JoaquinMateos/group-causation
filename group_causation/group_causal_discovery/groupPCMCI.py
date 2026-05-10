@@ -102,8 +102,7 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
     def _get_device(self):
         if torch.cuda.is_available():
             return torch.device('cuda')
-        elif torch.backends.mps.is_available():
-            return torch.device('mps')
+        # Not using mps due to potential non-implementation of certain operations in independence tests
         return torch.device('cpu')
 
     def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
@@ -120,16 +119,13 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
         if start_t >= end_t - 5:
             return 0.0, 1.0
 
-        # Determinar el dtype compatible (MPS no soporta float64)
-        calc_dtype = torch.float32 if self.device.type == 'mps' else torch.float64
-
         # Extract target groups
-        X_data = self._raw_group_data[x_var][start_t - x_lag : end_t - x_lag].to(calc_dtype)
-        Y_data = self._raw_group_data[y_var][start_t - y_lag : end_t - y_lag].to(calc_dtype)
+        X_data = self._raw_group_data[x_var][start_t - x_lag : end_t - x_lag].to(torch.float64)
+        Y_data = self._raw_group_data[y_var][start_t - y_lag : end_t - y_lag].to(torch.float64)
         
         # Concatenate conditioning groups
         if z_list:
-            Z_data_list = [self._raw_group_data[z_var][start_t - z_lag : end_t - z_lag].to(calc_dtype) for z_var, z_lag in z_list]
+            Z_data_list = [self._raw_group_data[z_var][start_t - z_lag : end_t - z_lag].to(torch.float64) for z_var, z_lag in z_list]
             Z_data = torch.cat(Z_data_list, dim=1)
         else:
             Z_data = None
@@ -153,13 +149,6 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
             X_local = X_data[mask]
             Y_local = Y_data[mask]
             Z_local = Z_data[mask] if Z_data is not None else None
-            
-            # --- Move to CPU if in Mac to avoid non-implementation errors ---
-            if self.device.type == 'mps':
-                X_local = X_local.cpu()
-                Y_local = Y_local.cpu()
-                if Z_local is not None:
-                    Z_local = Z_local.cpu()
 
             if Z_local is not None:
                 stat, pval = self.conditional_independence_test.conditional_test(X_local, Y_local, Z_local)
