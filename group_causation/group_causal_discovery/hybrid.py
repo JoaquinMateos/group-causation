@@ -1,4 +1,7 @@
 import numpy as np
+import os
+# Set environment variable to enable MPS fallback for PyTorch on macOS
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 import torch
 from sklearn.decomposition import PCA
 from typing import Any, Union, List, Tuple, Set, Optional
