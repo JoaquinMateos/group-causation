@@ -79,7 +79,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         '''
         if self.apply_adag_optimization:
             if self._verbose > 0:
-                print(f"Extracting parents: Adag optimization ENABLED (target c_ind={self.target_c_ind}).")
+                logging.info(f"Extracting parents: Adag optimization ENABLED (target c_ind={self.target_c_ind}).")
             
             # 1. Initialize Adag Components
             adag_wrapper = AdagWrapper(
@@ -119,13 +119,13 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
             )
             
             if self._verbose > 0:
-                print(f"Adag optimization finished with components m={final_m} and c_ind={c_ind_score:.3f}")
+                logging.info(f"Adag optimization finished with components m={final_m} and c_ind={c_ind_score:.3f}")
                 
             return last_parents
 
         else:
             if self._verbose > 0:
-                print("Extracting parents: Adag optimization DISABLED. Using fixed PCA parameters.")
+                logging.info("Extracting parents: Adag optimization DISABLED. Using fixed PCA parameters.")
             
             # Legacy initialization logic
             self.micro_groups, self.micro_data = self._prepare_micro_groups_pca(**self._dimensionality_reduction_params)
@@ -210,8 +210,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         
         micro_data = np.concatenate(micro_data, axis=1)
         
-        if self._verbose > 0:
-            print(f'Data dimensionality has been reduced to {micro_data.shape[1]} in order to perform microlevel causal discovery.')
+        logging.debug(f'Data dimensionality has been reduced to {micro_data.shape[1]} in order to perform microlevel causal discovery.')
 
         return micro_groups, micro_data
 

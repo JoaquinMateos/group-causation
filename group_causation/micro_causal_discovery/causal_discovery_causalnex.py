@@ -667,6 +667,6 @@ if __name__ == '__main__':
     predicted_parents = dynotears.extract_parents()
     
     known_parents = {0: [(2, 0), (2, -2), (3, -1), (3, -2), (4, -2)], 1: [(3, 0), (1, -1), (1, -2), (2, -1), (2, -2), (3, -1)], 2: [(0, 0), (4, 0), (1, -1), (2, -2), (4, -2)], 3: [(1, 0), (1, -1), (3, -1)], 4: [(2, 0), (0, -2), (3, -1), (3, -2), (4, -1)]}
-    print(f'{predicted_parents=}')
+    logging.info(f'{predicted_parents=}')
     assert(predicted_parents == known_parents)
-    print('Test passed correctly')
+    logging.info('Test passed correctly')

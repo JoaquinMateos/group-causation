@@ -138,7 +138,7 @@ class CausalDataset:
                 not np.any(np.isnan(self.time_series)):
                 break
             else:
-                print(f'Dataset has NaNs or infinites, trying again... {it}/{maximum_tries}')
+                logging.debug(f'Dataset has NaNs or infinites, trying again... {it}/{maximum_tries}')
         
         # If the maximum number of tries is reached, raise an error
         if it == maximum_tries:
@@ -463,7 +463,7 @@ if __name__ == '__main__':
     plt.legend()
     plt.show()
     
-    print('Parents dict (group-level):')
+    logging.debug('Parents dict (group-level):')
     for group, parents in parents_dict.items():
-        print(f'Group {group}: {parents}')
+        logging.debug(f'Group {group}: {parents}')
     

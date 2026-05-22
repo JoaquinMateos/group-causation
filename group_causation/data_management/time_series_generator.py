@@ -411,8 +411,8 @@ if __name__ == '__main__':
         non_stationarity_params=ns_params
     )
     
-    print(f"Shape de las series temporales generadas: {time_series.shape}")
-    print("Non-stationarity Info:", ns_info)
+    logging.debug(f"Shape de las series temporales generadas: {time_series.shape}")
+    logging.debug(f"Non-stationarity Info: {ns_info}")
     
     import matplotlib.pyplot as plt
     plt.figure(figsize=(12, 6))

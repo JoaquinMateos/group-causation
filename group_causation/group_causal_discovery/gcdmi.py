@@ -246,8 +246,7 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
                 patience_counter += 1
                 
             if patience_counter >= patience:
-                if self._verbose > 0:
-                    logging.info(f"Early stopping en epoch {epoch} (Val Loss no mejora).")
+                logging.debug(f"Early stopping en epoch {epoch} (Val Loss no mejora).")
                 break
                 
         if 'best_weights' in locals():

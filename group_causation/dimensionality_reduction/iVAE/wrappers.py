@@ -7,10 +7,17 @@ import torch
 from torch import optim
 from torch.utils.data import DataLoader, TensorDataset
 
-from .nets import DiscreteIVAE, DiscreteVAE, VAE, iVAE
+from .nets import VAE, iVAE
 
+
+# =========================================================================
+# DATA PREPARATION HELPERS
+# =========================================================================
 
 def _to_2d_float_tensor(data: Union[np.ndarray, torch.Tensor], name: str, device: Union[str, torch.device]) -> torch.Tensor:
+    """
+    Converts numpy arrays or torch tensors to 2D float32 tensors and moves them to the target device.
+    """
     if isinstance(data, np.ndarray):
         tensor = torch.from_numpy(data).to(device, dtype=torch.float32)
     else:
@@ -20,17 +27,34 @@ def _to_2d_float_tensor(data: Union[np.ndarray, torch.Tensor], name: str, device
         tensor = tensor.view(-1, 1)
     if tensor.ndim != 2:
         raise ValueError(f'{name} must be a 2D tensor. Got shape {tensor.shape}.')
+        
     return tensor
 
 
 def _safe_standardize(tensor: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Standardizes a tensor to zero mean and unit variance.
+    Safely handles columns with zero variance by leaving their scale as 1.
+    """
     mean = tensor.mean(dim=0, keepdim=True)
     std = tensor.std(dim=0, unbiased=False, keepdim=True)
+    
+    # Prevent division by zero for constant features
     std = torch.where(std == 0, torch.ones_like(std), std)
-    return (tensor - mean) / std, mean, std
+    
+    standardized_tensor = (tensor - mean) / std
+    return standardized_tensor, mean, std
 
+
+# =========================================================================
+# BASE REDUCER CLASS
+# =========================================================================
 
 class _TorchLatentReducer:
+    """
+    Base class for training latent variable models (VAE, iVAE) and extracting low-dimensional embeddings.
+    Handles data standardization, batching, the training loop, learning rate scheduling, and early stopping.
+    """
     def __init__(
         self,
         latent_dim: int = 2,
@@ -43,13 +67,14 @@ class _TorchLatentReducer:
         device: Union[str, torch.device] = 'cpu',
         activation: str = 'lrelu',
         slope: float = 0.1,
-        discrete: bool = False,
         inference_dim: Optional[int] = None,
         anneal: bool = False,
         scheduler_tol: int = 3,
         standardize: bool = True,
         use_auxiliary: bool = True,
+        early_stopping_patience: Optional[int] = None,
     ):
+        # Architecture & Training params
         self.latent_dim = latent_dim
         self.batch_size = batch_size
         self.max_epoch = int(max_epoch)
@@ -59,18 +84,21 @@ class _TorchLatentReducer:
         self.lr = lr
         self.activation = activation
         self.slope = slope
-        self.discrete = discrete
         self.inference_dim = inference_dim
         self.anneal = anneal
         self.scheduler_tol = scheduler_tol
         self.standardize = standardize
         self.use_auxiliary = use_auxiliary
+        self.early_stopping_patience = early_stopping_patience
+        self.device = device
 
+        # Internal state initialized during `fit`
         self.model_: Any = None
         self.history_: list[float] = []
         self.params_: Dict[str, Any] = {}
         self.embedding_: Optional[torch.Tensor] = None
-        self.device: Union[str, torch.device] = device
+        
+        # Dimensions & Normalization statistics
         self.data_dim_: Optional[int] = None
         self.aux_dim_: Optional[int] = None
         self.latent_dim_: Optional[int] = None
@@ -80,10 +108,17 @@ class _TorchLatentReducer:
         self.u_std_: Optional[torch.Tensor] = None
 
     def fit(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None):
+        """
+        Trains the VAE/iVAE model on the provided data.
+        """
+        # 1. Setup & Seeding
         if self.seed is not None:
             torch.manual_seed(self.seed)
             np.random.seed(self.seed)
+            
+        logging.debug(f'Using device: {self.device}')
 
+        # 2. Data Preparation (Primary Data X)
         x_tensor = _to_2d_float_tensor(X, 'X', self.device)
         if self.standardize:
             x_tensor, self.x_mean_, self.x_std_ = _safe_standardize(x_tensor)
@@ -91,6 +126,7 @@ class _TorchLatentReducer:
             self.x_mean_ = torch.zeros((1, x_tensor.shape[1]), dtype=torch.float32, device=self.device)
             self.x_std_ = torch.ones((1, x_tensor.shape[1]), dtype=torch.float32, device=self.device)
 
+        # 3. Data Preparation (Auxiliary Data U)
         if self.use_auxiliary:
             if U is None:
                 logging.warning('use_auxiliary is True but no auxiliary data provided. Using a constant auxiliary variable.')
@@ -111,8 +147,7 @@ class _TorchLatentReducer:
             self.u_mean_ = None
             self.u_std_ = None
 
-        logging.info(f'Using device: {self.device}')
-
+        # 4. Determine Dimensions & Build Model
         latent_dim = self.inference_dim if self.inference_dim is not None else self.latent_dim
         latent_dim = int(np.ceil(float(latent_dim)))
         if latent_dim < 1:
@@ -127,6 +162,7 @@ class _TorchLatentReducer:
         else:
             self.model_ = self._build_model(latent_dim, self.data_dim_, self.device)
 
+        # 5. Optimizer, Scheduler, and DataLoader
         optimizer = optim.AdamW(self.model_.parameters(), lr=self.lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, factor=0.5, patience=self.scheduler_tol, mode='max'
@@ -139,19 +175,22 @@ class _TorchLatentReducer:
         train_dataset = TensorDataset(*tensors)
         train_loader = DataLoader(train_dataset, shuffle=True, batch_size=self.batch_size, num_workers=0)
 
+        # 6. Training Loop
         self.model_.train()
         self.history_ = []
 
         best_elbo = -float('inf')
         best_model_state = None
+        epochs_without_improvement = 0
 
         for epoch in range(self.max_epoch):
-            epoch_elbo = 0.0
+            epoch_elbo_sum = 0.0
             batch_count = 0
 
             for batch in train_loader:
                 optimizer.zero_grad()
 
+                # Forward pass & ELBO calculation
                 if self.use_auxiliary:
                     batch_x, batch_u = batch
                     if self.anneal and hasattr(self.model_, 'anneal'):
@@ -161,35 +200,48 @@ class _TorchLatentReducer:
                     (batch_x,) = batch
                     elbo, _ = self.model_.elbo(batch_x)
 
-                (-elbo).backward()
+                # PyTorch minimizes loss. We want to maximize ELBO, so we minimize negative ELBO.
+                loss = -elbo
+                loss.backward()
 
                 torch.nn.utils.clip_grad_norm_(self.model_.parameters(), max_norm=1.0)
                 optimizer.step()
 
-                epoch_elbo += float(elbo.detach().item())
+                epoch_elbo_sum += float(elbo.detach().item())
                 batch_count += 1
-
-
+            
             if batch_count == 0:
                 break
             
-            mean_elbo = epoch_elbo / batch_count
+            # Epoch wrap-up
+            mean_elbo = epoch_elbo_sum / batch_count
             self.history_.append(mean_elbo)
             scheduler.step(mean_elbo)
-            logging.info(f'Epoch {len(self.history_)}: ELBO = {mean_elbo:.4f}, LR = {optimizer.param_groups[0]["lr"]:.2e}')
+            
+            logging.debug(f'Epoch {len(self.history_)}: ELBO = {mean_elbo:.4f}, LR = {optimizer.param_groups[0]["lr"]:.2e}')
 
-            # Guardar el mejor modelo
+            # 7. Early Stopping & Checkpointing
             if mean_elbo > best_elbo:
                 best_elbo = mean_elbo
                 best_model_state = copy.deepcopy(self.model_.state_dict())
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
             
+            if self.early_stopping_patience is not None and epochs_without_improvement >= self.early_stopping_patience:
+                logging.debug(f'Early stopping triggered after {epoch + 1} epochs. Best ELBO: {best_elbo:.4f}')
+                break
+            
+        # 8. Finalize Training
         if best_model_state is not None:
             self.model_.load_state_dict(best_model_state)
+            
         self.embedding_ = self.transform(X, U)
         self.params_ = self._collect_model_params(X, U)
         return self
 
     def transform(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None) -> torch.Tensor:
+        """ Infers the latent representations (embeddings) for the given data. """
         if self.model_ is None:
             raise RuntimeError('The reducer must be fitted before calling transform().')
 
@@ -201,36 +253,28 @@ class _TorchLatentReducer:
         return self._encode(x_tensor)
 
     def fit_transform(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None) -> torch.Tensor:
+        """ Convenience method to fit the model and immediately return the latent embeddings. """
         self.fit(X, U)
         if self.embedding_ is None:
             raise RuntimeError('The fitted embedding is not available.')
         return self.embedding_
 
     def _build_model(self, latent_dim: int, data_dim: int, device: Union[str, torch.device]):
-        if self.discrete:
-            return DiscreteVAE(
-                latent_dim, data_dim, activation=self.activation, n_layers=self.n_layers,
-                hidden_dim=self.hidden_dim, device=device, slope=self.slope,
-            )
-
+        """ Instantiates a standard VAE model. """
         return VAE(
             latent_dim, data_dim, activation=self.activation, n_layers=self.n_layers,
             hidden_dim=self.hidden_dim, device=device, slope=self.slope,
         )
 
     def _build_auxiliary_model(self, latent_dim: int, data_dim: int, aux_dim: int, device: Union[str, torch.device]):
-        if self.discrete:
-            return DiscreteIVAE(
-                latent_dim, data_dim, aux_dim, activation=self.activation, n_layers=self.n_layers,
-                hidden_dim=self.hidden_dim, device=device, slope=self.slope,
-            )
-
+        """ Instantiates an identifiable VAE (iVAE) model. """
         return iVAE(
             latent_dim, data_dim, aux_dim, activation=self.activation, device=device,
             n_layers=self.n_layers, hidden_dim=self.hidden_dim, slope=self.slope, anneal=self.anneal,
         )
 
     def _prepare_x_for_inference(self, X: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+        """ Standardizes and formats X using statistics learned during fit(). """
         x_tensor = _to_2d_float_tensor(X, 'X', self.device)
         if self.standardize:
             if self.x_mean_ is None or self.x_std_ is None:
@@ -239,6 +283,7 @@ class _TorchLatentReducer:
         return x_tensor
 
     def _prepare_u_for_inference(self, U: Optional[Union[np.ndarray, torch.Tensor]], n_samples: int) -> torch.Tensor:
+        """ Standardizes and formats U using statistics learned during fit(). """
         if U is None:
             if self.aux_dim_ is None or self.aux_dim_ == 0:
                 raise RuntimeError('Auxiliary dimension is not available.')
@@ -257,6 +302,7 @@ class _TorchLatentReducer:
         return u_tensor
 
     def _encode(self, X: torch.Tensor, U: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """ Runs the encoder network to obtain the mean of the latent distribution. """
         self.model_.eval()
         with torch.no_grad():
             if self.use_auxiliary:
@@ -266,10 +312,12 @@ class _TorchLatentReducer:
             else:
                 encoder_params = self.model_.encoder_params(X)
 
-            latent = encoder_params[0]
-        return latent
+            # encoder_params[0] is the mean of the latent distribution
+            latent_mean = encoder_params[0] 
+        return latent_mean
 
     def _collect_model_params(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None) -> Dict[str, Tuple[torch.Tensor, ...]]:
+        """ Collects the outputs of all sub-networks (encoder, decoder, prior) for the given data. """
         self.model_.eval()
         with torch.no_grad():
             x_tensor = self._prepare_x_for_inference(X)
@@ -286,15 +334,25 @@ class _TorchLatentReducer:
         }
 
 
+# =========================================================================
+# SPECIFIC WRAPPER CLASSES
+# =========================================================================
+
 class IVAEDimensionalityReduction(_TorchLatentReducer):
+    """ Dimensionality Reduction using Identifiable Variational Autoencoders (iVAE). """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, use_auxiliary=True, **kwargs)
 
 
 class VAEDimensionalityReduction(_TorchLatentReducer):
+    """ Dimensionality Reduction using Standard Variational Autoencoders (VAE). """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, use_auxiliary=False, **kwargs)
 
+
+# =========================================================================
+# HIGH-LEVEL API FUNCTIONS
+# =========================================================================
 
 def IVAE_wrapper(
     X,
@@ -308,11 +366,14 @@ def IVAE_wrapper(
     device: Union[str, torch.device] = 'cpu',
     activation='lrelu',
     slope=.1,
-    discrete=False,
     inference_dim=None,
     anneal=False,
     scheduler_tol=3,
+    early_stopping_patience=None,
 ):
+    """
+    High-level function to instantiate, fit, and extract latents from an iVAE model.
+    """
     reducer = IVAEDimensionalityReduction(
         latent_dim=inference_dim if inference_dim is not None else 2,
         batch_size=batch_size,
@@ -324,10 +385,10 @@ def IVAE_wrapper(
         device=device,
         activation=activation,
         slope=slope,
-        discrete=discrete,
         inference_dim=inference_dim,
         anneal=anneal,
         scheduler_tol=scheduler_tol,
+        early_stopping_patience=early_stopping_patience,
     )
     latent = reducer.fit_transform(X, U)
     return latent, reducer.model_, reducer.params_, {'elbo': reducer.history_}
@@ -335,7 +396,7 @@ def IVAE_wrapper(
 
 def VAE_wrapper(
     X,
-    S=None,
+    S=None, # Unused, kept for backwards compatibility in signatures
     batch_size=256,
     max_epoch=7e4,
     seed=None,
@@ -345,12 +406,15 @@ def VAE_wrapper(
     device: Union[str, torch.device] = 'cpu',
     activation='lrelu',
     slope=.1,
-    discrete=False,
     inference_dim=None,
-    log_folder=None,
-    ckpt_folder=None,
+    log_folder=None,  # Unused, kept for backwards compatibility
+    ckpt_folder=None, # Unused, kept for backwards compatibility
     scheduler_tol=3,
+    early_stopping_patience=None,
 ):
+    """
+    High-level function to instantiate, fit, and extract latents from a standard VAE model.
+    """
     reducer = VAEDimensionalityReduction(
         latent_dim=inference_dim if inference_dim is not None else 2,
         batch_size=batch_size,
@@ -362,9 +426,9 @@ def VAE_wrapper(
         device=device,
         activation=activation,
         slope=slope,
-        discrete=discrete,
         inference_dim=inference_dim,
         scheduler_tol=scheduler_tol,
+        early_stopping_patience=early_stopping_patience,
     )
     latent = reducer.fit_transform(X)
     return latent, reducer.model_, reducer.params_, {'elbo': reducer.history_}

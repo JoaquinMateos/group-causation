@@ -180,7 +180,7 @@ class AdagWrapper:
         Z_m = []
 
         while c_ind_score < target_alpha_q:
-            logging.info(f"--- Adag Iteration | Current dimensions m: {m} ---")
+            logging.debug(f"--- Adag Iteration | Current dimensions m: {m} ---")
             
             Z_m = []
             for i in range(N):
@@ -188,10 +188,10 @@ class AdagWrapper:
                 Z_m.append(aggregator.aggregate(X_data[i], m[i], U=U_i))
             
             group_parents = discovery_func(Z_m)
-            logging.info(f"Discovered independencies at m={m}: {group_parents}")
+            logging.debug(f"Discovered independencies at m={m}: {group_parents}")
             
             c_ind_score = self._compute_c_ind(group_parents)
-            logging.info(f"Target c_ind: {target_alpha_q} | Achieved c_ind: {c_ind_score:.3f}")
+            logging.debug(f"Target c_ind: {target_alpha_q} | Achieved c_ind: {c_ind_score:.3f}")
             
             if c_ind_score >= target_alpha_q or m == max_m:
                 break

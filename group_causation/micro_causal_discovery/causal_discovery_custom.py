@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import networkx as nx
 import numpy as np
@@ -72,7 +74,7 @@ def summarized_causality_multivariate_granger(X, max_lag=5, max_summarized_cross
     # Check stationarity for each series
     stationarity = check_stationarity(X)
     if not all(stationarity):
-        print("Warning: Some series may not be stationary.")
+        logging.warning("Warning: Some series may not be stationary.")
 
     # Use VAR to select optimal lag (using AIC)
     var_model = VAR(X)
@@ -163,7 +165,7 @@ def summarized_causality_univariate_granger(X, max_lag=5, max_summarized_crossli
     # Check stationarity for each series (assumed to be defined elsewhere)
     stationarity = check_stationarity(X)
     if not all(stationarity):
-        print("Warning: Some series may not be stationary.")
+        logging.warning("Warning: Some series may not be stationary.")
     
     d = X.shape[1]
     G = nx.DiGraph()
@@ -263,10 +265,10 @@ if __name__ == "__main__":
     X = np.random.randn(T, d)
     X_lagged = np.roll(X, 2, axis=0) + np.random.randn(T, d) * 0.1
     X = np.append(X, X_lagged, axis=1)
-    print("Time series data shape:", X.shape)
-    print(X)
+    logging.info("Time series data shape: %s", X.shape)
+    logging.info("Time series data:\n%s", X)
 
     # Run the multivariate Granger causality procedure
     G = summarized_causality_multivariate_granger(X, max_lag=5, alpha=0.05)
-    print("Edges in the Granger causality graph (p -> q):")
-    print(list(G.edges()))
+    logging.info("Edges in the Granger causality graph (p -> q):")
+    logging.info("Edges: %s", list(G.edges()))

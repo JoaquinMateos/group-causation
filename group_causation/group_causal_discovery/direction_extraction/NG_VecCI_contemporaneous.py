@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 from typing import Any
 from group_causal_discovery.direction_extraction.direction_extraction_base import DirectionExtractorBase, EdgeDirection
@@ -273,7 +275,7 @@ if __name__ == '__main__':
         
         direction, test_results = ng_vecci.identify_causal_direction(X_vec, Y_vec)
         
-        print(direction)
+        logging.info(direction)
     
     def test_NG_VecCI():
         '''
@@ -304,11 +306,11 @@ if __name__ == '__main__':
         ng_vecci = NG_VecCI(data, groups=[set(X_group), set(Y_group), set(Z_group)])
         
         groups_dict = {0: 'X', 1: 'Y', 2: 'Z'}
-        print('Start testing')
+        logging.info('Start testing')
         for i in range(len(ng_vecci._groups)):
             for j in range(i+1, len(ng_vecci._groups)):
                 direction = ng_vecci.extract_direction(i, j)
-                print(f'For {groups_dict[i]}, {groups_dict[j]}, we get {direction}')
+                logging.info(f'For {groups_dict[i]}, {groups_dict[j]}, we get {direction}')
     
     # Execute the tests
     # test_2G_VecCI()

@@ -1,4 +1,5 @@
 import copy
+import logging
 import numpy as np
 from typing import Any
 from group_causation.utils import get_precision, get_recall
@@ -284,7 +285,7 @@ if __name__ == '__main__':
         
         ng_vecci = NG_VecCI(ts_data, groups=[set(group) for group in groups], ambiguity=0.1, max_lag=max_lag)
         
-        print('Start testing')
+        logging.info('Start testing')
         predicted_groups_parents = {i: [] for i in range(len(ng_vecci._groups))}
         for i in range(len(ng_vecci._groups)):
             for j in range(i, len(ng_vecci._groups)):
@@ -300,11 +301,11 @@ if __name__ == '__main__':
                         predicted_groups_parents[j].append((i, -lag))
                         predicted_groups_parents[i].append((j, -lag))
         
-        print(f'{groups_parents_dict=}')
-        print(f'{predicted_groups_parents=}')
+        logging.info(f'{groups_parents_dict=}')
+        logging.info(f'{predicted_groups_parents=}')
         prec = get_precision(groups_parents_dict, predicted_groups_parents)
         rec = get_recall(groups_parents_dict, predicted_groups_parents)
-        print(f'Precision: {prec}, Recall: {rec}')
+        logging.info(f'Precision: {prec}, Recall: {rec}')
         
     
     test_edge_extraction_capacity()

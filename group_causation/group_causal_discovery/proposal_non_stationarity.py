@@ -52,8 +52,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                     affected_vars = non_stationarity_info.get('affected_vars', [])
                     if not affected_vars:
                         # Fallback logic: If no variables are affected, shift u to 'time_index'
-                        if verbose > 0:
-                            print("Notice: No variables affected by non-stationarity. Falling back to u='time_index'.")
+                        logging.info("Notice: No variables affected by non-stationarity. Falling back to u='time_index'.")
                         u = 'time_index'
                     else:
                         first_var = affected_vars[0]
@@ -123,12 +122,12 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
 
     def _get_device(self):
         if torch.cuda.is_available():
-            logging.info("CUDA is available. Using GPU for computations.")
+            logging.debug("CUDA is available. Using GPU for computations.")
             return torch.device('cuda')
         elif torch.backends.mps.is_available():
-            logging.info("MPS (Apple Silicon) is available. Using GPU for computations.")
+            logging.debug("MPS (Apple Silicon) is available. Using GPU for computations.")
             return torch.device('mps')
-        logging.info("No GPU available. Using CPU for computations.")
+        logging.debug("No GPU available. Using CPU for computations.")
         return torch.device('cpu')
     
     def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
