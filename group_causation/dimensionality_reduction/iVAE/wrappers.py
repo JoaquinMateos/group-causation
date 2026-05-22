@@ -1,3 +1,4 @@
+import copy
 import logging
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -34,7 +35,7 @@ class _TorchLatentReducer:
         self,
         latent_dim: int = 2,
         batch_size: int = 256,
-        max_iter: int = 70000,
+        max_epoch: int = 500,
         seed: Optional[int] = None,
         n_layers: int = 3,
         hidden_dim: int = 200,
@@ -51,7 +52,7 @@ class _TorchLatentReducer:
     ):
         self.latent_dim = latent_dim
         self.batch_size = batch_size
-        self.max_iter = int(max_iter)
+        self.max_epoch = int(max_epoch)
         self.seed = seed
         self.n_layers = n_layers
         self.hidden_dim = hidden_dim
@@ -126,9 +127,9 @@ class _TorchLatentReducer:
         else:
             self.model_ = self._build_model(latent_dim, self.data_dim_, self.device)
 
-        optimizer = optim.Adam(self.model_.parameters(), lr=self.lr)
+        optimizer = optim.AdamW(self.model_.parameters(), lr=self.lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, factor=0.1, patience=self.scheduler_tol, mode='max'
+            optimizer, factor=0.5, patience=self.scheduler_tol, mode='max'
         )
 
         tensors = [x_tensor]
@@ -140,41 +141,50 @@ class _TorchLatentReducer:
 
         self.model_.train()
         self.history_ = []
-        steps = 0
 
-        while steps < self.max_iter:
+        best_elbo = -float('inf')
+        best_model_state = None
+
+        for epoch in range(self.max_epoch):
             epoch_elbo = 0.0
             batch_count = 0
 
             for batch in train_loader:
-                if steps >= self.max_iter:
-                    break
-
                 optimizer.zero_grad()
 
                 if self.use_auxiliary:
                     batch_x, batch_u = batch
                     if self.anneal and hasattr(self.model_, 'anneal'):
-                        self.model_.anneal(x_tensor.shape[0], self.max_iter, steps + 1)
+                        self.model_.anneal(x_tensor.shape[0], self.max_epoch, epoch + 1)
                     elbo, _ = self.model_.elbo(batch_x, batch_u)
                 else:
                     (batch_x,) = batch
                     elbo, _ = self.model_.elbo(batch_x)
 
                 (-elbo).backward()
+
+                torch.nn.utils.clip_grad_norm_(self.model_.parameters(), max_norm=1.0)
                 optimizer.step()
 
                 epoch_elbo += float(elbo.detach().item())
                 batch_count += 1
-                steps += 1
+
 
             if batch_count == 0:
                 break
-
+            
             mean_elbo = epoch_elbo / batch_count
             self.history_.append(mean_elbo)
             scheduler.step(mean_elbo)
+            logging.info(f'Epoch {len(self.history_)}: ELBO = {mean_elbo:.4f}, LR = {optimizer.param_groups[0]["lr"]:.2e}')
 
+            # Guardar el mejor modelo
+            if mean_elbo > best_elbo:
+                best_elbo = mean_elbo
+                best_model_state = copy.deepcopy(self.model_.state_dict())
+            
+        if best_model_state is not None:
+            self.model_.load_state_dict(best_model_state)
         self.embedding_ = self.transform(X, U)
         self.params_ = self._collect_model_params(X, U)
         return self
@@ -290,7 +300,7 @@ def IVAE_wrapper(
     X,
     U,
     batch_size=256,
-    max_iter=7e4,
+    max_epoch=7e4,
     seed=None,
     n_layers=3,
     hidden_dim=200,
@@ -306,7 +316,7 @@ def IVAE_wrapper(
     reducer = IVAEDimensionalityReduction(
         latent_dim=inference_dim if inference_dim is not None else 2,
         batch_size=batch_size,
-        max_iter=int(max_iter),
+        max_epoch=int(max_epoch),
         seed=seed,
         n_layers=n_layers,
         hidden_dim=hidden_dim,
@@ -327,7 +337,7 @@ def VAE_wrapper(
     X,
     S=None,
     batch_size=256,
-    max_iter=7e4,
+    max_epoch=7e4,
     seed=None,
     n_layers=3,
     hidden_dim=200,
@@ -344,7 +354,7 @@ def VAE_wrapper(
     reducer = VAEDimensionalityReduction(
         latent_dim=inference_dim if inference_dim is not None else 2,
         batch_size=batch_size,
-        max_iter=int(max_iter),
+        max_epoch=int(max_epoch),
         seed=seed,
         n_layers=n_layers,
         hidden_dim=hidden_dim,

@@ -107,6 +107,8 @@ class MLP(nn.Module):
                 self._act_f.append(lambda x: self.xtanh(x, alpha=slope))
             elif act == 'sigmoid':
                 self._act_f.append(torch.sigmoid)
+            elif act == 'silu':
+                self._act_f.append(F.silu)
             elif act == 'none':
                 self._act_f.append(lambda x: x)
             else:
@@ -178,7 +180,8 @@ class cleanIVAE(nn.Module):
         xu = torch.cat((x, u), 1)
         g = self.g(xu)
         logv = self.logv(xu)
-        return g, logv.exp()
+        v = torch.clamp(logv.exp(), min=1e-5)
+        return g, v
 
     def decoder(self, s):
         f = self.f(s)
@@ -241,7 +244,8 @@ class cleanVAE(nn.Module):
     def encoder(self, x):
         g = self.g(x)
         logv = self.logv(x)
-        return g, logv.exp()
+        v = torch.clamp(logv.exp(), min=1e-5)
+        return g, v
 
     def decoder(self, s):
         f = self.f(s)
@@ -463,7 +467,8 @@ class iVAE(nn.Module):
         xu = torch.cat((x, u), 1)
         g = self.g(xu)
         logv = self.logv(xu)
-        return g, logv.exp()
+        v = torch.clamp(logv.exp(), min=1e-5)
+        return g, v
 
     def decoder_params(self, s):
         f = self.f(s)
@@ -500,15 +505,15 @@ class iVAE(nn.Module):
         else:
             return (log_px_z + log_pz_u - log_qz_xu).mean(), z
 
-    def anneal(self, N, max_iter, it):
-        thr = int(max_iter / 1.6)
+    def anneal(self, N, max_epoch, epoch):
+        thr = int(max_epoch / 1.6)
         a = 0.5 / self.decoder_var.item()
         self._training_hyperparams[-1] = N
-        self._training_hyperparams[0] = min(2 * a, a + a * it / thr)
-        self._training_hyperparams[1] = max(1, a * .3 * (1 - it / thr))
-        self._training_hyperparams[2] = min(1, it / thr)
-        self._training_hyperparams[3] = max(1, a * .5 * (1 - it / thr))
-        if it > thr:
+        self._training_hyperparams[0] = min(2 * a, a + a * epoch / thr)
+        self._training_hyperparams[1] = max(1, a * .3 * (1 - epoch / thr))
+        self._training_hyperparams[2] = min(1, epoch / thr)
+        self._training_hyperparams[3] = max(1, a * .5 * (1 - epoch / thr))
+        if epoch > thr:
             self.anneal_params = False
 
 
@@ -565,7 +570,7 @@ class DiscreteIVAE(nn.Module):
     def elbo(self, x, u):
         f, (g, logv), z, (h, logl) = self.forward(x, u)
         BCE = -F.binary_cross_entropy(f, x, reduction='sum')
-        l = logl.exp()
+        l = torch.clamp(logl.exp(), min=1e-5)
         v = logv.exp()
         KLD = -0.5 * torch.sum(logl - logv - 1 + (g - h).pow(2) / l + v / l)
         return (BCE + KLD) / x.size(0), z  # average per batch
@@ -700,7 +705,8 @@ class GaussianMLP(nn.Module):
             x = torch.cat([first_input] + list(other_inputs), dim=1)
         else:
             x = first_input
-        return self.mean(x), self.log_var(x).exp()
+        v = torch.clamp(self.log_var(x).exp(), min=1e-5)
+        return self.mean(x), v
 
 
 class LaplaceMLP(nn.Module):
@@ -730,7 +736,8 @@ class LaplaceMLP(nn.Module):
             x = torch.cat([first_input] + list(other_inputs), dim=1)
         else:
             x = first_input
-        return self.mean(x), self.log_var(x).exp()
+        v = torch.clamp(self.log_var(x).exp(), min=1e-5)
+        return self.mean(x), v
 
 
 class ModularIVAE(nn.Module):
@@ -795,15 +802,15 @@ class ModularIVAE(nn.Module):
         else:
             return (log_px_z + log_pz_u - log_qz_xu).mean(), z
 
-    def anneal(self, N, max_iter, it):
-        thr = int(max_iter / 1.6)
+    def anneal(self, N, max_epoch, epoch):
+        thr = int(max_epoch / 1.6)
         a = 0.5 / self.decoder.log_var(0).exp().item()
         self._training_hyperparams[-1] = N
-        self._training_hyperparams[0] = min(2 * a, a + a * it / thr)
-        self._training_hyperparams[1] = max(1, a * .3 * (1 - it / thr))
-        self._training_hyperparams[2] = min(1, it / thr)
-        self._training_hyperparams[3] = max(1, a * .5 * (1 - it / thr))
-        if it > thr:
+        self._training_hyperparams[0] = min(2 * a, a + a * epoch / thr)
+        self._training_hyperparams[1] = max(1, a * .3 * (1 - epoch / thr))
+        self._training_hyperparams[2] = min(1, epoch / thr)
+        self._training_hyperparams[3] = max(1, a * .5 * (1 - epoch / thr))
+        if epoch > thr:
             self.anneal_params = False
 
 

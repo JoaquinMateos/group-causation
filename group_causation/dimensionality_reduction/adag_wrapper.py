@@ -14,7 +14,7 @@ class TunableDeepLatent:
     def __init__(self, **model_kwargs):
         """
         Args:
-            **model_kwargs: Arguments to pass to the reducer (e.g., max_iter, lr, device, batch_size).
+            **model_kwargs: Arguments to pass to the reducer (e.g., max_epoch, lr, device, batch_size).
         """
         self.model_kwargs = model_kwargs
 

@@ -120,12 +120,12 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
             return 0.0, 1.0
 
         # Extract target groups
-        X_data = self._raw_group_data[x_var][start_t - x_lag : end_t - x_lag].to(torch.float64)
-        Y_data = self._raw_group_data[y_var][start_t - y_lag : end_t - y_lag].to(torch.float64)
+        X_data = self._raw_group_data[x_var][start_t - x_lag : end_t - x_lag].to(torch.float32)
+        Y_data = self._raw_group_data[y_var][start_t - y_lag : end_t - y_lag].to(torch.float32)
         
         # Concatenate conditioning groups
         if z_list:
-            Z_data_list = [self._raw_group_data[z_var][start_t - z_lag : end_t - z_lag].to(torch.float64) for z_var, z_lag in z_list]
+            Z_data_list = [self._raw_group_data[z_var][start_t - z_lag : end_t - z_lag].to(torch.float32) for z_var, z_lag in z_list]
             Z_data = torch.cat(Z_data_list, dim=1)
         else:
             Z_data = None
