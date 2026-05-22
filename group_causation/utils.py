@@ -396,7 +396,11 @@ def configure_root_logging(info_file=None, debug_file=None):
 
     # 4. Create and start the listener
     # The listener runs in a separate thread, consuming records from the queue
-    listener = logging.handlers.QueueListener(log_queue, *handlers)
+    listener = logging.handlers.QueueListener(
+        log_queue, 
+        *handlers, 
+        respect_handler_level=True
+    )
     listener.start()
     
     # 5. Attach the QueueHandler to the root logger
