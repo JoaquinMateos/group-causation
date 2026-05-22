@@ -345,7 +345,7 @@ def configure_logging(info_file=None, debug_file=None):
     """
     logger = logging.getLogger('group-causation')
     
-    os.mkdir('logs', exist_ok=True)  # Ensure the logs directory exists
+    os.makedirs('logs', exist_ok=True)  # Ensure the logs directory exists
     
     # The root logger level is set to DEBUG to ensure all messages are processed
     logger.setLevel(logging.DEBUG)
