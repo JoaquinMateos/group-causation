@@ -10,6 +10,7 @@ import copy
 from typing import Any, Iterator, Mapping, Optional, Union
 from matplotlib.axes import Axes
 from tqdm import tqdm
+import concurrent.futures
 
 # Inner library imports
 from group_causation.groups_extraction.causal_groups_extraction import CausalGroupsExtractorBase
@@ -70,6 +71,7 @@ class BenchmarkBase(ABC):
                                 results_folder: str,
                                 generate_toy_data: bool = False,
                                 n_executions: int = 3,
+                                max_parallel_executions: int = 1,
                                 verbose: int = 0,
                                 )        -> dict[str, list[ dict[str, Any] ]]:
         '''
@@ -103,6 +105,7 @@ class BenchmarkBase(ABC):
         self.results_folder = results_folder
         self.algorithms = algorithms
         self.all_algorithms_parameters = {name: list() for name in algorithms.keys()}
+        self.max_parallel_executions = max_parallel_executions
         
         # A list whose items are the lists of dictionaries of results and parameters of the different executions
         self.results = {alg: list() for alg in algorithms.keys()}
@@ -259,20 +262,39 @@ class BenchmarkBase(ABC):
             
         return self.results
     
-    def test_algorithms(self, causal_datasets: list[CausalDataset],
-                            algorithms: Mapping[str, AlgorithmCls],
-                            algorithms_parameters: dict[str, dict[str, Any]],
-                            ) -> dict[str, list[dict[str, Any]]]:
+    def test_algorithms(self, causal_datasets: list['CausalDataset'],
+                        algorithms: Mapping[str, 'AlgorithmCls'],
+                        algorithms_parameters: dict[str, dict[str, Any]],
+                        ) -> dict[str, list[dict[str, Any]]]:
         '''
-        Execute the given algorithms and return the results
+        Execute the given algorithms in parallel and return the results
         '''
-        result = dict() # keys are score names and values are the score values
-        for name, algorithm in algorithms.items():
-            algorithm_results = self.test_particular_algorithm(algorithm_name=name,
-                                    causal_datasets=causal_datasets, causalDiscovery=algorithm,
-                                    algorithm_parameters=algorithms_parameters[name])
-            result[name] = algorithm_results
-
+        result = dict()
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
+            
+            # 1. Submit all algorithm tasks to the executor
+            future_to_name = {
+                executor.submit(
+                    self.test_particular_algorithm,
+                    algorithm_name=name,
+                    causal_datasets=causal_datasets, 
+                    causalDiscovery=algorithm,
+                    algorithm_parameters=algorithms_parameters[name]
+                ): name for name, algorithm in algorithms.items()
+            }
+            
+            # 2. Collect the results as they finish
+            for future in concurrent.futures.as_completed(future_to_name):
+                name = future_to_name[future]
+                try:
+                    # Retrieve the return value from test_particular_algorithm
+                    result[name] = future.result()
+                except Exception as exc:
+                    # Handle any exceptions that occurred inside the thread
+                    print(f"Algorithm '{name}' generated an exception: {exc}")
+                    result[name] = None # Or however you wish to handle failures
+                    
         return result
     
     def test_particular_algorithm(self, algorithm_name: str,
