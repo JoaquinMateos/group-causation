@@ -335,6 +335,7 @@ def window_to_summary_graph(window_graph: dict[int, list[tuple[int, int]]]) -> d
     LOGGING UTILITIES
 '''
 import logging
+import os
 
 def configure_logging(info_file=None, debug_file=None):
     """
@@ -344,12 +345,14 @@ def configure_logging(info_file=None, debug_file=None):
     """
     logger = logging.getLogger('group-causation')
     
+    os.mkdir('logs', exist_ok=True)  # Ensure the logs directory exists
+    
     # The root logger level is set to DEBUG to ensure all messages are processed
     logger.setLevel(logging.DEBUG)
     
     # 1. Configuration of the file for DEBUG (and all higher levels)
     if debug_file:
-        fh_debug = logging.FileHandler(debug_file)
+        fh_debug = logging.FileHandler(os.path.join('logs', debug_file))
         fh_debug.setLevel(logging.DEBUG)
         # Formato opcional para que sea legible
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -358,7 +361,7 @@ def configure_logging(info_file=None, debug_file=None):
 
     # 2. Configuration of the file for INFO (and all higher levels)
     if info_file:
-        fh_info = logging.FileHandler(info_file)
+        fh_info = logging.FileHandler(os.path.join('logs', info_file))
         fh_info.setLevel(logging.INFO)
         fh_info.setFormatter(formatter)
         logger.addHandler(fh_info)
