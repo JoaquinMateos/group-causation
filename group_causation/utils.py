@@ -369,3 +369,36 @@ def configure_logging(info_file=None, debug_file=None):
     # 3. Avoid propagation to root logger to prevent duplicate logs in console
     if not logger.handlers:
         logger.addHandler(logging.NullHandler())
+        
+def configure_root_logging(info_file=None, debug_file=None):
+    """
+    Configure the root logger for all modules.
+    - debug_file: Capture DEBUG and all the higher levels (INFO, WARNING, etc.)
+    - info_file: Capture INFO and all the higher levels (WARNING, etc.)
+    """
+    logger = logging.getLogger()
+
+    os.makedirs('logs', exist_ok=True)  # Ensure the logs directory exists
+    
+    # The root logger level is set to DEBUG to ensure all messages are processed
+    logger.setLevel(logging.DEBUG)
+    
+    # 1. Configuration of the file for DEBUG (and all higher levels)
+    if debug_file:
+        fh_debug = logging.FileHandler(os.path.join('logs', debug_file))
+        fh_debug.setLevel(logging.DEBUG)
+        # Formato opcional para que sea legible
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh_debug.setFormatter(formatter)
+        logger.addHandler(fh_debug)
+
+    # 2. Configuration of the file for INFO (and all higher levels)
+    if info_file:
+        fh_info = logging.FileHandler(os.path.join('logs', info_file))
+        fh_info.setLevel(logging.INFO)
+        fh_info.setFormatter(formatter)
+        logger.addHandler(fh_info)
+
+    # 3. Avoid propagation to root logger to prevent duplicate logs in console
+    if not logger.handlers:
+        logger.addHandler(logging.NullHandler())
