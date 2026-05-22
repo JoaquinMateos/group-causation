@@ -16,7 +16,7 @@ import concurrent.futures
 from group_causation.groups_extraction.causal_groups_extraction import CausalGroupsExtractorBase
 from group_causation.groups_extraction.stat_utils import get_average_pc1_explained_variance, get_normalized_mutual_information, get_explainability_score
 from group_causation.data_management.create_toy_datasets import CausalDataset, plot_ts_graph
-from group_causation.utils import get_FN, get_FP, get_TP, get_f1, get_precision, get_recall, get_shd, window_to_summary_graph
+from group_causation.utils import configure_root_logging, get_FN, get_FP, get_TP, get_f1, get_precision, get_recall, get_shd, window_to_summary_graph
 from group_causation.micro_causal_discovery.micro_causal_discovery_base import MicroCausalDiscovery
 from group_causation.group_causal_discovery.direction_extraction.direction_extraction_base import DirectionExtractorBase
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
@@ -35,12 +35,23 @@ RESET = '\033[0m'
 
 class BenchmarkBase(ABC):
     '''Abstract class with functions that are useful to benchmark different kinds of algorithms'''
-    def __init__(self):
+    def __init__(self, info_file: str, debug_file: str):
         self.verbose = 0
         self.results: dict[str, list[dict[str, Any]]] = {}
         self.algorithms: Mapping[str, AlgorithmCls] = {}
         self.all_algorithms_parameters: dict[str, list[dict[str, Any]]] = {}
-        
+        self.log_listener = None
+    
+    def __enter__(self):
+        # Configure logging only when entering the "with" block
+        self.log_listener = configure_root_logging(info_file=self.info_file, 
+                                                   debug_file=self.debug_file)
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.log_listener:
+            self.log_listener.stop()
+    
     @abstractmethod
     def test_particular_algorithm_particular_dataset(self, causal_dataset: CausalDataset,
                       causalDiscovery: AlgorithmCls,
@@ -114,7 +125,7 @@ class BenchmarkBase(ABC):
             self.benchmark_with_toy_data(algorithms, parameters_iterator, n_executions, datasets_folder)
         else:
             self.benchmark_with_given_data(algorithms, parameters_iterator, n_executions, datasets_folder)
-
+        
         return self.results
     
     
@@ -272,7 +283,6 @@ class BenchmarkBase(ABC):
         result = dict()
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
-            
             # 1. Submit all algorithm tasks to the executor
             future_to_name = {
                 executor.submit(
@@ -293,8 +303,8 @@ class BenchmarkBase(ABC):
                 except Exception as exc:
                     # Handle any exceptions that occurred inside the thread
                     print(f"Algorithm '{name}' generated an exception: {exc}")
-                    result[name] = None # Or however you wish to handle failures
-                    
+                    result[name] = None
+
         return result
     
     def test_particular_algorithm(self, algorithm_name: str,

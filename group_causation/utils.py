@@ -356,37 +356,53 @@ def get_next_filename(base_name):
         
     return current_name
 
+import logging
+import logging.handlers
+import queue
+import os
+
 def configure_root_logging(info_file=None, debug_file=None):
     """
-    Configure the root logger for all modules.
-    - debug_file: Capture DEBUG and all the higher levels (INFO, WARNING, etc.)
-    - info_file: Capture INFO and all the higher levels (WARNING, etc.)
+    Configures a thread-safe logging system using a QueueListener.
+    All log records are pushed to a queue and written sequentially 
+    by a background thread to prevent interleaved logs.
     """
-    logger = logging.getLogger()
-
-    os.makedirs('logs', exist_ok=True)  # Ensure the logs directory exists
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
     
-    # The root logger level is set to DEBUG to ensure all messages are processed
-    logger.setLevel(logging.DEBUG)
+    # 1. Create the queue that will hold log records
+    log_queue = queue.Queue(-1)  # Unlimited size
     
-    # 1. Configuration of the file for DEBUG (and all higher levels)
+    # 2. Define the format
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # 3. Create handlers that will be managed by the listener
+    handlers = []
+    os.makedirs('logs', exist_ok=True)
+    
     if debug_file:
         debug_path = get_next_filename(os.path.join('logs', debug_file))
         fh_debug = logging.FileHandler(debug_path)
         fh_debug.setLevel(logging.DEBUG)
-        # Optional format for readability
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         fh_debug.setFormatter(formatter)
-        logger.addHandler(fh_debug)
-
-    # 2. Configuration of the file for INFO (and all higher levels)
+        handlers.append(fh_debug)
+        
     if info_file:
         info_path = get_next_filename(os.path.join('logs', info_file))
         fh_info = logging.FileHandler(info_path)
         fh_info.setLevel(logging.INFO)
         fh_info.setFormatter(formatter)
-        logger.addHandler(fh_info)
+        handlers.append(fh_info)
 
-    # 3. Avoid propagation to root logger to prevent duplicate logs in console
-    if not logger.handlers:
-        logger.addHandler(logging.NullHandler())
+    # 4. Create and start the listener
+    # The listener runs in a separate thread, consuming records from the queue
+    listener = logging.handlers.QueueListener(log_queue, *handlers)
+    listener.start()
+    
+    # 5. Attach the QueueHandler to the root logger
+    # This acts as a bridge, sending all local logs into the queue
+    queue_handler = logging.handlers.QueueHandler(log_queue)
+    root_logger.addHandler(queue_handler)
+    
+    # Return the listener so you can stop it gracefully at the end of the script
+    return listener
