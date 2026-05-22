@@ -13,8 +13,8 @@ from group_causation.benchmark import BenchmarkBase
 
 
 class BenchmarkCausalDiscovery(BenchmarkBase):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
     
     def generate_datasets(self, iteration, n_datasets, datasets_folder, data_option):
         '''

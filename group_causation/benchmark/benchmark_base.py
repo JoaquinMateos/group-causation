@@ -40,8 +40,10 @@ class BenchmarkBase(ABC):
         self.results: dict[str, list[dict[str, Any]]] = {}
         self.algorithms: Mapping[str, AlgorithmCls] = {}
         self.all_algorithms_parameters: dict[str, list[dict[str, Any]]] = {}
+        self.info_file = info_file
+        self.debug_file = debug_file
         self.log_listener = None
-    
+        
     def __enter__(self):
         # Configure logging only when entering the "with" block
         self.log_listener = configure_root_logging(info_file=self.info_file, 
