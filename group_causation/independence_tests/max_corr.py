@@ -89,6 +89,75 @@ class MaxCorr_Test(ConditionalIndependence_base):
         return sum(stats) / len(stats), statistics.median(p_vals)
 
     @classmethod
+    def test_regimes(cls, X_regimes: list[torch.Tensor], Y_regimes: list[torch.Tensor]) -> tuple[float, float]:
+        """
+        Performs an unconditional Max-Corr test across multiple regimes using Pooled Standardized Residuals.
+        """
+        pooled_rX = []
+        pooled_rY = []
+
+        for X_local, Y_local in zip(X_regimes, Y_regimes):
+            # For unconditional tests, the "residual" is just the mean-centered variable
+            rX = X_local - X_local.mean(dim=0, keepdim=True)
+            rY = Y_local - Y_local.mean(dim=0, keepdim=True)
+
+            # Local Z-score standardization (0 mean, 1 variance) to remove heteroscedasticity across regimes
+            std_X = torch.clamp(rX.std(dim=0, unbiased=True, keepdim=True), min=1e-8)
+            std_Y = torch.clamp(rY.std(dim=0, unbiased=True, keepdim=True), min=1e-8)
+
+            pooled_rX.append(rX / std_X)
+            pooled_rY.append(rY / std_Y)
+
+        if not pooled_rX:
+            return 0.0, 1.0
+
+        # Early Fusion: Concatenate all standardized residuals into a single global distribution
+        rX_concat = torch.cat(pooled_rX, dim=0)
+        rY_concat = torch.cat(pooled_rY, dim=0)
+
+        # Execute a single, high-powered Max-Corr test
+        return cls._compute_max_corr_pval(rX_concat, rY_concat)
+
+    @classmethod
+    def conditional_test_regimes(cls, X_regimes: list[torch.Tensor], Y_regimes: list[torch.Tensor], Z_regimes: list[torch.Tensor]) -> tuple[float, float]:
+        """
+        Performs a conditional Max-Corr test across multiple regimes using Pooled Standardized Residuals.
+        """
+        pooled_rX = []
+        pooled_rY = []
+
+        for X_local, Y_local, Z_local in zip(X_regimes, Y_regimes, Z_regimes):
+            n = X_local.shape[0]
+
+            # 1. Local Ordinary Least Squares (OLS) Regression
+            # Add an intercept term to Z_local to absorb the local mean of the regime
+            Z_int = torch.cat([Z_local, torch.ones(n, 1, dtype=Z_local.dtype, device=Z_local.device)], dim=1)
+            
+            beta_X = torch.linalg.lstsq(Z_int, X_local).solution
+            beta_Y = torch.linalg.lstsq(Z_int, Y_local).solution
+            
+            # Extract local residuals
+            rX = X_local - Z_int @ beta_X
+            rY = Y_local - Z_int @ beta_Y
+
+            # 2. Local Z-score standardization (0 mean, 1 variance)
+            std_X = torch.clamp(rX.std(dim=0, unbiased=True, keepdim=True), min=1e-8)
+            std_Y = torch.clamp(rY.std(dim=0, unbiased=True, keepdim=True), min=1e-8)
+
+            pooled_rX.append(rX / std_X)
+            pooled_rY.append(rY / std_Y)
+
+        if not pooled_rX:
+            return 0.0, 1.0
+
+        # 3. Early Fusion: Concatenate all standardized residuals into a single global distribution
+        rX_concat = torch.cat(pooled_rX, dim=0)
+        rY_concat = torch.cat(pooled_rY, dim=0)
+
+        # 4. Execute a single, high-powered Max-Corr test on the pooled data
+        return cls._compute_max_corr_pval(rX_concat, rY_concat)
+
+    @classmethod
     def _single_test(cls, X: torch.Tensor, Y: torch.Tensor) -> tuple[float, float]:
         n = X.shape[0]
         if n < 6:

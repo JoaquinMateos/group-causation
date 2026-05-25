@@ -112,6 +112,10 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
         return final_parents
 
     def _test_ci(self, x_var: int, x_lag: int, y_var: int, y_lag: int, z_list: list[tuple[int, int]]) -> tuple[float, float]:
+        """
+        Extracts time series data, applies regime masks, and delegates 
+        the conditional independence testing to the statistical module.
+        """
         T = self._raw_group_data[0].shape[0]
         start_t = 2 * self.tau_max 
         end_t = T
@@ -119,56 +123,43 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
         if start_t >= end_t - 5:
             return 0.0, 1.0
 
-        # Extract target groups
+        # 1. Extract target groups
         X_data = self._raw_group_data[x_var][start_t - x_lag : end_t - x_lag].to(torch.float32)
         Y_data = self._raw_group_data[y_var][start_t - y_lag : end_t - y_lag].to(torch.float32)
         
-        # Concatenate conditioning groups
+        # 2. Concatenate conditioning groups
         if z_list:
             Z_data_list = [self._raw_group_data[z_var][start_t - z_lag : end_t - z_lag].to(torch.float32) for z_var, z_lag in z_list]
             Z_data = torch.cat(Z_data_list, dim=1)
         else:
             Z_data = None
 
-        # 3. Apply the Constructed Masks
+        # 3. Build regime masks
         if self.u is not None:
             u_sliced = self.u[start_t : end_t]
             num_regimes = u_sliced.shape[1]
-            regime_masks = [u_sliced[:, r] for r in range(num_regimes)]
+            regime_masks = [u_sliced[:, r].bool() for r in range(num_regimes)]
         else:
-            regime_masks = [torch.ones(end_t - start_t, dtype=torch.bool, device=self.device)]
+            device = X_data.device if hasattr(self, 'device') else 'cpu'
+            regime_masks = [torch.ones(end_t - start_t, dtype=torch.bool, device=device)]
 
-        p_values = []
-        stats = []
-
-        # 4. Execute Independence Test per Regime/Chunk
+        # 4. Chunk data by regime
+        X_regimes, Y_regimes, Z_regimes = [], [], []
         for mask in regime_masks:
-            if mask.sum().item() < 20: 
-                continue
+            if mask.sum().item() >= 6: # Minimum required for OLS and variance
+                X_regimes.append(X_data[mask])
+                Y_regimes.append(Y_data[mask])
+                if Z_data is not None:
+                    Z_regimes.append(Z_data[mask])
 
-            X_local = X_data[mask]
-            Y_local = Y_data[mask]
-            Z_local = Z_data[mask] if Z_data is not None else None
-
-            if Z_local is not None:
-                stat, pval = self.conditional_independence_test.conditional_test(X_local, Y_local, Z_local)
-            else:
-                stat, pval = self.conditional_independence_test.test(X_local, Y_local)
-                
-            pval = max(pval, 1e-15)
-            p_values.append(pval)
-            stats.append(stat)
-
-        if not p_values:
+        if not X_regimes:
             return 0.0, 1.0
 
-        # 5. Fisher's Method to Combine the Localized Results
-        chi2_stat = -2.0 * sum(math.log(p) for p in p_values)
-        degrees_of_freedom = 2 * len(p_values)
-        combined_p_value = float(chi2.sf(chi2_stat, degrees_of_freedom))
-        mean_stat = sum(stats) / len(stats)
-
-        return mean_stat, combined_p_value
+        # 5. Delegate to the independence test class (Pooled Residuals Early Fusion)
+        if Z_data is not None:
+            return self.conditional_independence_test.conditional_test_regimes(X_regimes, Y_regimes, Z_regimes)
+        else:
+            return self.conditional_independence_test.test_regimes(X_regimes, Y_regimes)
 
     def _run_group_pcmci(self) -> tuple[dict[int, list[tuple[int, int]]], list]:
         N = len(self._groups)

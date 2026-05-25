@@ -1,11 +1,10 @@
 import logging
-import math
 from sklearn.decomposition import PCA
 import torch
 import numpy as np
 from typing import Any, Callable, List, Tuple, Optional, Dict
-from scipy.stats import chi2
-
+import numpy as np
+from typing import List, Tuple
 from group_causation.dimensionality_reduction.iVAE.wrappers import IVAEDimensionalityReduction
 
 class TunableDeepLatent:
@@ -94,7 +93,8 @@ class AdagWrapper:
     def _test_ci_raw(self, x_var: int, x_lag: int, y_var: int, y_lag: int, cond_groups: List[Tuple[int, int]]) -> float:
         """
         Tests conditional independence between raw high-dimensional groups.
-        Splits the aligned time-series into `num_regimes` chunks to handle non-stationarity.
+        Splits the aligned time-series into `num_regimes` chunks and uses Pooled Standardized Residuals
+        (Early Fusion) via the ci_test interface to handle non-stationarity.
         """
         if self._raw_group_data is None:
             raise RuntimeError("Raw group data is missing. AdagWrapper.run() must be called first.")
@@ -110,57 +110,50 @@ class AdagWrapper:
         if start_t >= end_t - 5:
             return 1.0 
             
-        # 1. Shift target variables
-        X_full = self._raw_group_data[x_var][start_t - x_lag : end_t - x_lag]
-        Y_full = self._raw_group_data[y_var][start_t - y_lag : end_t - y_lag]
+        # 1. Shift target variables and ensure correct dtype
+        X_full = self._raw_group_data[x_var][start_t - x_lag : end_t - x_lag].to(torch.float32)
+        Y_full = self._raw_group_data[y_var][start_t - y_lag : end_t - y_lag].to(torch.float32)
         
         Z_full = None
         if cond_groups:
             Z_list = [
-                self._raw_group_data[z_var][start_t - abs(z_lag) : end_t - abs(z_lag)] 
+                self._raw_group_data[z_var][start_t - abs(z_lag) : end_t - abs(z_lag)].to(torch.float32) 
                 for z_var, z_lag in cond_groups
             ]
             Z_full = torch.cat(Z_list, dim=1)
             
-        # 2. Localized Testing (Chunking)
+        # 2. Localized Chunking (Equally spaced intervals)
         chunk_size = int(np.ceil(X_full.shape[0] / self.num_regimes))
-        p_values = []
+        X_regimes, Y_regimes, Z_regimes = [], [], []
         
         for r in range(self.num_regimes):
             idx_start = r * chunk_size
             idx_end = min((r + 1) * chunk_size, X_full.shape[0])
             
-            # Skip chunks that are too small for a valid statistical test
-            if idx_end - idx_start < 20:
+            # Skip chunks that are too small for a valid statistical test (OLS needs min 6)
+            if idx_end - idx_start < 6:
                 continue
                 
-            X_chunk = X_full[idx_start:idx_end]
-            Y_chunk = Y_full[idx_start:idx_end]
-            
-            if Z_full is None:
-                _, pval = self.ci_test.test(X_chunk, Y_chunk)
-            else:
-                Z_chunk = Z_full[idx_start:idx_end]
-                if hasattr(self.ci_test, 'conditional_test'):
-                    _, pval = self.ci_test.conditional_test(X_chunk, Y_chunk, Z_chunk)
-                else:
-                    _, pval = self.ci_test.test(X_chunk, Y_chunk, Z_chunk)
-                    
-            p_values.append(max(pval, 1e-15))
-            
-        # 3. Combine P-values
-        if not p_values:
+            X_regimes.append(X_full[idx_start:idx_end])
+            Y_regimes.append(Y_full[idx_start:idx_end])
+            if Z_full is not None:
+                Z_regimes.append(Z_full[idx_start:idx_end])
+                
+        if not X_regimes:
             return 1.0
             
-        if self.num_regimes == 1:
-            return p_values[0]
+        # 3. Delegate to the independence test class (Pooled Residuals Early Fusion)
+        if Z_full is not None:
+            if hasattr(self.ci_test, 'conditional_test_regimes'):
+                _, pval = self.ci_test.conditional_test_regimes(X_regimes, Y_regimes, Z_regimes)
+            else:
+                # Fallback for older tests that haven't explicitly separated conditional logic
+                _, pval = self.ci_test.test_regimes(X_regimes, Y_regimes, Z_regimes) 
+        else:
+            _, pval = self.ci_test.test_regimes(X_regimes, Y_regimes)
             
-        # Fisher's Method for combining independent p-values
-        chi2_stat = -2.0 * sum(math.log(p) for p in p_values)
-        degrees_of_freedom = 2 * len(p_values)
-        combined_p_value = float(chi2.sf(chi2_stat, degrees_of_freedom))
-        
-        return combined_p_value
+        # Return solely the p-value as expected by the original raw test signature
+        return max(float(pval), 1e-15)
 
     def run(self, 
             X_data: List[torch.Tensor], 

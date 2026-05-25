@@ -12,6 +12,7 @@ from tigramite.independence_tests.gpdc import GPDC
 from tigramite.pcmci import PCMCI
 
 from causalai.data.time_series import TimeSeriesData
+import torch
 from group_causation.micro_causal_discovery.micro_causal_discovery_base import MicroCausalDiscovery
 
 
@@ -116,6 +117,11 @@ class LocalizedResidualTest:
             self.data = values[0]
 
     def run_test(self, X: list, Y: list, Z: list = [], tau_max: int = 0, alpha_or_thres: float = 0.05, **kwargs):
+        """
+        Evaluates conditional independence using Pooled Standardized Residuals (Early Fusion).
+        It regresses X and Y on Z locally within each regime, standardizes the residuals 
+        to remove non-stationarity, pools them, and runs a single high-powered test.
+        """
         all_lags = [lag for var, lag in X + Y + Z]
         min_lag = min(all_lags) if all_lags else 0
         start_t = abs(min_lag)
@@ -132,6 +138,7 @@ class LocalizedResidualTest:
         Y_data = get_lagged_data(Y)
         Z_data = get_lagged_data(Z) if Z else None
 
+        # 1. Build regime masks
         if self.u is not None:
             u_sliced = self.u[start_t : T]
             if u_sliced.ndim == 2:
@@ -142,16 +149,18 @@ class LocalizedResidualTest:
         else:
             regime_masks = [np.ones(T - start_t, dtype=bool)]
 
-        p_values = []
-        stats = []
+        pooled_rX = []
+        pooled_rY = []
 
+        # 2. Localized Regression and Standardization
         for mask in regime_masks:
-            if np.sum(mask) < 20:
+            if np.sum(mask) < 6: # Minimum required for OLS and standard deviation (ddof=1)
                 continue
 
             X_local = X_data[mask]
             Y_local = Y_data[mask]
 
+            # Extract local residuals
             if Z_data is not None and Z_data.shape[1] > 0:
                 Z_local = Z_data[mask]
                 
@@ -161,26 +170,46 @@ class LocalizedResidualTest:
                 reg_y = LinearRegression().fit(Z_local, Y_local)
                 res_y = Y_local - reg_y.predict(Z_local)
             else:
-                res_x = X_local
-                res_y = Y_local
+                # Unconditional test: residuals are just the mean-centered data
+                res_x = X_local - np.mean(X_local, axis=0, keepdims=True)
+                res_y = Y_local - np.mean(Y_local, axis=0, keepdims=True)
 
-            if self.test_type == 'hsic':
-                from group_causation.group_causal_discovery.group_resit import HSIC_Test
-                stat, pval = HSIC_Test.test(res_x, res_y)
-            else:
-                stat, pval = pearsonr(res_x.flatten(), res_y.flatten())
+            # Local Z-score standardization (0 mean, 1 variance)
+            # We use np.maximum to prevent division by zero on constant dimensions
+            std_x = np.maximum(np.std(res_x, axis=0, ddof=1, keepdims=True), 1e-8)
+            std_y = np.maximum(np.std(res_y, axis=0, ddof=1, keepdims=True), 1e-8)
+            
+            rx_std = (res_x - np.mean(res_x, axis=0, keepdims=True)) / std_x
+            ry_std = (res_y - np.mean(res_y, axis=0, keepdims=True)) / std_y
 
-            p_values.append(pval)
-            stats.append(stat)
+            pooled_rX.append(rx_std)
+            pooled_rY.append(ry_std)
 
-        if not p_values:
+        if not pooled_rX:
             return 0.0, 1.0, False
 
-        combined_p_value = float(np.median(p_values))
-        mean_stat = float(np.mean(stats))
-        dependent = combined_p_value <= alpha_or_thres
+        # 3. Early Fusion: Combine all standardized residuals into a global distribution
+        rX_concat = np.vstack(pooled_rX)
+        rY_concat = np.vstack(pooled_rY)
 
-        return mean_stat, combined_p_value, dependent
+        # 4. Single high-powered statistical test execution
+        if getattr(self, 'test_type', None) == 'hsic':
+            # HSIC expects PyTorch tensors, so we explicitly convert the NumPy arrays
+            from group_causation.group_causal_discovery.group_resit import HSIC_Test
+            
+            t_X = torch.from_numpy(rX_concat).to(torch.float32)
+            t_Y = torch.from_numpy(rY_concat).to(torch.float32)
+            
+            _stat, _pval = HSIC_Test.test(t_X, t_Y)
+            
+            stat_val = float(_stat)
+            pval_val = float(_pval)
+        else:
+            stat_val, pval_val = pearsonr(rX_concat.flatten(), rY_concat.flatten())
+
+        dependent = bool(pval_val <= alpha_or_thres) # type: ignore
+
+        return stat_val, pval_val, dependent
 
     def get_model_selection_criterion(self, j, parents, tau_max):
         raise NotImplementedError(f"Auto-alpha selection is unsupported for {self.measure}.")
