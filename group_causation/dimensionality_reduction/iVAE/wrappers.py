@@ -333,6 +333,23 @@ class _TorchLatentReducer:
             'prior': tuple(item for item in prior_params),
         }
 
+    def score_elbo(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None) -> float:
+        """Evaluates the fitted model ELBO on a held-out split."""
+        if self.model_ is None:
+            raise RuntimeError('The reducer must be fitted before calling score_elbo().')
+
+        x_tensor = self._prepare_x_for_inference(X)
+        self.model_.eval()
+
+        with torch.no_grad():
+            if self.use_auxiliary:
+                u_tensor = self._prepare_u_for_inference(U, x_tensor.shape[0])
+                elbo, _ = self.model_.elbo(x_tensor, u_tensor)
+            else:
+                elbo, _ = self.model_.elbo(x_tensor)
+
+        return float(elbo.detach().item())
+
 
 # =========================================================================
 # SPECIFIC WRAPPER CLASSES
@@ -391,7 +408,7 @@ def IVAE_wrapper(
         early_stopping_patience=early_stopping_patience,
     )
     latent = reducer.fit_transform(X, U)
-    return latent, reducer.model_, reducer.params_, {'elbo': reducer.history_}
+    return latent, reducer.model_, reducer.params_, {'elbo': reducer.history_, 'reducer': reducer}
 
 
 def VAE_wrapper(
@@ -431,4 +448,4 @@ def VAE_wrapper(
         early_stopping_patience=early_stopping_patience,
     )
     latent = reducer.fit_transform(X)
-    return latent, reducer.model_, reducer.params_, {'elbo': reducer.history_}
+    return latent, reducer.model_, reducer.params_, {'elbo': reducer.history_, 'reducer': reducer}

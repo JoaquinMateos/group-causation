@@ -225,24 +225,69 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
         self._causal_order = [] 
         self._pa = {}           
 
-    def _get_data_and_dims_for_vars(self, vars_list: list[tuple[int, int]]) -> tuple[np.ndarray, list[int]]:
+    def _get_data_and_dims_for_vars(self, vars_list: list[tuple[int, int]], data: Optional[np.ndarray] = None) -> tuple[np.ndarray, list[int]]:
         """
         Constructs a flat 2D array of specific groups at specific lags,
         and returns the feature dimensions of each group block for the MURGS penalty.
         """
+        current_data = self._data if data is None else data
+
         if not vars_list:
-            return np.empty((self.T - self.max_lag, 0)), []
+            return np.empty((current_data.shape[0] - self.max_lag, 0)), []
             
         blocks = []
         dims = []
         for g, l in vars_list:
             cols = list(self._groups[g])
             start_idx = self.max_lag - l
-            end_idx = self.T - l
-            blocks.append(self._data[start_idx:end_idx, cols])
+            end_idx = current_data.shape[0] - l
+            blocks.append(current_data[start_idx:end_idx, cols])
             dims.append(len(cols))
             
         return np.concatenate(blocks, axis=1), dims
+
+    def score_validation_mse(self, validation_data: np.ndarray) -> float:
+        """Scores a simple validation proxy based on the MURGS regression loss on a held-out split."""
+        start_lag = max(1, self.min_lag)
+        potential_parents = [(g, l) for g in range(self.G) for l in range(start_lag, self.max_lag + 1)]
+
+        if self.min_lag == 0:
+            potential_parents = [(g, 0) for g in range(self.G)] + potential_parents
+
+        if self._data.shape[0] <= self.max_lag or validation_data.shape[0] <= self.max_lag:
+            return float('inf')
+
+        X_train, group_dims = self._get_data_and_dims_for_vars(potential_parents, data=self._data)
+        X_val, _ = self._get_data_and_dims_for_vars(potential_parents, data=validation_data)
+
+        if X_train.size == 0 or X_val.size == 0:
+            return float('inf')
+
+        X_mean = X_train.mean(axis=0)
+        X_std = X_train.std(axis=0) + 1e-8
+        X_train = (X_train - X_mean) / X_std
+        X_val = (X_val - X_mean) / X_std
+
+        group_scores = []
+        for k in range(self.G):
+            Y_train, _ = self._get_data_and_dims_for_vars([(k, 0)], data=self._data)
+            Y_val, _ = self._get_data_and_dims_for_vars([(k, 0)], data=validation_data)
+
+            Y_mean = Y_train.mean(axis=0)
+            Y_std = Y_train.std(axis=0) + 1e-8
+            Y_train_std = (Y_train - Y_mean) / Y_std
+            Y_val_std = (Y_val - Y_mean) / Y_std
+
+            murgs_model = SpatioTemporalMURGSRegressor(
+                epochs=self.epochs,
+                hidden_dim=self.hidden_dim,
+                lambda_reg=self.lambda_reg,
+            )
+            murgs_model.fit(X_train, Y_train_std, group_dims)
+            Y_pred = murgs_model.predict(X_val)
+            group_scores.append(float(np.mean((Y_pred - Y_val_std) ** 2)))
+
+        return float(np.mean(group_scores))
 
     def _phase_1_causal_order(self):
         """Phase I: Infer the causal order among contemporary variables (lag 0)."""

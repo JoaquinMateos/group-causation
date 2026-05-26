@@ -265,6 +265,31 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
         
         return window_residuals.flatten()
 
+    def score_validation_nll(self, validation_data: np.ndarray, validation_u: Optional[np.ndarray] = None) -> float:
+        """Scores the trained DeepAR model on a held-out time-series split using Gaussian NLL."""
+        if not hasattr(self, 'model'):
+            raise RuntimeError('The gCDMI model must be trained before calling score_validation_nll().')
+
+        if self.use_nonstationarity_info and validation_u is None:
+            validation_u = self.u[-validation_data.shape[0]:] if self.u is not None else None
+
+        if self.use_nonstationarity_info:
+            X_seq, U_seq, Y_seq = self._create_windows(validation_data, validation_u)
+            U_seq_t = torch.FloatTensor(U_seq).to(self.device)
+        else:
+            X_seq, Y_seq = self._create_windows(validation_data)
+            U_seq_t = None
+
+        if len(X_seq) == 0:
+            return float('inf')
+
+        with torch.no_grad():
+            mu_val, sigma_val = self.model(torch.FloatTensor(X_seq).to(self.device), U_seq_t)
+            Y_val_t = torch.FloatTensor(Y_seq).to(self.device)
+            val_loss = gaussian_nll_loss(mu_val, sigma_val, Y_val_t).item()
+
+        return float(val_loss)
+
     def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         self._train_structure()
         

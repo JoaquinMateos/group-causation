@@ -1,5 +1,4 @@
 import logging
-from importlib_metadata import files
 import numpy as np
 from typing import Any
 
