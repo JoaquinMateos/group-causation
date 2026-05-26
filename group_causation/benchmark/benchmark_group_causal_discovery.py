@@ -255,6 +255,7 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
                 causalDiscovery,
                 current_algorithm_parameters,
             )
+            logging.info(f"Completed hyperparameter optimization for {causalDiscovery.__name__} with report: {optimization_report}")
         else:
             optimization_report = {}
 

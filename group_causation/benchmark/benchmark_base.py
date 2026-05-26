@@ -284,11 +284,30 @@ class BenchmarkBase(ABC):
         '''
         result = dict()
         
+        # 1. Dynamically wrap existing root handlers to intercept thread logs
+        root_logger = logging.getLogger()
+        original_handlers = root_logger.handlers.copy()
+        buffered_handlers = []
+        
+        for h in original_handlers:
+            bh = ThreadBufferedHandler(h)
+            root_logger.removeHandler(h)
+            root_logger.addHandler(bh)
+            buffered_handlers.append(bh)
+
+        # 2. Wrapper function to ensure the thread's buffer flushes when the task ends
+        def task_wrapper(*args, **kwargs):
+            try:
+                return self.test_particular_algorithm(*args, **kwargs)
+            finally:
+                for bh in buffered_handlers:
+                    bh.flush_thread()
+        
+        # 3. Execute tasks
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
-            # 1. Submit all algorithm tasks to the executor
             future_to_name = {
                 executor.submit(
-                    self.test_particular_algorithm,
+                    task_wrapper, # <--- Submit the wrapper instead of the raw function
                     algorithm_name=name,
                     causal_datasets=causal_datasets, 
                     causalDiscovery=algorithm,
@@ -296,16 +315,20 @@ class BenchmarkBase(ABC):
                 ): name for name, algorithm in algorithms.items()
             }
             
-            # 2. Collect the results as they finish
             for future in concurrent.futures.as_completed(future_to_name):
                 name = future_to_name[future]
                 try:
-                    # Retrieve the return value from test_particular_algorithm
                     result[name] = future.result()
                 except Exception as exc:
-                    # Handle any exceptions that occurred inside the thread
-                    print(f"Algorithm '{name}' generated an exception: {exc}")
+                    # Using logging.error here ensures the failure is captured in the log file
+                    logging.error(f"Algorithm '{name}' generated an exception: {exc}")
                     result[name] = None
+
+        # 4. Restore original logging behavior after parallel execution finishes
+        for bh in buffered_handlers:
+            root_logger.removeHandler(bh)
+        for h in original_handlers:
+            root_logger.addHandler(h)
 
         return result
     
@@ -378,8 +401,6 @@ class BenchmarkBase(ABC):
             ax.set_xlabel('Time')
             ax.set_ylabel(f'$X^{{{i}}}$')
             ax.grid()
-            
-            ax.set_ylim(bottom=-6, top=6) # TODO: Delete this line
             
             # Include the parents in the title
             parents = parents_dict.get(int(variable_name), [])
@@ -544,3 +565,26 @@ def _load_micro_datasets(datasets_folder):
             raise ValueError(f'The dataset folder {datasets_folder} does not exist')
         
         return causal_datasets
+
+
+
+import threading
+import logging
+
+class ThreadBufferedHandler(logging.Handler):
+    '''Intercepts logs and buffers them locally per-thread, flushing only on command.'''
+    def __init__(self, target_handler):
+        super().__init__()
+        self.target_handler = target_handler
+        self.local_data = threading.local()
+
+    def emit(self, record):
+        if not hasattr(self.local_data, 'log_buffer'):
+            self.local_data.log_buffer = []
+        self.local_data.log_buffer.append(record)
+
+    def flush_thread(self):
+        if hasattr(self.local_data, 'log_buffer') and self.local_data.log_buffer:
+            for record in self.local_data.log_buffer:
+                self.target_handler.handle(record)
+            self.local_data.log_buffer.clear()
