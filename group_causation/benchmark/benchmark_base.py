@@ -173,17 +173,24 @@ class BenchmarkBase(ABC):
             logging.info(BLUE + '\nStarting PHASE 1: Generating all datasets...' + RESET)
 
         all_causal_datasets = []
-        all_dataset_metadata = [] # Keeps track of each dataset's true generation parameters
+        all_dataset_metadata = [] 
+        
+        # NUEVO: Control para evitar generar datasets si la configuración de datos no cambia
+        unique_data_strs = set()
 
         for iteration, current_parameters in enumerate(parameters_list):
             _, data_option = current_parameters
-            causal_datasets = self.generate_datasets(iteration, n_executions, datasets_folder, data_option)
-            if causal_datasets is None:
-                raise ValueError('generate_datasets returned None.')
+            data_str = str(data_option)
             
-            all_causal_datasets.extend(causal_datasets)
-            # Save the generation parameters for each dataset so Phase 2 logs correctly
-            all_dataset_metadata.extend([(iteration, data_option)] * len(causal_datasets))
+            # Just generate datasets if this specific configuration has not been generated before
+            if data_str not in unique_data_strs:
+                unique_data_strs.add(data_str)
+                causal_datasets = self.generate_datasets(iteration, n_executions, datasets_folder, data_option)
+                if causal_datasets is None:
+                    raise ValueError('generate_datasets returned None.')
+                
+                all_causal_datasets.extend(causal_datasets)
+                all_dataset_metadata.extend([(iteration, data_option)] * len(causal_datasets))
 
         if self.verbose > 0:
             logging.info(GREEN + f'Phase 1 Complete: {len(all_causal_datasets)} total datasets generated.' + RESET)
@@ -194,7 +201,6 @@ class BenchmarkBase(ABC):
         if self.verbose > 0:
             logging.info(BLUE + '\nStarting PHASE 2: Testing algorithms on all datasets...' + RESET)
 
-        # Extract only UNIQUE algorithm parameter configurations to prevent redundant testing
         unique_alg_params_list = []
         for alg_params, _ in parameters_list:
             if alg_params not in unique_alg_params_list:
@@ -205,19 +211,22 @@ class BenchmarkBase(ABC):
                 logging.info('\n' + '-'*50)
                 logging.info(BLUE + f'Executing ALL datasets with algorithm config {alg_iteration+1}/{len(unique_alg_params_list)}' + RESET)
 
-            # Test on the COMPLETE set of generated datasets
             current_results = self.test_algorithms(all_causal_datasets, algorithms,
                                                    current_algorithms_parameters)
             
             for name, algorithm_results in current_results.items():
                 for idx, particular_result in enumerate(algorithm_results):
-                    # Retrieve the specific parameters used to generate THIS exact dataset
                     ds_iteration, ds_data_option = all_dataset_metadata[idx]
 
                     particular_result.update(ds_data_option) 
                     particular_result['dataset_iteration'] = ds_iteration
-                    # Add algorithm_iteration to easily identify which algorithm config was tested
                     particular_result['algorithm_iteration'] = alg_iteration 
+                    
+                    # Inyect algorithm parameters that are relevant for plotting (those that are scalar) in the results
+                    if name in current_algorithms_parameters:
+                        for param_k, param_v in current_algorithms_parameters[name].items():
+                            if isinstance(param_v, (int, float, str, bool)):
+                                particular_result[param_k] = param_v
                 
                     # Include current result in the list of results
                     self.results[name].append(particular_result)
@@ -239,37 +248,55 @@ class BenchmarkBase(ABC):
         causal_datasets = self.load_datasets(datasets_folder)
         if causal_datasets is None:
             raise ValueError('load_datasets returned None.')
-        # Execute the algorithms with the given datasets
         
         datasets_iterator = iter(causal_datasets)
         
+        # Control variables to avoid consuming repeated datasets
+        last_data_str = None
+        current_datasets = []
+        dataset_iteration_counter = -1
         
-        for dataset_iteration, (current_algorithms_parameters, data_option) in enumerate(parameters_iterator):
-            if self.verbose > 0:
-                logging.info('\n' + '-'*50)
-                logging.info(BLUE + 'Datasets have been loaded.' + RESET)
+        for alg_iteration, (current_algorithms_parameters, data_option) in enumerate(parameters_iterator):
+            data_str = str(data_option)
             
-            # Get the next n_executions_per_data_param datasets for the current data_option
-            try:
-                current_datasets = [ next(datasets_iterator) for _ in range(n_executions_per_data_param) ]
-            except StopIteration:
-                raise ValueError("Not enough datasets provided for the number of executions per data parameter. Please check the datasets_folder and n_executions_per_data_param.")
+            # Just extract new datasets from the folder if the data configuration changes
+            if data_str != last_data_str:
+                dataset_iteration_counter += 1
+                if self.verbose > 0:
+                    logging.info('\n' + '-'*50)
+                    logging.info(BLUE + f'Loading {n_executions_per_data_param} new datasets...' + RESET)
+                try:
+                    current_datasets = [ next(datasets_iterator) for _ in range(n_executions_per_data_param) ]
+                except StopIteration:
+                    raise ValueError("Not enough datasets provided for the number of executions per data parameter. Please check the datasets_folder and n_executions_per_data_param.")
+                last_data_str = data_str
+            else:
+                if self.verbose > 0:
+                    logging.info(BLUE + f'Reusing previous datasets for algorithm config {alg_iteration}...' + RESET)
             
-            
-            # Generate and save results of all algorithms with given datasets
+            # Execute the algorithms (on new or reused datasets)
             current_results = self.test_algorithms(current_datasets, algorithms,
-                                                    current_algorithms_parameters)
-            logging.info(f'{current_results=}')
+                                                   current_algorithms_parameters)
+            
+            if self.verbose > 1:
+                logging.info(f'{current_results=}')
+                
             for name, algorithm_results in current_results.items():
                 for particular_result in algorithm_results:
-                    particular_result.update(data_option) # Include the parameters in the information for results
-                    particular_result['dataset_iteration'] = dataset_iteration
+                    particular_result.update(data_option) # Incluimos info de los datos
+                    particular_result['dataset_iteration'] = dataset_iteration_counter
+                    particular_result['algorithm_iteration'] = alg_iteration
 
-                    # Include current result in the list of result
+                    # Inyect algorithm parameters that are relevant for plotting (those that are scalar) in the results
+                    if name in current_algorithms_parameters:
+                        for param_k, param_v in current_algorithms_parameters[name].items():
+                            if isinstance(param_v, (int, float, str, bool)):
+                                particular_result[param_k] = param_v
+
                     self.results[name].append(particular_result)
             
-                    self.all_algorithms_parameters[name].\
-                                append(copy.deepcopy(current_algorithms_parameters[name]))
+                self.all_algorithms_parameters[name].\
+                            append(copy.deepcopy(current_algorithms_parameters[name]))
             
             self.save_results()
             
