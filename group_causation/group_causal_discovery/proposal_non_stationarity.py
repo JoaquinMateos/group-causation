@@ -216,6 +216,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             logging.warning("Not enough samples to test independence. Assuming independence.")
             return 0.0, 1.0
 
+        # 1. Data and conditioning variable extraction
         X_data = data_source[x_var][start_t - x_lag : end_t - x_lag].to(torch.float64)
         Y_data = data_source[y_var][start_t - y_lag : end_t - y_lag].to(torch.float64)
         
@@ -225,6 +226,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
         else:
             Z_data = None
 
+        # 2. Analysis of background variable 'u' for regime detection or continuous handling
         u_sliced = self.u[start_t : end_t]
         
         if u_sliced.ndim == 2:
@@ -234,9 +236,26 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             
         is_continuous = len(unique_vals) > (len(u_sliced) // 2)
 
+        # ---------------------------------------------------------------------
+        # 3. Delegation to Test (Continuous 'u' Handling)
+        # ---------------------------------------------------------------------
         if is_continuous:
-            regime_masks = [torch.ones(len(u_sliced), dtype=torch.bool, device=self.device)]
-        elif u_sliced.ndim == 2 and torch.all((u_sliced == 0) | (u_sliced == 1)): 
+            # Delegate the partitioning and testing to the independence test class,
+            # which should handle continuous 'u' appropriately (e.g., by using it
+            # as a covariate or through other means depending on the test's capabilities).
+            if Z_data is not None:
+                return self.conditional_independence_test.conditional_test(
+                    X_data, Y_data, Z_data, max_samples=500, sequential_chunks=True
+                )
+            else:
+                return self.conditional_independence_test.test(
+                    X_data, Y_data, max_samples=500, sequential_chunks=True
+                )
+
+        # ---------------------------------------------------------------------
+        # 4. Delegation to Test (Regime-wise Testing)
+        # ---------------------------------------------------------------------
+        if u_sliced.ndim == 2 and torch.all((u_sliced == 0) | (u_sliced == 1)): 
             num_regimes = u_sliced.shape[1]
             regime_masks = [u_sliced[:, r] == 1 for r in range(num_regimes)]
         else: 
@@ -246,44 +265,53 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             else:
                 regime_masks = [u_sliced == val for val in torch.unique(u_sliced)]
 
-        p_values = []
-        stats = []
+        X_regimes, Y_regimes, Z_regimes = [], [], []
         
         for mask in regime_masks:
-            num_samples = mask.sum().item()
-            if num_samples < 20:
+            # Minimum samples check for reliable testing (especially for OLS-based tests that require variance estimation)
+            if mask.sum().item() < 6:
+                logging.warning(f"Regime with {mask.sum().item()} samples is too small for reliable testing. Skipping this regime.")
                 continue
-
-            X_local = X_data[mask]
-            Y_local = Y_data[mask]
-
+            X_regimes.append(X_data[mask])
+            Y_regimes.append(Y_data[mask])
             if Z_data is not None:
-                Z_local = Z_data[mask]
-                stat, pval = self.conditional_independence_test.conditional_test(
-                    X_local, Y_local, Z_local, 
-                    sequential_chunks=is_continuous,
-                    max_samples=500 if is_continuous else X_local.shape[0] + 1
-                )
-            else:
-                stat, pval = self.conditional_independence_test.test(
-                    X_local, Y_local, 
-                    sequential_chunks=is_continuous,
-                    max_samples=500 if is_continuous else X_local.shape[0] + 1
-                )
-            
-            pval = max(pval, 1e-15)
-            p_values.append(pval)
-            stats.append(stat)
+                Z_regimes.append(Z_data[mask])
 
-        if not p_values:
+        if not X_regimes:
             return 0.0, 1.0
 
-        chi2_stat = -2.0 * sum(math.log(p) for p in p_values)
-        degrees_of_freedom = 2 * len(p_values)
-        combined_p_value = float(chi2.sf(chi2_stat, degrees_of_freedom))
-        mean_stat = sum(stats) / len(stats)
-
-        return mean_stat, combined_p_value
+        # Optimal route: Use native regime-wise CCT methods if supported by the test (like MaxCorr_Test)
+        if hasattr(self.conditional_independence_test, 'conditional_test_regimes'):
+            if Z_data is not None:
+                return self.conditional_independence_test.conditional_test_regimes(X_regimes, Y_regimes, Z_regimes)
+            else:
+                return self.conditional_independence_test.test_regimes(X_regimes, Y_regimes)
+        
+        # General fallback if the test does not support regime-wise testing:
+        # perform individual tests and aggregate with CCT
+        else:
+            logging.warning("The specified independence test does not support regime-wise testing. Falling back to individual tests with CCT aggregation.")
+            stats, p_vals, weights = [], [], []
+            valid_samples = sum(x.shape[0] for x in X_regimes)
+            
+            for i in range(len(X_regimes)):
+                if Z_data is not None:
+                    s, p = self.conditional_independence_test.conditional_test(X_regimes[i], Y_regimes[i], Z_regimes[i])
+                else:
+                    s, p = self.conditional_independence_test.test(X_regimes[i], Y_regimes[i])
+                
+                p = max(1e-15, min(1.0 - 1e-15, p))
+                stats.append(s)
+                p_vals.append(p)
+                weights.append(X_regimes[i].shape[0] / valid_samples)
+                
+            if not p_vals:
+                return 0.0, 1.0
+                
+            t_stat = sum(w * math.tan(math.pi * (0.5 - p)) for w, p in zip(weights, p_vals))
+            global_p_val = 0.5 - (math.atan(t_stat) / math.pi)
+            avg_stat = sum(w * s for w, s in zip(weights, stats))
+            return avg_stat, global_p_val
 
     def _run_group_pcmci(self, group_embeddings: list[torch.Tensor]) -> tuple[dict[int, list[tuple[int, int]]], list]:
         N = len(self._groups)

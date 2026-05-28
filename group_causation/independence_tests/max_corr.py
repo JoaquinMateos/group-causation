@@ -149,6 +149,32 @@ class MaxCorr_Test(ConditionalIndependence_base):
     def conditional_test_regimes(cls, X_regimes: list[torch.Tensor], Y_regimes: list[torch.Tensor], Z_regimes: list[torch.Tensor]) -> tuple[float, float]:
         """
         Conditional test across regimes using the Cauchy Combination Test (CCT).
+
+        Evaluates the conditional independence X ⫫ Y | Z across multiple non-stationary 
+        regimes using the Cauchy Combination Test (CCT).
+
+        This method computes local Max-Corr p-values per regime and aggregates them using CCT. 
+        This guarantees theoretical robustness against cross-regime temporal dependencies 
+        and covariance cancellation, without requiring empirical estimation of the 
+        correlation matrix between statistical tests.
+
+        Args:
+            X_regimes (list[torch.Tensor]): List of tensors for the source variable X, 
+                where each tensor represents a temporally continuous regime.
+            Y_regimes (list[torch.Tensor]): List of tensors for the target variable Y.
+            Z_regimes (list[torch.Tensor]): List of tensors for the conditioning set Z.
+
+        Returns:
+            tuple[float, float]:
+                - avg_stat: Weighted average of the local Max-Corr statistics (Proxy effect size).
+                - global_p_val: The exact analytical p-value derived from the standard 
+                  Cauchy Cumulative Distribution Function (CDF).
+
+        Notes:
+            - Regimes with fewer than 6 samples are excluded from the test to ensure 
+              minimum numerical stability in Ordinary Least Squares (OLS) regression.
+            - Degrees of freedom are dynamically adjusted per regime as `max(1, n - 2 - dz)` 
+              to account for the parameters consumed by the local conditioning set Z.
         """
         if not X_regimes:
             return 0.0, 1.0
