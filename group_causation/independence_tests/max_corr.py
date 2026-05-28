@@ -1,6 +1,5 @@
 import torch
 import math
-import statistics
 from scipy.stats import t
 
 from group_causation.independence_tests.conditional_independence_base import ConditionalIndependence_base
@@ -27,18 +26,27 @@ class MaxCorr_Test(ConditionalIndependence_base):
             
         p_vals = []
         stats = []
+        weights = []
         
         if sequential_chunks:
             num_chunks = max(1, math.ceil(n / max_samples))
             chunks_X = torch.tensor_split(X, num_chunks)
             chunks_Y = torch.tensor_split(Y, num_chunks)
             
+            valid_samples = sum(cX.shape[0] for cX in chunks_X if cX.shape[0] >= 6)
+            if valid_samples == 0: 
+                return 0.0, 1.0
+
             for cX, cY in zip(chunks_X, chunks_Y):
-                if cX.shape[0] < 6:
+                n_local = cX.shape[0]
+                if n_local < 6:
                     continue
                 s, p = cls._single_test(cX, cY)
-                p_vals.append(p)
+                p = max(1e-15, min(1.0 - 1e-15, p))
+                
                 stats.append(s)
+                p_vals.append(p)
+                weights.append(n_local / valid_samples) # Uniform weights proportional to chunk size
                 
             if not p_vals:
                 return 0.0, 1.0
@@ -46,10 +54,13 @@ class MaxCorr_Test(ConditionalIndependence_base):
             for _ in range(n_ensembles):
                 idx = torch.randperm(n, device=X.device)[:max_samples]
                 s, p = cls._single_test(X[idx], Y[idx])
-                p_vals.append(p)
+                p = max(1e-15, min(1.0 - 1e-15, p))
+                
                 stats.append(s)
+                p_vals.append(p)
+                weights.append(1.0 / n_ensembles) # Uniform weights for random subsampling
             
-        return sum(stats) / len(stats), statistics.median(p_vals)
+        return cls._aggregate_cct(stats, p_vals, weights)
 
     @classmethod
     def conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor, max_samples=500, n_ensembles=5, sequential_chunks=False) -> tuple[float, float]:
@@ -63,6 +74,7 @@ class MaxCorr_Test(ConditionalIndependence_base):
             
         p_vals = []
         stats = []
+        weights = []
         
         if sequential_chunks:
             num_chunks = max(1, math.ceil(n / max_samples))
@@ -70,12 +82,20 @@ class MaxCorr_Test(ConditionalIndependence_base):
             chunks_Y = torch.tensor_split(Y, num_chunks)
             chunks_Z = torch.tensor_split(Z, num_chunks)
             
+            valid_samples = sum(cX.shape[0] for cX in chunks_X if cX.shape[0] >= 6)
+            if valid_samples == 0: 
+                return 0.0, 1.0
+
             for cX, cY, cZ in zip(chunks_X, chunks_Y, chunks_Z):
-                if cX.shape[0] < 6: 
+                n_local = cX.shape[0]
+                if n_local < 6: 
                     continue
                 s, p = cls._single_conditional_test(cX, cY, cZ)
-                p_vals.append(p)
+                p = max(1e-15, min(1.0 - 1e-15, p))
+                
                 stats.append(s)
+                p_vals.append(p)
+                weights.append(n_local / valid_samples)
                 
             if not p_vals: 
                 return 0.0, 1.0
@@ -83,79 +103,138 @@ class MaxCorr_Test(ConditionalIndependence_base):
             for _ in range(n_ensembles):
                 idx = torch.randperm(n, device=X.device)[:max_samples]
                 s, p = cls._single_conditional_test(X[idx], Y[idx], Z[idx])
-                p_vals.append(p)
+                p = max(1e-15, min(1.0 - 1e-15, p))
+                
                 stats.append(s)
+                p_vals.append(p)
+                weights.append(1.0 / n_ensembles) # Uniform weights for random subsampling
             
-        return sum(stats) / len(stats), statistics.median(p_vals)
+        return cls._aggregate_cct(stats, p_vals, weights)
 
     @classmethod
     def test_regimes(cls, X_regimes: list[torch.Tensor], Y_regimes: list[torch.Tensor]) -> tuple[float, float]:
         """
-        Performs an unconditional Max-Corr test across multiple regimes using Pooled Standardized Residuals.
+        Unconditional test across regimes using the Cauchy Combination Test (CCT).
         """
-        pooled_rX = []
-        pooled_rY = []
-
-        for X_local, Y_local in zip(X_regimes, Y_regimes):
-            # For unconditional tests, the "residual" is just the mean-centered variable
-            rX = X_local - X_local.mean(dim=0, keepdim=True)
-            rY = Y_local - Y_local.mean(dim=0, keepdim=True)
-
-            # Local Z-score standardization (0 mean, 1 variance) to remove heteroscedasticity across regimes
-            std_X = torch.clamp(rX.std(dim=0, unbiased=True, keepdim=True), min=1e-8)
-            std_Y = torch.clamp(rY.std(dim=0, unbiased=True, keepdim=True), min=1e-8)
-
-            pooled_rX.append(rX / std_X)
-            pooled_rY.append(rY / std_Y)
-
-        if not pooled_rX:
+        if not X_regimes:
             return 0.0, 1.0
 
-        # Early Fusion: Concatenate all standardized residuals into a single global distribution
-        rX_concat = torch.cat(pooled_rX, dim=0)
-        rY_concat = torch.cat(pooled_rY, dim=0)
+        p_vals = []
+        stats = []
+        weights = []
+        
+        valid_samples = sum(X.shape[0] for X in X_regimes if X.shape[0] >= 6)
 
-        # Execute a single, high-powered Max-Corr test
-        return cls._compute_max_corr_pval(rX_concat, rY_concat)
+        if valid_samples == 0:
+            return 0.0, 1.0
+
+        for X_local, Y_local in zip(X_regimes, Y_regimes):
+            n_local = X_local.shape[0]
+            if n_local < 6:
+                continue
+                
+            s, p = cls._single_test(X_local, Y_local)
+            p = max(1e-15, min(1.0 - 1e-15, p))
+            
+            stats.append(s)
+            p_vals.append(p)
+            weights.append(n_local / valid_samples)
+
+        if not p_vals:
+            return 0.0, 1.0
+
+        return cls._aggregate_cct(stats, p_vals, weights)
 
     @classmethod
     def conditional_test_regimes(cls, X_regimes: list[torch.Tensor], Y_regimes: list[torch.Tensor], Z_regimes: list[torch.Tensor]) -> tuple[float, float]:
         """
-        Performs a conditional Max-Corr test across multiple regimes using Pooled Standardized Residuals.
+        Conditional test across regimes using the Cauchy Combination Test (CCT).
         """
-        pooled_rX = []
-        pooled_rY = []
-
-        for X_local, Y_local, Z_local in zip(X_regimes, Y_regimes, Z_regimes):
-            n = X_local.shape[0]
-
-            # 1. Local Ordinary Least Squares (OLS) Regression
-            # Add an intercept term to Z_local to absorb the local mean of the regime
-            Z_int = torch.cat([Z_local, torch.ones(n, 1, dtype=Z_local.dtype, device=Z_local.device)], dim=1)
-            
-            beta_X = torch.linalg.lstsq(Z_int, X_local).solution
-            beta_Y = torch.linalg.lstsq(Z_int, Y_local).solution
-            
-            # Extract local residuals
-            rX = X_local - Z_int @ beta_X
-            rY = Y_local - Z_int @ beta_Y
-
-            # 2. Local Z-score standardization (0 mean, 1 variance)
-            std_X = torch.clamp(rX.std(dim=0, unbiased=True, keepdim=True), min=1e-8)
-            std_Y = torch.clamp(rY.std(dim=0, unbiased=True, keepdim=True), min=1e-8)
-
-            pooled_rX.append(rX / std_X)
-            pooled_rY.append(rY / std_Y)
-
-        if not pooled_rX:
+        if not X_regimes:
             return 0.0, 1.0
 
-        # 3. Early Fusion: Concatenate all standardized residuals into a single global distribution
-        rX_concat = torch.cat(pooled_rX, dim=0)
-        rY_concat = torch.cat(pooled_rY, dim=0)
+        p_vals = []
+        stats = []
+        weights = []
+        
+        valid_samples = sum(X.shape[0] for X in X_regimes if X.shape[0] >= 6)
 
-        # 4. Execute a single, high-powered Max-Corr test on the pooled data
-        return cls._compute_max_corr_pval(rX_concat, rY_concat)
+        if valid_samples == 0:
+            return 0.0, 1.0
+
+        for X_local, Y_local, Z_local in zip(X_regimes, Y_regimes, Z_regimes):
+            n_local = X_local.shape[0]
+            if n_local < 6:
+                continue
+
+            s, p = cls._single_conditional_test(X_local, Y_local, Z_local)
+            p = max(1e-15, min(1.0 - 1e-15, p))
+            
+            stats.append(s)
+            p_vals.append(p)
+            weights.append(n_local / valid_samples)
+
+        if not p_vals:
+            return 0.0, 1.0
+
+        return cls._aggregate_cct(stats, p_vals, weights)
+
+    @classmethod
+    def _single_conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor) -> tuple[float, float]:
+        n = X.shape[0]
+        if n < 6:
+            return 0.0, 1.0 
+
+        Z_int = torch.cat([Z, torch.ones(n, 1, dtype=Z.dtype, device=Z.device)], dim=1)
+        
+        beta_X = torch.linalg.lstsq(Z_int, X).solution
+        beta_Y = torch.linalg.lstsq(Z_int, Y).solution
+        
+        rX = X - Z_int @ beta_X
+        rY = Y - Z_int @ beta_Y
+        
+        return cls._compute_max_corr_pval(rX, rY, dz=Z.shape[1])
+
+    @classmethod
+    def _compute_max_corr_pval(cls, X: torch.Tensor, Y: torch.Tensor, dz: int = 0) -> tuple[float, float]:
+        n = X.shape[0]
+        dimX = X.shape[1]
+        dimY = Y.shape[1]
+        
+        X_c = X - X.mean(dim=0, keepdim=True)
+        Y_c = Y - Y.mean(dim=0, keepdim=True)
+        
+        X_norm = X_c / torch.clamp(torch.linalg.vector_norm(X_c, dim=0, keepdim=True), min=1e-8)
+        Y_norm = Y_c / torch.clamp(torch.linalg.vector_norm(Y_c, dim=0, keepdim=True), min=1e-8)
+        
+        corr_matrix = X_norm.T @ Y_norm
+        max_corr = torch.max(torch.abs(corr_matrix)).item()
+        
+        r = min(max_corr, 1.0 - 1e-8) 
+        
+        df = max(1, n - 2 - dz)
+        t_stat = r * math.sqrt(df / (1.0 - r**2))
+        
+        p_val_single = 2 * t.sf(t_stat, df=df)
+        
+        num_tests = dimX * dimY
+        p_val_bonf = min(1.0, p_val_single * num_tests)
+        
+        return float(max_corr), float(p_val_bonf)
+
+    @staticmethod
+    def _aggregate_cct(stats: list[float], p_vals: list[float], weights: list[float]) -> tuple[float, float]:
+        """
+        Aggregates p-values using the Cauchy Combination Test.
+        """
+        t_stat = 0.0
+        for w, p in zip(weights, p_vals):
+            t_stat += w * math.tan(math.pi * (0.5 - p))
+            
+        global_p_val = 0.5 - (math.atan(t_stat) / math.pi)
+        avg_stat = sum(w * s for w, s in zip(weights, stats))
+        
+        return avg_stat, global_p_val
 
     @classmethod
     def _single_test(cls, X: torch.Tensor, Y: torch.Tensor) -> tuple[float, float]:
@@ -164,57 +243,3 @@ class MaxCorr_Test(ConditionalIndependence_base):
             return 0.0, 1.0 
             
         return cls._compute_max_corr_pval(X, Y)
-
-    @classmethod
-    def _single_conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor) -> tuple[float, float]:
-        n = X.shape[0]
-        if n < 6:
-            return 0.0, 1.0 
-
-        # 1. Regress X on Z and Y on Z to get residuals
-        # Add an intercept term to Z to ensure residuals have zero mean
-        Z_int = torch.cat([Z, torch.ones(n, 1, dtype=Z.dtype, device=Z.device)], dim=1)
-        
-        # Solve Ordinary Least Squares
-        beta_X = torch.linalg.lstsq(Z_int, X).solution
-        beta_Y = torch.linalg.lstsq(Z_int, Y).solution
-        
-        # Calculate residuals (rX_Z, rY_Z)
-        rX = X - Z_int @ beta_X
-        rY = Y - Z_int @ beta_Y
-        
-        # 2. Compute Max-Corr on the residuals
-        return cls._compute_max_corr_pval(rX, rY)
-
-    @classmethod
-    def _compute_max_corr_pval(cls, X: torch.Tensor, Y: torch.Tensor) -> tuple[float, float]:
-        n = X.shape[0]
-        dimX = X.shape[1]
-        dimY = Y.shape[1]
-        
-        # Mean center the variables
-        X_c = X - X.mean(dim=0, keepdim=True)
-        Y_c = Y - Y.mean(dim=0, keepdim=True)
-        
-        # L2 normalize the columns to prepare for Pearson correlation
-        X_norm = X_c / torch.clamp(torch.linalg.vector_norm(X_c, dim=0, keepdim=True), min=1e-8)
-        Y_norm = Y_c / torch.clamp(torch.linalg.vector_norm(Y_c, dim=0, keepdim=True), min=1e-8)
-        
-        # Compute pairwise Pearson correlation matrix
-        corr_matrix = X_norm.T @ Y_norm
-        
-        # Get the test statistic: max absolute correlation (rho)
-        max_corr = torch.max(torch.abs(corr_matrix)).item()
-        
-        # Compute the t-statistic for the maximum correlation
-        r = min(max_corr, 1.0 - 1e-8)  # Clamp to prevent division by zero
-        t_stat = r * math.sqrt((n - 2) / (1.0 - r**2))
-        
-        # Compute the base two-sided p-value from the Student's t-distribution
-        p_val_single = 2 * t.sf(t_stat, df=n - 2)
-        
-        # Apply the Bonferroni correction across all tested pairs
-        num_tests = dimX * dimY
-        p_val_bonf = min(1.0, p_val_single * num_tests)
-        
-        return float(max_corr), float(p_val_bonf)

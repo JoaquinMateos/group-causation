@@ -305,9 +305,10 @@ class BenchmarkBase(ABC):
         
         # 3. Execute tasks
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_executions) as executor:
+            logging.info(f'Launching algorithms {list(algorithms.keys())} on {len(causal_datasets)} datasets in parallel')
             future_to_name = {
                 executor.submit(
-                    task_wrapper, # <--- Submit the wrapper instead of the raw function
+                    task_wrapper,
                     algorithm_name=name,
                     causal_datasets=causal_datasets, 
                     causalDiscovery=algorithm,
