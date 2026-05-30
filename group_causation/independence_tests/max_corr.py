@@ -65,7 +65,7 @@ class MaxCorr_Test(ConditionalIndependence_base):
     @classmethod
     def conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor,
                          max_samples=500, n_ensembles=5, sequential_chunks=False,
-                         ridge_lambda: float = 0.1) -> tuple[float, float]:
+                         ridge_lambda: float = 0.2) -> tuple[float, float]:
         '''
         Conditional Max-Corr test with optional subsampling and sequential chunking for large datasets.
         
@@ -107,7 +107,7 @@ class MaxCorr_Test(ConditionalIndependence_base):
                 n_local = cX.shape[0]
                 if n_local < 6: 
                     continue
-                s, p = cls._single_conditional_test(cX, cY, cZ)
+                s, p = cls._single_conditional_test(cX, cY, cZ, ridge_lambda=ridge_lambda)
                 p = max(1e-15, min(1.0 - 1e-15, p))
                 
                 stats.append(s)
@@ -119,7 +119,7 @@ class MaxCorr_Test(ConditionalIndependence_base):
         else:
             for _ in range(n_ensembles):
                 idx = torch.randperm(n, device=X.device)[:max_samples]
-                s, p = cls._single_conditional_test(X[idx], Y[idx], Z[idx])
+                s, p = cls._single_conditional_test(X[idx], Y[idx], Z[idx], ridge_lambda=ridge_lambda)
                 p = max(1e-15, min(1.0 - 1e-15, p))
                 
                 stats.append(s)
@@ -163,7 +163,7 @@ class MaxCorr_Test(ConditionalIndependence_base):
         return cls._aggregate_cct(stats, p_vals, weights)
 
     @classmethod
-    def conditional_test_regimes(cls, X_regimes: list[torch.Tensor], Y_regimes: list[torch.Tensor], Z_regimes: list[torch.Tensor]) -> tuple[float, float]:
+    def conditional_test_regimes(cls, X_regimes: list[torch.Tensor], Y_regimes: list[torch.Tensor], Z_regimes: list[torch.Tensor], ridge_lambda: float = 0.2) -> tuple[float, float]:
         """
         Conditional test across regimes using the Cauchy Combination Test (CCT).
 
@@ -210,7 +210,7 @@ class MaxCorr_Test(ConditionalIndependence_base):
             if n_local < 6:
                 continue
 
-            s, p = cls._single_conditional_test(X_local, Y_local, Z_local)
+            s, p = cls._single_conditional_test(X_local, Y_local, Z_local, ridge_lambda=ridge_lambda)
             p = max(1e-15, min(1.0 - 1e-15, p))
             
             stats.append(s)
@@ -223,7 +223,7 @@ class MaxCorr_Test(ConditionalIndependence_base):
         return cls._aggregate_cct(stats, p_vals, weights)
 
     @classmethod
-    def _single_conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor, ridge_lambda: float = 0.1) -> tuple[float, float]:
+    def _single_conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor, ridge_lambda: float) -> tuple[float, float]:
         n = X.shape[0]
         if n < 6:
             return 0.0, 1.0 
