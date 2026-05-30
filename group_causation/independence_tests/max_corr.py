@@ -63,14 +63,31 @@ class MaxCorr_Test(ConditionalIndependence_base):
         return cls._aggregate_cct(stats, p_vals, weights)
 
     @classmethod
-    def conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor, max_samples=500, n_ensembles=5, sequential_chunks=False) -> tuple[float, float]:
+    def conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor,
+                         max_samples=500, n_ensembles=5, sequential_chunks=False,
+                         ridge_lambda: float = 0.1) -> tuple[float, float]:
+        '''
+        Conditional Max-Corr test with optional subsampling and sequential chunking for large datasets.
+        
+        Args:
+            X (torch.Tensor): Source variable tensor.
+            Y (torch.Tensor): Target variable tensor.
+            Z (torch.Tensor): Conditioning set tensor.
+            max_samples (int): Maximum samples for each test when subsampling.
+            n_ensembles (int): Number of random subsamples to average over when not using sequential chunks.
+            sequential_chunks (bool): Whether to use sequential non-overlapping chunks instead of random subsampling.
+            ridge_lambda (float): Regularization strength for ridge regression in the conditional test.
+        Returns:
+            tuple[float, float]: (average_statistic, global_p_value) where average_statistic is the weighted average of local Max-Corr statistics and global_p_value is the aggregated p-value from the Cauchy Combination Test.
+
+        '''
         X = X.view(-1, 1) if X.ndim == 1 else X
         Y = Y.view(-1, 1) if Y.ndim == 1 else Y
         Z = Z.view(-1, 1) if Z.ndim == 1 else Z
         n = X.shape[0]
         
         if n <= max_samples:
-            return cls._single_conditional_test(X, Y, Z)
+            return cls._single_conditional_test(X, Y, Z, ridge_lambda=ridge_lambda)
             
         p_vals = []
         stats = []
@@ -206,23 +223,34 @@ class MaxCorr_Test(ConditionalIndependence_base):
         return cls._aggregate_cct(stats, p_vals, weights)
 
     @classmethod
-    def _single_conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor) -> tuple[float, float]:
+    def _single_conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor, ridge_lambda: float = 0.1) -> tuple[float, float]:
         n = X.shape[0]
         if n < 6:
             return 0.0, 1.0 
 
         Z_int = torch.cat([Z, torch.ones(n, 1, dtype=Z.dtype, device=Z.device)], dim=1)
         
-        beta_X = torch.linalg.lstsq(Z_int, X).solution
-        beta_Y = torch.linalg.lstsq(Z_int, Y).solution
+        I = torch.eye(Z_int.shape[1], device=Z_int.device, dtype=Z_int.dtype)
+        
+        ZtZ_ridge = Z_int.T @ Z_int + ridge_lambda * I
+        
+        beta_X = torch.linalg.solve(ZtZ_ridge, Z_int.T @ X)
+        beta_Y = torch.linalg.solve(ZtZ_ridge, Z_int.T @ Y)
         
         rX = X - Z_int @ beta_X
         rY = Y - Z_int @ beta_Y
         
-        return cls._compute_max_corr_pval(rX, rY, dz=Z.shape[1])
+        # Calculus of effective degrees of freedom (Trace of the Hat Matrix)
+        # tr( Z * (Z^T Z + \lambda I)^-1 * Z^T ) is mathematically identical to tr( (Z^T Z + \lambda I)^-1 * Z^T Z )
+        # This second form is computationally much cheaper because it operates in dimension d_z x d_z instead of n x n
+        ZtZ = Z_int.T @ Z_int
+        hat_trace = torch.trace(torch.linalg.solve(ZtZ_ridge, ZtZ)).item()
+        
+        return cls._compute_max_corr_pval(rX, rY, degrees_of_freedom_consumed=hat_trace)
 
     @classmethod
-    def _compute_max_corr_pval(cls, X: torch.Tensor, Y: torch.Tensor, dz: int = 0) -> tuple[float, float]:
+    def _compute_max_corr_pval(cls, X: torch.Tensor, Y: torch.Tensor,
+                               degrees_of_freedom_consumed: float = 0.0) -> tuple[float, float]:
         n = X.shape[0]
         dimX = X.shape[1]
         dimY = Y.shape[1]
@@ -238,10 +266,10 @@ class MaxCorr_Test(ConditionalIndependence_base):
         
         r = min(max_corr, 1.0 - 1e-8) 
         
-        df = max(1, n - 2 - dz)
+        df = max(1.0, float(n - 2) - degrees_of_freedom_consumed)
         t_stat = r * math.sqrt(df / (1.0 - r**2))
         
-        p_val_single = 2 * t.sf(t_stat, df=df)
+        p_val_single = 2 * t.sf(t_stat, df=df) 
         
         num_tests = dimX * dimY
         p_val_bonf = min(1.0, p_val_single * num_tests)
