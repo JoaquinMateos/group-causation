@@ -1,7 +1,9 @@
+from types import MappingProxyType
+
 import numpy as np
 import itertools
 import math
-from typing import Any, Optional, Union
+from typing import Any, Mapping, Optional, Union
 from scipy.stats import chi2
 import logging
 import torch
@@ -91,9 +93,10 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             self._pcmci_params = pcmci_params if pcmci_params is not None else {}
             self._verbose = verbose
             
-            self.tau_max = self._pcmci_params.get('tau_max', 3)
-            self.pc_alpha = self._pcmci_params.get('pc_alpha', 0.05)
-            self.max_conds_dim = self._pcmci_params.get('max_conds_dim', 3)
+            self.tau_min = self._pcmci_params.get('tau_min', 1)
+            self.tau_max = self._pcmci_params['tau_max']
+            self.pc_alpha = self._pcmci_params['pc_alpha']
+            self.max_conds_dim = self._pcmci_params['max_conds_dim']
             
             self.apply_adag_optimization = apply_adag_optimization
             self.target_c_ind = target_c_ind
@@ -130,23 +133,29 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
         logging.debug("No GPU available. Using CPU for computations.")
         return torch.device('cpu')
     
-    def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
-        """Main entry point. Branches depending on the apply_adag_optimization hyperparameter."""
+    def extract_parents(self, forbidden_parents: Mapping[int, list[tuple[int, int]]] = MappingProxyType({})) -> dict[int, list[tuple[int, int]]]:
+        """
+        Main entry point. Branches depending on the apply_adag_optimization hyperparameter.
+        
+        Args:
+            forbidden_parents: Dictionary mapping a target group index to a list of forbidden (parent_index, lag) tuples.
+                               Example: {4: [(5, 0)]} means "Group 5 at lag 0 cannot cause target Group 4".
+        """
         if self.apply_adag_optimization:
             if self._verbose > 0:
                 logging.info(f"Extracting parents: Adag optimization ENABLED (target c_ind={self.target_c_ind}).")
-            return self._run_adag()
+            return self._run_adag(forbidden_parents=forbidden_parents)
         else:
             if self._verbose > 0:
                 logging.info(f"Extracting parents: Adag optimization DISABLED. Using static dimensions {self._fallback_dims}.")
             group_embeddings = self._prepare_group_embeddings(self._fallback_dims)
-            final_parents, _ = self._run_group_pcmci(group_embeddings)
+            final_parents, _ = self._run_group_pcmci(group_embeddings, forbidden_parents=forbidden_parents)
             return final_parents
 
-    def _run_adag(self) -> dict[int, list[tuple[int, int]]]:
+    def _run_adag(self, forbidden_parents: Mapping[int, list[tuple[int, int]]] = MappingProxyType({})) -> dict[int, list[tuple[int, int]]]:
         """Iterative aggregation loop to find the optimal latent dimensionality."""
         N = len(self._groups)
-        m = [1] * N
+        m = [min(1, len(group)) for group in self._groups]
         max_m = [len(group) for group in self._groups]
         
         c_ind_score = 0.0
@@ -156,7 +165,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             logging.info(f"Adag Iteration | Current latent dimensions m: {m}")
                 
             group_embeddings = self._prepare_group_embeddings(m)
-            parents, independencies = self._run_group_pcmci(group_embeddings)
+            parents, independencies = self._run_group_pcmci(group_embeddings, forbidden_parents=forbidden_parents)
             
             c_ind_score = self._compute_c_ind(independencies)
             
@@ -313,12 +322,24 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             avg_stat = sum(w * s for w, s in zip(weights, stats))
             return avg_stat, global_p_val
 
-    def _run_group_pcmci(self, group_embeddings: list[torch.Tensor]) -> tuple[dict[int, list[tuple[int, int]]], list]:
+    def _run_group_pcmci(self, group_embeddings: list[torch.Tensor],
+                         forbidden_parents: Mapping[int, list[tuple[int, int]]] = MappingProxyType({})) -> tuple[dict[int, list[tuple[int, int]]], list]:
         N = len(self._groups)
         independencies_found = []
         
+        # Inicializamos la matriz de efectos
+        self.effect_val_matrix = np.zeros((N, N, self.tau_max + 1))
+        
         # Phase 1: PC1 Algorithm
-        parents = {j: [(i, tau) for i in range(N) for tau in range(1, self.tau_max + 1)] for j in range(N)}
+        parents = {}
+        for j in range(N):
+            parents[j] = [
+                (i, tau) 
+                for i in range(N) 
+                for tau in range(self.tau_min, self.tau_max + 1)
+                if not (tau == 0 and i == j) # Skip lag-0 self-loops
+                and (i, tau) not in forbidden_parents.get(j, []) # Skip forbidden domain-knowledge edges
+            ]
         
         for j in range(N):
             p = 0
@@ -333,17 +354,21 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                         continue
                         
                     for Z in itertools.combinations(available_conds, p):
+                        # En la Fase 1 solo nos importa el p-valor para podar
                         _, pval = self._test_ci(group_embeddings, i, tau, j, 0, list(Z))
                         
                         if pval > self.pc_alpha:
+                            independencies_found.append((i, tau, j, 0, Z))
                             to_remove.append((i, tau))
-                            independencies_found.append((i, tau, j, 0, list(Z)))
-                            break
+                            break # Found independence, no need to test more conditioning sets for this candidate parent
                             
-                for node in to_remove:
-                    if node in parents[j]:
-                        parents[j].remove(node)
+                # Remove all parents that were found to be independent in this iteration
+                parents[j] = [c for c in parents[j] if c not in to_remove]
                 
+                # Optimization: if no parents left or we have already exceeded the max conditioning dimension, we can stop early for this target
+                if not parents[j] or p >= len(parents[j]):
+                    break
+                    
                 p += 1
 
         # Phase 2: MCI Algorithm
@@ -356,11 +381,25 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                 
                 Z = list(set(Z_j + Z_i))
                 
-                _, pval = self._test_ci(group_embeddings, i, tau, j, 0, Z)
+                # Recuperamos el estadístico 'stat' en la Fase 2
+                stat, pval = self._test_ci(group_embeddings, i, tau, j, 0, Z)
                 
                 if pval > self.pc_alpha:
                     independencies_found.append((i, tau, j, 0, Z))
                 else:
                     final_parents[j].append((i, -tau))
                     
+                    # Llenamos la matriz con los valores finales del estadístico
+                    self.effect_val_matrix[i, j, tau] = abs(stat)
+                    
+                    # Relaciones instantáneas deben ser simétricas en la matriz
+                    if tau == 0:
+                        self.effect_val_matrix[j, i, 0] = abs(stat)
+                    
         return final_parents, independencies_found
+    
+    def get_effect_val_matrix(self) -> np.ndarray:
+        """Returns the matrix of effect values computed during the Group-PCMCI phase."""
+        if not hasattr(self, 'effect_val_matrix'):
+            raise ValueError("Effect value matrix is not available. Please run extract_parents() first to compute it.")
+        return self.effect_val_matrix

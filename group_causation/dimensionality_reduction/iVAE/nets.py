@@ -117,7 +117,7 @@ class MLP(nn.Module):
         self.device = device
         
         if isinstance(hidden_dim, Number):
-            self.hidden_dim = [int(hidden_dim)] * (self.n_layers - 1)
+            self.hidden_dim = [int(hidden_dim)] * (self.n_layers - 1) # type: ignore
         elif isinstance(hidden_dim, list):
             self.hidden_dim = hidden_dim
         else:
@@ -276,15 +276,22 @@ class iVAE(nn.Module):
     def anneal(self, N: int, max_epoch: int, epoch: int):
         """ Updates ELBO weights dynamically over time during training. """
         thr = int(max_epoch / 1.6)
-        a = 0.5 / self.decoder_var.item()
         
         self._training_hyperparams[-1] = N
-        self._training_hyperparams[0] = min(2 * a, a + a * epoch / thr)
-        self._training_hyperparams[1] = max(1, a * 0.3 * (1 - epoch / thr))
-        self._training_hyperparams[2] = min(1, epoch / thr)
-        self._training_hyperparams[3] = max(1, a * 0.5 * (1 - epoch / thr))
         
-        if epoch > thr:
+        # Smoothly transition weights to exactly 1.0 at 'thr'
+        if epoch <= thr:
+            progress = epoch / thr
+            
+            # Start 'a' slightly higher if you want to prioritize early reconstruction, 
+            # but smoothly decay it to 1.0. 
+            self._training_hyperparams[0] = 2.0 - progress       # a: 2.0 -> 1.0
+            self._training_hyperparams[1] = progress             # b: 0.0 -> 1.0
+            self._training_hyperparams[2] = progress             # c: 0.0 -> 1.0
+            self._training_hyperparams[3] = progress             # d: 0.0 -> 1.0
+            self.anneal_params = True
+        else:
+            # After threshold, fall back to standard unweighted ELBO
             self.anneal_params = False
 
 

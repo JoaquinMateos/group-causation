@@ -68,7 +68,7 @@ class _TorchLatentReducer:
         activation: str = 'lrelu',
         slope: float = 0.1,
         inference_dim: Optional[int] = None,
-        anneal: bool = False,
+        anneal: bool = True,
         scheduler_tol: int = 3,
         standardize: bool = True,
         use_auxiliary: bool = True,
@@ -107,7 +107,10 @@ class _TorchLatentReducer:
         self.u_mean_: Optional[torch.Tensor] = None
         self.u_std_: Optional[torch.Tensor] = None
 
-    def fit(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None):
+    def fit(self,
+            X: Union[np.ndarray, torch.Tensor],
+            U: Optional[Union[np.ndarray, torch.Tensor]] = None,
+            val_split: float = 0.0):
         """
         Trains the VAE/iVAE model on the provided data.
         """
@@ -117,6 +120,26 @@ class _TorchLatentReducer:
             np.random.seed(self.seed)
             
         logging.debug(f'Using device: {self.device}')
+
+        X_orig, U_orig = X, U
+        
+        if val_split < 1e-6:
+            X_val = None
+        else:
+            n_samples = len(X)
+            n_val = int(n_samples * val_split)
+            
+            if isinstance(X, torch.Tensor):
+                indices = torch.randperm(n_samples)
+            else:
+                indices = np.random.permutation(n_samples)
+                
+            X_val = X[indices[:n_val]]
+            X = X[indices[n_val:]]
+            
+            if U is not None:
+                U_val = U[indices[:n_val]]
+                U = U[indices[n_val:]]
 
         # 2. Data Preparation (Primary Data X)
         x_tensor = _to_2d_float_tensor(X, 'X', self.device)
@@ -162,7 +185,7 @@ class _TorchLatentReducer:
         else:
             self.model_ = self._build_model(latent_dim, self.data_dim_, self.device)
 
-        # 5. Optimizer, Scheduler, and DataLoader
+        # 5. Optimizer, Scheduler, and DataLoaders
         optimizer = optim.AdamW(self.model_.parameters(), lr=self.lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, factor=0.5, patience=self.scheduler_tol, mode='max'
@@ -174,23 +197,45 @@ class _TorchLatentReducer:
             
         train_dataset = TensorDataset(*tensors)
         train_loader = DataLoader(train_dataset, shuffle=True, batch_size=self.batch_size, num_workers=0)
+        # Validation Loader 
+        val_loader = None
+        if X_val is not None:
+            x_val_tensor = _to_2d_float_tensor(X_val, 'X_val', self.device)
+            if self.standardize:
+                x_val_tensor = (x_val_tensor - self.x_mean_) / self.x_std_
+            
+            val_tensors = [x_val_tensor]
+            
+            if self.use_auxiliary:
+                if U_val is None:
+                    raise ValueError('U_val must be provided if X_val is provided and use_auxiliary is True.')
+                u_val_tensor = _to_2d_float_tensor(U_val, 'U_val', self.device)
+                if self.standardize:
+                    u_val_tensor = (u_val_tensor - self.u_mean_) / self.u_std_ # type: ignore
+                val_tensors.append(u_val_tensor)
+                
+            val_dataset = TensorDataset(*val_tensors)
+            # Shuffle is False for validation; batch size can be larger since no gradients are stored
+            val_loader = DataLoader(val_dataset, shuffle=False, batch_size=self.batch_size * 2)
+
 
         # 6. Training Loop
-        self.model_.train()
         self.history_ = []
+        self.val_history_ = [] # Keep track of validation ELBO
 
         best_elbo = -float('inf')
         best_model_state = None
         epochs_without_improvement = 0
 
         for epoch in range(self.max_epoch):
+            # --- Training Phase ---
+            self.model_.train()
             epoch_elbo_sum = 0.0
             batch_count = 0
 
             for batch in train_loader:
                 optimizer.zero_grad()
 
-                # Forward pass & ELBO calculation
                 if self.use_auxiliary:
                     batch_x, batch_u = batch
                     if self.anneal and hasattr(self.model_, 'anneal'):
@@ -200,7 +245,6 @@ class _TorchLatentReducer:
                     (batch_x,) = batch
                     elbo, _ = self.model_.elbo(batch_x)
 
-                # PyTorch minimizes loss. We want to maximize ELBO, so we minimize negative ELBO.
                 loss = -elbo
                 loss.backward()
 
@@ -213,16 +257,44 @@ class _TorchLatentReducer:
             if batch_count == 0:
                 break
             
-            # Epoch wrap-up
-            mean_elbo = epoch_elbo_sum / batch_count
-            self.history_.append(mean_elbo)
-            scheduler.step(mean_elbo)
-            
-            logging.debug(f'Epoch {len(self.history_)}: ELBO = {mean_elbo:.4f}, LR = {optimizer.param_groups[0]["lr"]:.2e}')
+            mean_train_elbo = epoch_elbo_sum / batch_count
+            self.history_.append(mean_train_elbo)
 
-            # 7. Early Stopping & Checkpointing
-            if mean_elbo > best_elbo:
-                best_elbo = mean_elbo
+            # --- Validation Phase ---
+            if val_loader is not None:
+                self.model_.eval()
+                val_elbo_sum = 0.0
+                val_batch_count = 0
+                
+                with torch.no_grad():
+                    for batch in val_loader:
+                        if self.use_auxiliary:
+                            batch_x, batch_u = batch
+                            elbo, _ = self.model_.elbo(batch_x, batch_u)
+                        else:
+                            (batch_x,) = batch
+                            elbo, _ = self.model_.elbo(batch_x)
+                            
+                        val_elbo_sum += float(elbo.detach().item())
+                        val_batch_count += 1
+                
+                mean_val_elbo = val_elbo_sum / val_batch_count
+                self.val_history_.append(mean_val_elbo)
+                
+                # The metric we care about for early stopping and LR decay
+                monitor_metric = mean_val_elbo 
+                log_msg = f'Epoch {epoch+1}: Train ELBO = {mean_train_elbo:.4f}, Val ELBO = {mean_val_elbo:.4f}, LR = {optimizer.param_groups[0]["lr"]:.2e}'
+            else:
+                monitor_metric = mean_train_elbo
+                log_msg = f'Epoch {epoch+1}: Train ELBO = {mean_train_elbo:.4f}, LR = {optimizer.param_groups[0]["lr"]:.2e}'
+
+            logging.debug(log_msg)
+            
+            # --- Scheduler & Early Stopping ---
+            scheduler.step(monitor_metric)
+            
+            if monitor_metric > best_elbo:
+                best_elbo = monitor_metric
                 best_model_state = copy.deepcopy(self.model_.state_dict())
                 epochs_without_improvement = 0
             else:
@@ -236,8 +308,8 @@ class _TorchLatentReducer:
         if best_model_state is not None:
             self.model_.load_state_dict(best_model_state)
             
-        self.embedding_ = self.transform(X, U)
-        self.params_ = self._collect_model_params(X, U)
+        self.embedding_ = self.transform(X_orig, U_orig)
+        self.params_ = self._collect_model_params(X_orig, U_orig)
         return self
 
     def transform(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None) -> torch.Tensor:
@@ -252,9 +324,12 @@ class _TorchLatentReducer:
 
         return self._encode(x_tensor)
 
-    def fit_transform(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None) -> torch.Tensor:
+    def fit_transform(self,
+                      X: Union[np.ndarray, torch.Tensor],
+                      U: Optional[Union[np.ndarray, torch.Tensor]] = None,
+                      val_split=0.0) -> torch.Tensor:
         """ Convenience method to fit the model and immediately return the latent embeddings. """
-        self.fit(X, U)
+        self.fit(X, U, val_split=val_split)
         if self.embedding_ is None:
             raise RuntimeError('The fitted embedding is not available.')
         return self.embedding_
@@ -384,9 +459,10 @@ def IVAE_wrapper(
     activation='lrelu',
     slope=.1,
     inference_dim=None,
-    anneal=False,
+    anneal=True,
     scheduler_tol=3,
     early_stopping_patience=None,
+    val_split=0,
 ):
     """
     High-level function to instantiate, fit, and extract latents from an iVAE model.
@@ -407,7 +483,7 @@ def IVAE_wrapper(
         scheduler_tol=scheduler_tol,
         early_stopping_patience=early_stopping_patience,
     )
-    latent = reducer.fit_transform(X, U)
+    latent = reducer.fit_transform(X, U, val_split=val_split)
     return latent, reducer.model_, reducer.params_, {'elbo': reducer.history_, 'reducer': reducer}
 
 
@@ -428,6 +504,7 @@ def VAE_wrapper(
     ckpt_folder=None, # Unused, kept for backwards compatibility
     scheduler_tol=3,
     early_stopping_patience=None,
+    val_split=0,
 ):
     """
     High-level function to instantiate, fit, and extract latents from a standard VAE model.
@@ -447,5 +524,5 @@ def VAE_wrapper(
         scheduler_tol=scheduler_tol,
         early_stopping_patience=early_stopping_patience,
     )
-    latent = reducer.fit_transform(X)
+    latent = reducer.fit_transform(X, val_split=val_split)
     return latent, reducer.model_, reducer.params_, {'elbo': reducer.history_, 'reducer': reducer}
