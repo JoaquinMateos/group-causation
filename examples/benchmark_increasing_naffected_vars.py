@@ -35,12 +35,12 @@ max_parallel_executions = 5
 
 algorithms = {
     # Las que tiran más de CPU
-    # 'Adag Embedding': HybridGroupCausalDiscovery,
-    # 'Adag Embedding - with shift knowledge': HybridGroupCausalDiscovery,
-    # 'PCA+PCMCI': DimensionReductionGroupCausalDiscovery,
-    # 'PCA+PCMCI - with shift knowledge': DimensionReductionGroupCausalDiscovery,
-    # 'Micro Level': MicroLevelGroupCausalDiscovery,
-    # 'Micro Level - with shift knowledge': MicroLevelGroupCausalDiscovery,
+    'Adag Embedding': HybridGroupCausalDiscovery,
+    'Adag Embedding - with shift knowledge': HybridGroupCausalDiscovery,
+    'PCA+PCMCI': DimensionReductionGroupCausalDiscovery,
+    'PCA+PCMCI - with shift knowledge': DimensionReductionGroupCausalDiscovery,
+    'Micro Level': MicroLevelGroupCausalDiscovery,
+    'Micro Level - with shift knowledge': MicroLevelGroupCausalDiscovery,
     
     # Las que tiran más de GPU
     'GroupRESIT': GroupRESITTimeSeriesCausalDiscovery,

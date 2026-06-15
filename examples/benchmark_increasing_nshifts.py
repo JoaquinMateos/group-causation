@@ -35,19 +35,19 @@ max_parallel_executions = 3
 
 algorithms = {
     # Las que tiran más de CPU
-    # 'Adag Embedding': HybridGroupCausalDiscovery,
-    # 'Adag Embedding - with shift knowledge': HybridGroupCausalDiscovery,
-    # 'PCA+PCMCI': DimensionReductionGroupCausalDiscovery,
-    # 'PCA+PCMCI - with shift knowledge': DimensionReductionGroupCausalDiscovery,
-    # 'Micro Level': MicroLevelGroupCausalDiscovery,
-    # 'Micro Level - with shift knowledge': MicroLevelGroupCausalDiscovery,
+    'Adag Embedding': HybridGroupCausalDiscovery,
+    'Adag Embedding - with shift knowledge': HybridGroupCausalDiscovery,
+    'PCA+PCMCI': DimensionReductionGroupCausalDiscovery,
+    'PCA+PCMCI - with shift knowledge': DimensionReductionGroupCausalDiscovery,
+    'Micro Level': MicroLevelGroupCausalDiscovery,
+    'Micro Level - with shift knowledge': MicroLevelGroupCausalDiscovery,
     
     # Las que tiran más de GPU
-    # 'GroupRESIT': GroupRESITTimeSeriesCausalDiscovery,
-    # 'GroupRESIT - with shift knowledge': GroupRESITTimeSeriesCausalDiscovery,
-    # 'gCDMI': gCDMICausalDiscovery,
-    # 'gCDMI - with shift knowledge': gCDMICausalDiscovery,
-    # 'Group-PCMCI': GroupPCMCICausalDiscovery,
+    'GroupRESIT': GroupRESITTimeSeriesCausalDiscovery,
+    'GroupRESIT - with shift knowledge': GroupRESITTimeSeriesCausalDiscovery,
+    'gCDMI': gCDMICausalDiscovery,
+    'gCDMI - with shift knowledge': gCDMICausalDiscovery,
+    'Group-PCMCI': GroupPCMCICausalDiscovery,
     'Group-PCMCI - with shift knowledge': GroupPCMCICausalDiscovery,
     'Proposal': IVAE_GroupPCMCI_Proposal,
     'Proposal - with shift knowledge': IVAE_GroupPCMCI_Proposal,
