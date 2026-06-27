@@ -1,0 +1,203 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>group_causation.benchmark.benchmark_group_extraction &mdash; group-causation  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=fd3f3429" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            group-causation
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">API Reference &amp; Modules:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">group_causation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">group-causation</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">group_causation.benchmark.benchmark_group_extraction</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for group_causation.benchmark.benchmark_group_extraction</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">importlib_metadata</span><span class="w"> </span><span class="kn">import</span> <span class="n">files</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.benchmark</span><span class="w"> </span><span class="kn">import</span> <span class="n">BenchmarkBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.benchmark.benchmark_group_causal_discovery</span><span class="w"> </span><span class="kn">import</span> <span class="n">_generate_group_dataset</span><span class="p">,</span> <span class="n">_load_group_datasets</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.data_management.create_toy_datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">CausalDataset</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.groups_extraction.causal_groups_extraction</span><span class="w"> </span><span class="kn">import</span> <span class="n">CausalGroupsExtractorBase</span>
+
+<span class="c1"># Inner library imports</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.groups_extraction.causal_groups_extraction</span><span class="w"> </span><span class="kn">import</span> <span class="n">CausalGroupsExtractorBase</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.groups_extraction.stat_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_average_pc1_explained_variance</span><span class="p">,</span> <span class="n">get_normalized_mutual_information</span><span class="p">,</span> <span class="n">get_explainability_score</span>
+
+
+
+<div class="viewcode-block" id="BenchmarkGroupsExtraction">
+<a class="viewcode-back" href="../../../group_causation.benchmark.html#group_causation.benchmark.benchmark_group_extraction.BenchmarkGroupsExtraction">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BenchmarkGroupsExtraction</span><span class="p">(</span><span class="n">BenchmarkBase</span><span class="p">):</span>
+<div class="viewcode-block" id="BenchmarkGroupsExtraction.generate_datasets">
+<a class="viewcode-back" href="../../../group_causation.benchmark.html#group_causation.benchmark.benchmark_group_extraction.BenchmarkGroupsExtraction.generate_datasets">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_datasets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">n_datasets</span><span class="p">,</span> <span class="n">datasets_folder</span><span class="p">,</span> <span class="n">data_option</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Function to generate the datasets for the benchmark</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            n_datasets : int The number of datasets to be generated</span>
+<span class="sd">            datasets_folder : str The folder in which the datasets will be saved</span>
+<span class="sd">            data_option : dict[str, Any] The options to generate the datasets</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Generating datasets...&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_generate_group_dataset</span><span class="p">(</span><span class="n">iteration</span><span class="p">,</span> <span class="n">n_datasets</span><span class="p">,</span> <span class="n">datasets_folder</span><span class="p">,</span> <span class="n">data_option</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="BenchmarkGroupsExtraction.load_datasets">
+<a class="viewcode-back" href="../../../group_causation.benchmark.html#group_causation.benchmark.benchmark_group_extraction.BenchmarkGroupsExtraction.load_datasets">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">load_datasets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">datasets_folder</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Function to load the datasets for the benchmark</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            datasets_folder : str The folder in which the datasets are saved</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">_load_group_datasets</span><span class="p">(</span><span class="n">datasets_folder</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BenchmarkGroupsExtraction.test_particular_algorithm_particular_dataset">
+<a class="viewcode-back" href="../../../group_causation.benchmark.html#group_causation.benchmark.benchmark_group_extraction.BenchmarkGroupsExtraction.test_particular_algorithm_particular_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_particular_algorithm_particular_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">causal_dataset</span><span class="p">:</span> <span class="n">CausalDataset</span><span class="p">,</span>
+                      <span class="n">causalExtraction</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">CausalGroupsExtractorBase</span><span class="p">],</span>
+                      <span class="n">algorithm_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Execute the algorithm one single time and calculate the necessary scores.</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            causal_dataset : CausalDataset with the time series and the parents</span>
+<span class="sd">            causalDiscovery : class of the algorithm to be executed</span>
+<span class="sd">            algorithm_parameters : dictionary with the parameters for the algorithm</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            result : dictionary with the scores of the algorithm</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">time_series</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;CausalDataset.time_series is required for benchmarking.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">groups</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;CausalDataset.groups is required for groups extraction benchmarking.&#39;</span><span class="p">)</span>
+
+        <span class="n">algorithm</span> <span class="o">=</span> <span class="n">causalExtraction</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">causal_dataset</span><span class="o">.</span><span class="n">time_series</span><span class="p">,</span> <span class="o">**</span><span class="n">algorithm_parameters</span><span class="p">)</span>
+        <span class="n">predicted_groups</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">group</span><span class="p">)</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">groups</span><span class="p">]</span>
+        <span class="n">actual_groups</span> <span class="o">=</span> <span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">group</span><span class="p">)</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">groups</span><span class="p">]</span>
+        <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;time&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="s1">&#39;memory&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">}</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">predicted_groups</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">memory</span> <span class="o">=</span> <span class="n">algorithm</span><span class="o">.</span><span class="n">extract_groups_time_and_memory</span><span class="p">()</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">time</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;memory&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">memory</span>
+
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;predicted_groups&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">predicted_groups</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;actual_groups&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">actual_groups</span>
+            
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;average_explained_variance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_average_pc1_explained_variance</span><span class="p">(</span><span class="n">causal_dataset</span><span class="o">.</span><span class="n">time_series</span><span class="p">,</span> <span class="n">predicted_groups</span><span class="p">)</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_groups&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">predicted_groups</span><span class="p">)</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;explainability_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_explainability_score</span><span class="p">(</span><span class="n">causal_dataset</span><span class="o">.</span><span class="n">time_series</span><span class="p">,</span> <span class="n">predicted_groups</span><span class="p">)</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;NMI&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_normalized_mutual_information</span><span class="p">(</span><span class="n">predicted_groups</span><span class="p">,</span> <span class="n">actual_groups</span><span class="p">)</span>
+        
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error in algorithm </span><span class="si">{</span><span class="n">causalExtraction</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Returning nan values for this algorithm&#39;</span><span class="p">)</span>
+            <span class="n">predicted_groups</span> <span class="o">=</span> <span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">causal_dataset</span><span class="o">.</span><span class="n">time_series</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))]</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;predicted_groups&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">predicted_groups</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;actual_groups&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">actual_groups</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;average_explained_variance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_groups&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">predicted_groups</span><span class="p">)</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;explainability_score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="n">result</span><span class="p">[</span><span class="s1">&#39;NMI&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span></div>
+</div>
+
+        
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Joaquín Mateos Barroso.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

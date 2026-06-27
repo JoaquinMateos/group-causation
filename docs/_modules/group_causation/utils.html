@@ -1,0 +1,588 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>group_causation.utils &mdash; group-causation  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=fd3f3429" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            group-causation
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">API Reference &amp; Modules:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">group_causation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">group-causation</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">group_causation.utils</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for group_causation.utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Generator</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Union</span>
+
+
+<span class="c1"># Imports</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">PARAMETERS GENERATIONS</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<div class="viewcode-block" id="static_parameters">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.static_parameters">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">static_parameters</span><span class="p">(</span><span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">algorithms_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+
+    <span class="k">yield</span> <span class="n">algorithms_parameters</span><span class="p">,</span> <span class="n">options</span></div>
+
+
+<div class="viewcode-block" id="changing_N_variables">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.changing_N_variables">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">changing_N_variables</span><span class="p">(</span>
+    <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">algorithms_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">list_N_variables</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">list_N_variables</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">list_N_variables</span> <span class="o">=</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">50</span><span class="p">]</span>
+        
+    <span class="k">for</span> <span class="n">N_variables</span> <span class="ow">in</span> <span class="n">list_N_variables</span><span class="p">:</span>        
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;N_vars&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">N_variables</span>
+        
+        <span class="c1"># options[&#39;max_lag&#39;] = max_lag</span>
+        
+        <span class="k">for</span> <span class="n">algorithm_paramters</span> <span class="ow">in</span> <span class="n">algorithms_parameters</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">algorithm_paramters</span><span class="p">[</span><span class="s1">&#39;max_lag&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;max_lag&#39;</span><span class="p">]</span>
+        
+        <span class="k">yield</span> <span class="n">algorithms_parameters</span><span class="p">,</span> <span class="n">options</span></div>
+
+        
+<div class="viewcode-block" id="changing_preselection_alpha">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.changing_preselection_alpha">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">changing_preselection_alpha</span><span class="p">(</span>
+    <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">algorithms_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">list_preselection_alpha</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">list_preselection_alpha</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">list_preselection_alpha</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.01</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">]</span>
+        
+    <span class="k">for</span> <span class="n">preselection_alpha</span> <span class="ow">in</span> <span class="n">list_preselection_alpha</span><span class="p">:</span>
+        <span class="n">algorithms_parameters</span><span class="p">[</span><span class="s1">&#39;pcmci-modified&#39;</span><span class="p">][</span><span class="s1">&#39;preselection_alpha&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">preselection_alpha</span>
+        
+        <span class="k">yield</span> <span class="n">algorithms_parameters</span><span class="p">,</span> <span class="n">options</span></div>
+
+
+<div class="viewcode-block" id="changing_N_groups">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.changing_N_groups">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">changing_N_groups</span><span class="p">(</span>
+    <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">algorithms_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">list_N_groups</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">relation_vars_per_group</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">list_N_groups</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">list_N_groups</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">50</span><span class="p">]</span>
+    
+    <span class="k">for</span> <span class="n">N_groups</span> <span class="ow">in</span> <span class="n">list_N_groups</span><span class="p">:</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;N_groups&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">N_groups</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;N_vars&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">N_groups</span> <span class="o">*</span> <span class="n">relation_vars_per_group</span>
+
+        <span class="k">yield</span> <span class="n">algorithms_parameters</span><span class="p">,</span> <span class="n">options</span></div>
+
+
+<div class="viewcode-block" id="changing_N_vars_per_group">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.changing_N_vars_per_group">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">changing_N_vars_per_group</span><span class="p">(</span>
+    <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">algorithms_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">list_N_vars_per_group</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">list_N_vars_per_group</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">list_N_vars_per_group</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">12</span><span class="p">]</span>
+    
+    <span class="k">for</span> <span class="n">N_vars_per_group</span> <span class="ow">in</span> <span class="n">list_N_vars_per_group</span><span class="p">:</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;N_vars_per_group&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">N_vars_per_group</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;N_vars&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;N_groups&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">N_vars_per_group</span>
+        
+        <span class="k">for</span> <span class="n">algorithm_parameters</span> <span class="ow">in</span> <span class="n">algorithms_parameters</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">algorithm_parameters</span><span class="p">[</span><span class="s1">&#39;max_lag&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;max_lag&#39;</span><span class="p">]</span>
+        
+        <span class="k">yield</span> <span class="n">algorithms_parameters</span><span class="p">,</span> <span class="n">options</span></div>
+
+
+<div class="viewcode-block" id="changing_latent_confounding_fraction">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.changing_latent_confounding_fraction">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">changing_latent_confounding_fraction</span><span class="p">(</span>
+    <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">algorithms_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">list_latent_confounding_fraction</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">list_latent_confounding_fraction</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">list_latent_confounding_fraction</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]</span>
+    
+    <span class="k">for</span> <span class="n">latent_confounding_fraction</span> <span class="ow">in</span> <span class="n">list_latent_confounding_fraction</span><span class="p">:</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;latent_confounding_fraction&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">latent_confounding_fraction</span>
+        
+        <span class="k">yield</span> <span class="n">algorithms_parameters</span><span class="p">,</span> <span class="n">options</span></div>
+
+
+<div class="viewcode-block" id="changing_non_stationarity_params">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.changing_non_stationarity_params">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">changing_non_stationarity_params</span><span class="p">(</span>
+    <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">algorithms_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">list_non_stationarity_params</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">list_non_stationarity_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">list_non_stationarity_params</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;regime_shifts&#39;</span><span class="p">,</span> <span class="s1">&#39;fraction&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s1">&#39;num_shifts&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;max_mean_mod&#39;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span> <span class="s1">&#39;max_std_mod&#39;</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">},</span>
+        <span class="p">]</span>
+    
+    <span class="k">for</span> <span class="n">non_stationarity_params</span> <span class="ow">in</span> <span class="n">list_non_stationarity_params</span><span class="p">:</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;non_stationarity_params&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">non_stationarity_params</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;num_shifts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">non_stationarity_params</span><span class="p">[</span><span class="s1">&#39;num_shifts&#39;</span><span class="p">]</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;drift_fraction&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">non_stationarity_params</span><span class="p">[</span><span class="s1">&#39;fraction&#39;</span><span class="p">]</span>
+        
+        <span class="k">yield</span> <span class="n">algorithms_parameters</span><span class="p">,</span> <span class="n">options</span></div>
+
+
+<div class="viewcode-block" id="increasing_N_vars_per_group">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.increasing_N_vars_per_group">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">increasing_N_vars_per_group</span><span class="p">(</span>
+    <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">algorithms_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">list_N_vars_per_group</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">list_N_vars_per_group</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">list_N_vars_per_group</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">12</span><span class="p">]</span>
+    
+    <span class="k">for</span> <span class="n">N_vars_per_group</span> <span class="ow">in</span> <span class="n">list_N_vars_per_group</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">N_vars_per_group</span> <span class="o">&lt;=</span> <span class="mi">6</span><span class="p">:</span>
+            <span class="n">algorithms_parameters</span><span class="p">[</span><span class="s1">&#39;group-embedding&#39;</span><span class="p">][</span><span class="s1">&#39;dimensionality_reduction_params&#39;</span><span class="p">][</span><span class="s1">&#39;explained_variance_threshold&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.6</span>
+            <span class="n">algorithms_parameters</span><span class="p">[</span><span class="s1">&#39;subgroups&#39;</span><span class="p">][</span><span class="s1">&#39;dimensionality_reduction_params&#39;</span><span class="p">][</span><span class="s1">&#39;explained_variance_threshold&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.6</span>
+        <span class="k">elif</span> <span class="n">N_vars_per_group</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">:</span>
+            <span class="n">algorithms_parameters</span><span class="p">[</span><span class="s1">&#39;group-embedding&#39;</span><span class="p">][</span><span class="s1">&#39;dimensionality_reduction_params&#39;</span><span class="p">][</span><span class="s1">&#39;explained_variance_threshold&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span>
+            <span class="n">algorithms_parameters</span><span class="p">[</span><span class="s1">&#39;subgroups&#39;</span><span class="p">][</span><span class="s1">&#39;dimensionality_reduction_params&#39;</span><span class="p">][</span><span class="s1">&#39;explained_variance_threshold&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span>
+        <span class="k">elif</span> <span class="n">N_vars_per_group</span> <span class="o">&lt;</span> <span class="mi">12</span><span class="p">:</span>
+            <span class="n">algorithms_parameters</span><span class="p">[</span><span class="s1">&#39;group-embedding&#39;</span><span class="p">][</span><span class="s1">&#39;dimensionality_reduction_params&#39;</span><span class="p">][</span><span class="s1">&#39;explained_variance_threshold&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.4</span>
+            <span class="n">algorithms_parameters</span><span class="p">[</span><span class="s1">&#39;subgroups&#39;</span><span class="p">][</span><span class="s1">&#39;dimensionality_reduction_params&#39;</span><span class="p">][</span><span class="s1">&#39;explained_variance_threshold&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.4</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">algorithms_parameters</span><span class="p">[</span><span class="s1">&#39;group-embedding&#39;</span><span class="p">][</span><span class="s1">&#39;dimensionality_reduction_params&#39;</span><span class="p">][</span><span class="s1">&#39;explained_variance_threshold&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.3</span>
+            <span class="n">algorithms_parameters</span><span class="p">[</span><span class="s1">&#39;subgroups&#39;</span><span class="p">][</span><span class="s1">&#39;dimensionality_reduction_params&#39;</span><span class="p">][</span><span class="s1">&#39;explained_variance_threshold&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.3</span>
+        
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;N_vars_per_group&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">N_vars_per_group</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;N_vars&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;N_groups&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">N_vars_per_group</span>
+        
+        <span class="k">for</span> <span class="n">algorithm_parameters</span> <span class="ow">in</span> <span class="n">algorithms_parameters</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">algorithm_parameters</span><span class="p">[</span><span class="s1">&#39;max_lag&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;max_lag&#39;</span><span class="p">]</span>
+        
+        <span class="k">yield</span> <span class="n">algorithms_parameters</span><span class="p">,</span> <span class="n">options</span></div>
+
+
+<div class="viewcode-block" id="changing_alg_params">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.changing_alg_params">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">changing_alg_params</span><span class="p">(</span>
+    <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">algorithms_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">alg_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">list_modifying_algorithms_params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="k">for</span> <span class="n">modifying_algorithm_params</span> <span class="ow">in</span> <span class="n">list_modifying_algorithms_params</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">param_name</span><span class="p">,</span> <span class="n">param_value</span> <span class="ow">in</span> <span class="n">modifying_algorithm_params</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">algorithms_parameters</span><span class="p">[</span><span class="n">alg_name</span><span class="p">][</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">param_value</span>
+        
+        <span class="k">yield</span> <span class="n">algorithms_parameters</span><span class="p">,</span> <span class="n">options</span></div>
+
+
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    EVALUATION METRICS</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">causaldag</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span>
+
+<span class="n">ParentRef</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>
+<span class="n">ParentGraph</span> <span class="o">=</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">ParentRef</span><span class="p">]]</span>
+
+<div class="viewcode-block" id="get_cpdag_and_edge_set">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_cpdag_and_edge_set">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_cpdag_and_edge_set</span><span class="p">(</span><span class="n">graph_dict</span><span class="p">:</span> <span class="n">ParentGraph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Set</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">cd</span><span class="o">.</span><span class="n">PDAG</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Helper function to convert a parents dictionary into a causaldag PDAG.</span>
+<span class="sd">    This function must be applied only on the contemporaneous graph,</span>
+<span class="sd">    where all lags have been collapsed to 0, to ensure correct MEC evaluation.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        Logic: Inside the MEC calculation, we collapse all nodes to integers </span>
+<span class="sd">        to ensure the library identifies v-structures correctly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dag</span> <span class="o">=</span> <span class="n">cd</span><span class="o">.</span><span class="n">DAG</span><span class="p">()</span>
+    
+    <span class="c1"># 1. Collect all unique nodes as INTEGERS</span>
+    <span class="n">nodes</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">nodes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">graph_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="k">for</span> <span class="n">parents</span> <span class="ow">in</span> <span class="n">graph_dict</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="c1"># Unpack the node from the (node, lag) tuple</span>
+        <span class="n">nodes</span><span class="o">.</span><span class="n">update</span><span class="p">([</span><span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parents</span><span class="p">])</span>
+        
+    <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+        <span class="n">dag</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        
+    <span class="c1"># 2. Build the directed edges using INTEGERS</span>
+    <span class="k">for</span> <span class="n">child</span><span class="p">,</span> <span class="n">parents</span> <span class="ow">in</span> <span class="n">graph_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">parent_ref</span> <span class="ow">in</span> <span class="n">parents</span><span class="p">:</span>
+            <span class="c1"># We can safely extract the parent node as an integer because ParentRef is strictly Tuple[int, int]</span>
+            <span class="n">parent_node</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">parent_ref</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parent_ref</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span> <span class="k">else</span> <span class="n">parent_ref</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="c1"># Direct integer-to-integer arc</span>
+                <span class="n">dag</span><span class="o">.</span><span class="n">add_arc</span><span class="p">(</span><span class="n">parent_node</span><span class="p">,</span> <span class="n">child</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span> 
+                
+    <span class="c1"># 3. Convert to MEC</span>
+    <span class="n">cpdag</span> <span class="o">=</span> <span class="n">dag</span><span class="o">.</span><span class="n">cpdag</span><span class="p">()</span>
+    
+    <span class="c1"># 4. Create a canonical set of edge statuses </span>
+    <span class="n">edge_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">cpdag</span><span class="o">.</span><span class="n">arcs</span><span class="p">:</span>
+        <span class="n">edge_set</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="s1">&#39;directed&#39;</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">u</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">cpdag</span><span class="o">.</span><span class="n">edges</span><span class="p">:</span>
+        <span class="n">edge_set</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="s1">&#39;undirected&#39;</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">([</span><span class="n">u</span><span class="p">,</span> <span class="n">v</span><span class="p">])))</span>
+        
+    <span class="k">return</span> <span class="n">edge_set</span><span class="p">,</span> <span class="n">cpdag</span></div>
+
+
+<div class="viewcode-block" id="split_lagged_and_contemporaneous">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.split_lagged_and_contemporaneous">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">split_lagged_and_contemporaneous</span><span class="p">(</span><span class="n">graph_dict</span><span class="p">:</span> <span class="n">ParentGraph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">ParentGraph</span><span class="p">,</span> <span class="n">ParentGraph</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Splits a window graph into lagged (keeps tuple) and contemporaneous (strips lag to integer) subgraphs.&quot;&quot;&quot;</span>
+    <span class="n">lagged_graph</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">ParentRef</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="n">node</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">graph_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+    <span class="n">contemp_graph</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">ParentRef</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="n">node</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">graph_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+
+    <span class="k">for</span> <span class="n">child</span><span class="p">,</span> <span class="n">parents</span> <span class="ow">in</span> <span class="n">graph_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">parent_ref</span> <span class="ow">in</span> <span class="n">parents</span><span class="p">:</span>
+            <span class="c1"># We can now safely unpack directly because ParentRef is strictly Tuple[int, int]</span>
+            <span class="n">parent_node</span><span class="p">,</span> <span class="n">lag</span> <span class="o">=</span> <span class="n">parent_ref</span>
+            
+            <span class="k">if</span> <span class="n">lag</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">lagged_graph</span><span class="p">[</span><span class="n">child</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">parent_ref</span><span class="p">)</span> <span class="c1"># Keep full tuple for strict DAG matching</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">contemp_graph</span><span class="p">[</span><span class="n">child</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="nb">int</span><span class="p">(</span><span class="n">parent_node</span><span class="p">),</span> <span class="mi">0</span><span class="p">))</span> <span class="c1"># Strip lag for CPDAG</span>
+
+    <span class="k">return</span> <span class="n">lagged_graph</span><span class="p">,</span> <span class="n">contemp_graph</span></div>
+
+
+<div class="viewcode-block" id="get_dag_edge_set">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_dag_edge_set">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_dag_edge_set</span><span class="p">(</span><span class="n">graph_dict</span><span class="p">:</span> <span class="n">ParentGraph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Set</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Returns a canonical set of strictly directed edges for exact DAG evaluation.&quot;&quot;&quot;</span>
+    <span class="n">edge_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">child</span><span class="p">,</span> <span class="n">parents</span> <span class="ow">in</span> <span class="n">graph_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">parent</span> <span class="ow">in</span> <span class="n">parents</span><span class="p">:</span>
+            <span class="n">edge_set</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="s1">&#39;directed&#39;</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">child</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">edge_set</span></div>
+
+
+
+<span class="c1"># --- METRIC FUNCTIONS ---</span>
+<div class="viewcode-block" id="get_TP">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_TP">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_TP</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">gt_edges</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">pred_edges</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="get_FP">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_FP">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_FP</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">pred_edges</span> <span class="o">-</span> <span class="n">gt_edges</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_FN">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_FN">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_FN</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">gt_edges</span> <span class="o">-</span> <span class="n">pred_edges</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_precision">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_precision">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_precision</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="n">tp</span> <span class="o">=</span> <span class="n">get_TP</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">)</span>
+    <span class="n">fp</span> <span class="o">=</span> <span class="n">get_FP</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">)</span>
+    <span class="n">denominator</span> <span class="o">=</span> <span class="n">tp</span> <span class="o">+</span> <span class="n">fp</span>
+    <span class="k">return</span> <span class="n">tp</span> <span class="o">/</span> <span class="n">denominator</span> <span class="k">if</span> <span class="n">denominator</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="get_recall">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_recall">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_recall</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="n">tp</span> <span class="o">=</span> <span class="n">get_TP</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">)</span>
+    <span class="n">fn</span> <span class="o">=</span> <span class="n">get_FN</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">)</span>
+    <span class="n">denominator</span> <span class="o">=</span> <span class="n">tp</span> <span class="o">+</span> <span class="n">fn</span>
+    <span class="k">return</span> <span class="n">tp</span> <span class="o">/</span> <span class="n">denominator</span> <span class="k">if</span> <span class="n">denominator</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="get_f1">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_f1">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_f1</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="n">precision</span> <span class="o">=</span> <span class="n">get_precision</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">)</span>
+    <span class="n">recall</span> <span class="o">=</span> <span class="n">get_recall</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">)</span>
+    <span class="k">return</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">precision</span> <span class="o">*</span> <span class="n">recall</span> <span class="o">/</span> <span class="p">(</span><span class="n">precision</span> <span class="o">+</span> <span class="n">recall</span><span class="p">)</span> <span class="k">if</span> <span class="p">(</span><span class="n">precision</span> <span class="o">+</span> <span class="n">recall</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">else</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="get_false_positive_ratio">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_false_positive_ratio">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_false_positive_ratio</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">n_nodes</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="n">fp</span> <span class="o">=</span> <span class="n">get_FP</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">,</span> <span class="n">pred_edges</span><span class="p">)</span>
+    
+    <span class="n">total_possible_edges</span> <span class="o">=</span> <span class="p">(</span><span class="n">n_nodes</span> <span class="o">*</span> <span class="p">(</span><span class="n">n_nodes</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span> <span class="o">/</span> <span class="mi">2</span>
+    <span class="n">actual_positives</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">gt_edges</span><span class="p">)</span>
+    <span class="n">actual_negatives</span> <span class="o">=</span> <span class="n">total_possible_edges</span> <span class="o">-</span> <span class="n">actual_positives</span>
+    
+    <span class="k">return</span> <span class="n">fp</span> <span class="o">/</span> <span class="n">actual_negatives</span> <span class="k">if</span> <span class="n">actual_negatives</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="get_shd">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_shd">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_shd</span><span class="p">(</span><span class="n">gt_cpdag</span><span class="p">:</span> <span class="n">cd</span><span class="o">.</span><span class="n">PDAG</span><span class="p">,</span> <span class="n">pred_cpdag</span><span class="p">:</span> <span class="n">cd</span><span class="o">.</span><span class="n">PDAG</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Calculate the Structural Hamming Distance between two PDAGs.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">gt_cpdag</span><span class="o">.</span><span class="n">shd</span><span class="p">(</span><span class="n">pred_cpdag</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="get_global_window_metrics">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_global_window_metrics">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_global_window_metrics</span><span class="p">(</span>
+    <span class="n">gt_lagged_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">pred_lagged_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span>
+    <span class="n">gt_contemp_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">pred_contemp_edges</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span>
+    <span class="n">gt_contemp_cpdag</span><span class="p">:</span> <span class="n">cd</span><span class="o">.</span><span class="n">PDAG</span><span class="p">,</span> <span class="n">pred_contemp_cpdag</span><span class="p">:</span> <span class="n">cd</span><span class="o">.</span><span class="n">PDAG</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates the combined global window metrics (F1, Precision, Recall, SHD) </span>
+<span class="sd">    across both lagged and contemporaneous subgraphs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">total_tp</span> <span class="o">=</span> <span class="n">get_TP</span><span class="p">(</span><span class="n">gt_lagged_edges</span><span class="p">,</span> <span class="n">pred_lagged_edges</span><span class="p">)</span> <span class="o">+</span> <span class="n">get_TP</span><span class="p">(</span><span class="n">gt_contemp_edges</span><span class="p">,</span> <span class="n">pred_contemp_edges</span><span class="p">)</span>
+    <span class="n">total_fp</span> <span class="o">=</span> <span class="n">get_FP</span><span class="p">(</span><span class="n">gt_lagged_edges</span><span class="p">,</span> <span class="n">pred_lagged_edges</span><span class="p">)</span> <span class="o">+</span> <span class="n">get_FP</span><span class="p">(</span><span class="n">gt_contemp_edges</span><span class="p">,</span> <span class="n">pred_contemp_edges</span><span class="p">)</span>
+    <span class="n">total_fn</span> <span class="o">=</span> <span class="n">get_FN</span><span class="p">(</span><span class="n">gt_lagged_edges</span><span class="p">,</span> <span class="n">pred_lagged_edges</span><span class="p">)</span> <span class="o">+</span> <span class="n">get_FN</span><span class="p">(</span><span class="n">gt_contemp_edges</span><span class="p">,</span> <span class="n">pred_contemp_edges</span><span class="p">)</span>
+    
+    <span class="n">precision</span> <span class="o">=</span> <span class="n">total_tp</span> <span class="o">/</span> <span class="p">(</span><span class="n">total_tp</span> <span class="o">+</span> <span class="n">total_fp</span><span class="p">)</span> <span class="k">if</span> <span class="p">(</span><span class="n">total_tp</span> <span class="o">+</span> <span class="n">total_fp</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">0.0</span>
+    <span class="n">recall</span> <span class="o">=</span> <span class="n">total_tp</span> <span class="o">/</span> <span class="p">(</span><span class="n">total_tp</span> <span class="o">+</span> <span class="n">total_fn</span><span class="p">)</span> <span class="k">if</span> <span class="p">(</span><span class="n">total_tp</span> <span class="o">+</span> <span class="n">total_fn</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">0.0</span>
+    <span class="n">f1</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">precision</span> <span class="o">*</span> <span class="n">recall</span> <span class="o">/</span> <span class="p">(</span><span class="n">precision</span> <span class="o">+</span> <span class="n">recall</span><span class="p">)</span> <span class="k">if</span> <span class="p">(</span><span class="n">precision</span> <span class="o">+</span> <span class="n">recall</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">0.0</span>
+    
+    <span class="c1"># Lagged SHD is strictly FP + FN (no orientation errors exist)</span>
+    <span class="n">shd_lagged</span> <span class="o">=</span> <span class="n">get_FP</span><span class="p">(</span><span class="n">gt_lagged_edges</span><span class="p">,</span> <span class="n">pred_lagged_edges</span><span class="p">)</span> <span class="o">+</span> <span class="n">get_FN</span><span class="p">(</span><span class="n">gt_lagged_edges</span><span class="p">,</span> <span class="n">pred_lagged_edges</span><span class="p">)</span>
+    <span class="n">shd_contemp</span> <span class="o">=</span> <span class="n">get_shd</span><span class="p">(</span><span class="n">gt_contemp_cpdag</span><span class="p">,</span> <span class="n">pred_contemp_cpdag</span><span class="p">)</span>
+    <span class="n">shd_global</span> <span class="o">=</span> <span class="n">shd_lagged</span> <span class="o">+</span> <span class="n">shd_contemp</span>
+    
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">&#39;precision&#39;</span><span class="p">:</span> <span class="n">precision</span><span class="p">,</span>
+        <span class="s1">&#39;recall&#39;</span><span class="p">:</span> <span class="n">recall</span><span class="p">,</span>
+        <span class="s1">&#39;f1&#39;</span><span class="p">:</span> <span class="n">f1</span><span class="p">,</span>
+        <span class="s1">&#39;shd&#39;</span><span class="p">:</span> <span class="n">shd_global</span>
+    <span class="p">}</span></div>
+
+
+
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">TIME SERIES GRAPHS UTILITIES</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<div class="viewcode-block" id="window_to_summary_graph">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.window_to_summary_graph">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">window_to_summary_graph</span><span class="p">(</span><span class="n">window_graph</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]:</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Convert a window graph, in the way X^i_t&#39; -&gt; X^j_t</span>
+<span class="sd">    to a summary graph, X^i_- -&gt;X^j_t</span>
+<span class="sd">    Maintains strict (node, lag) format but collapses all non-zero lags to -1.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        window_graph : dict[int, list[tuple[int, int]]]</span>
+<span class="sd">            A dictionary where the keys are the time points and the values are lists of parents.</span>
+<span class="sd">            Each parent is a tuple (node, lag).</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        summary_graph : dict[int, list[tuple[int, int]]]</span>
+<span class="sd">            A dictionary where the keys are the time points and the values are lists of parents.</span>
+<span class="sd">            Each parent is a tuple (node, lag).</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">summary_graph</span> <span class="o">=</span> <span class="p">{</span><span class="n">node</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">window_graph</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+    
+    <span class="k">for</span> <span class="n">son</span><span class="p">,</span> <span class="n">parents</span> <span class="ow">in</span> <span class="n">window_graph</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">parent_info</span> <span class="ow">in</span> <span class="n">parents</span><span class="p">:</span>
+            <span class="c1"># Extract just the parent node ID (if it comes in tuple format)</span>
+            <span class="n">parent_node</span> <span class="o">=</span> <span class="n">parent_info</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parent_info</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="k">else</span> <span class="n">parent_info</span>
+            
+            <span class="c1"># Condition to avoid duplicates</span>
+            <span class="n">summary_edge</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">parent_node</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">summary_edge</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">summary_graph</span><span class="p">[</span><span class="n">son</span><span class="p">]:</span>
+                <span class="n">summary_graph</span><span class="p">[</span><span class="n">son</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">summary_edge</span><span class="p">)</span>
+                
+    <span class="k">return</span> <span class="n">summary_graph</span></div>
+
+
+
+<span class="sd">&#39;&#39;&#39;&#39;</span>
+<span class="sd">    LOGGING UTILITIES</span>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+
+<div class="viewcode-block" id="get_next_filename">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.get_next_filename">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_next_filename</span><span class="p">(</span><span class="n">base_name</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Looks for the first unused filename by appending a counter to the base name.</span>
+<span class="sd">    Example: if &#39;debug.log&#39; exists, try &#39;debug2.log&#39;, &#39;debug3.log&#39;...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Split the name and extension</span>
+    <span class="n">name</span><span class="p">,</span> <span class="n">ext</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">base_name</span><span class="p">)</span>
+    
+    <span class="n">counter</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">current_name</span> <span class="o">=</span> <span class="n">base_name</span>
+    
+    <span class="c1"># Iterate while the file exists</span>
+    <span class="k">while</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">current_name</span><span class="p">):</span>
+        <span class="n">counter</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">current_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}{</span><span class="n">counter</span><span class="si">}{</span><span class="n">ext</span><span class="si">}</span><span class="s2">&quot;</span>
+        
+    <span class="k">return</span> <span class="n">current_name</span></div>
+
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging.handlers</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">queue</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+<div class="viewcode-block" id="configure_root_logging">
+<a class="viewcode-back" href="../../group_causation.html#group_causation.utils.configure_root_logging">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">configure_root_logging</span><span class="p">(</span><span class="n">info_file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">debug_file</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Configures a thread-safe logging system using a QueueListener.</span>
+<span class="sd">    All log records are pushed to a queue and written sequentially </span>
+<span class="sd">    by a background thread to prevent interleaved logs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">root_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
+    <span class="n">root_logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+    
+    <span class="c1"># 1. Create the queue that will hold log records</span>
+    <span class="n">log_queue</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">Queue</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Unlimited size</span>
+    
+    <span class="c1"># 2. Define the format</span>
+    <span class="n">formatter</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%(asctime)s</span><span class="s1"> - </span><span class="si">%(name)s</span><span class="s1"> - </span><span class="si">%(levelname)s</span><span class="s1"> - </span><span class="si">%(message)s</span><span class="s1">&#39;</span><span class="p">)</span>
+    
+    <span class="c1"># 3. Create handlers that will be managed by the listener</span>
+    <span class="n">handlers</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;logs&#39;</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">debug_file</span><span class="p">:</span>
+        <span class="n">debug_path</span> <span class="o">=</span> <span class="n">get_next_filename</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;logs&#39;</span><span class="p">,</span> <span class="n">debug_file</span><span class="p">))</span>
+        <span class="n">fh_debug</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">debug_path</span><span class="p">)</span>
+        <span class="n">fh_debug</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+        <span class="n">fh_debug</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">formatter</span><span class="p">)</span>
+        <span class="n">handlers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fh_debug</span><span class="p">)</span>
+        
+    <span class="k">if</span> <span class="n">info_file</span><span class="p">:</span>
+        <span class="n">info_path</span> <span class="o">=</span> <span class="n">get_next_filename</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;logs&#39;</span><span class="p">,</span> <span class="n">info_file</span><span class="p">))</span>
+        <span class="n">fh_info</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">info_path</span><span class="p">)</span>
+        <span class="n">fh_info</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+        <span class="n">fh_info</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">formatter</span><span class="p">)</span>
+        <span class="n">handlers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fh_info</span><span class="p">)</span>
+
+    <span class="c1"># 4. Create and start the listener</span>
+    <span class="c1"># The listener runs in a separate thread, consuming records from the queue</span>
+    <span class="n">listener</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">handlers</span><span class="o">.</span><span class="n">QueueListener</span><span class="p">(</span>
+        <span class="n">log_queue</span><span class="p">,</span> 
+        <span class="o">*</span><span class="n">handlers</span><span class="p">,</span> 
+        <span class="n">respect_handler_level</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">)</span>
+    <span class="n">listener</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    
+    <span class="c1"># 5. Attach the QueueHandler to the root logger</span>
+    <span class="c1"># This acts as a bridge, sending all local logs into the queue</span>
+    <span class="n">queue_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">handlers</span><span class="o">.</span><span class="n">QueueHandler</span><span class="p">(</span><span class="n">log_queue</span><span class="p">)</span>
+    <span class="n">root_logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">queue_handler</span><span class="p">)</span>
+    
+    <span class="c1"># Return the listener so you can stop it gracefully at the end of the script</span>
+    <span class="k">return</span> <span class="n">listener</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Joaquín Mateos Barroso.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

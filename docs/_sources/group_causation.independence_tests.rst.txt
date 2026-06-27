@@ -1,0 +1,37 @@
+group\_causation.independence\_tests package
+============================================
+
+Submodules
+----------
+
+group\_causation.independence\_tests.conditional\_independence\_base module
+---------------------------------------------------------------------------
+
+.. automodule:: group_causation.independence_tests.conditional_independence_base
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.independence\_tests.hsic module
+------------------------------------------------
+
+.. automodule:: group_causation.independence_tests.hsic
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.independence\_tests.max\_corr module
+-----------------------------------------------------
+
+.. automodule:: group_causation.independence_tests.max_corr
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: group_causation.independence_tests
+   :members:
+   :undoc-members:
+   :show-inheritance:

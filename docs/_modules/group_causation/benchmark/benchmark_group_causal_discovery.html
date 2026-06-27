@@ -1,0 +1,546 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>group_causation.benchmark.benchmark_group_causal_discovery &mdash; group-causation  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=fd3f3429" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            group-causation
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">API Reference &amp; Modules:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">group_causation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">group-causation</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">group_causation.benchmark.benchmark_group_causal_discovery</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for group_causation.benchmark.benchmark_group_causal_discovery</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">optuna</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.benchmark.benchmark_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">parent_to_node</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.benchmark.benchmark_causal_discovery</span><span class="w"> </span><span class="kn">import</span> <span class="n">BenchmarkCausalDiscovery</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.data_management.create_toy_datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">CausalDataset</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.dimensionality_reduction.iVAE.wrappers</span><span class="w"> </span><span class="kn">import</span> <span class="n">IVAE_wrapper</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_cpdag_and_edge_set</span><span class="p">,</span>
+    <span class="n">get_dag_edge_set</span><span class="p">,</span>
+    <span class="n">get_f1</span><span class="p">,</span>
+    <span class="n">get_false_positive_ratio</span><span class="p">,</span>
+    <span class="n">get_global_window_metrics</span><span class="p">,</span>
+    <span class="n">get_precision</span><span class="p">,</span>
+    <span class="n">get_recall</span><span class="p">,</span>
+    <span class="n">get_shd</span><span class="p">,</span>
+    <span class="n">split_lagged_and_contemporaneous</span><span class="p">,</span>
+    <span class="n">window_to_summary_graph</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="BenchmarkGroupCausalDiscovery">
+<a class="viewcode-back" href="../../../group_causation.benchmark.html#group_causation.benchmark.benchmark_group_causal_discovery.BenchmarkGroupCausalDiscovery">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BenchmarkGroupCausalDiscovery</span><span class="p">(</span><span class="n">BenchmarkCausalDiscovery</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_split_train_validation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time_series</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">validation_fraction</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="mf">0.0</span> <span class="o">&lt;</span> <span class="n">validation_fraction</span> <span class="o">&lt;</span> <span class="mf">1.0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;validation_fraction must be strictly between 0 and 1.&#39;</span><span class="p">)</span>
+
+        <span class="n">split_idx</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">time_series</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">validation_fraction</span><span class="p">)))</span>
+        <span class="n">split_idx</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">split_idx</span><span class="p">,</span> <span class="n">time_series</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">time_series</span><span class="p">[:</span><span class="n">split_idx</span><span class="p">],</span> <span class="n">time_series</span><span class="p">[</span><span class="n">split_idx</span><span class="p">:]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_make_time_index_u</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">num_chunks</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="n">num_chunks</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_chunks</span><span class="p">))</span>
+        <span class="n">chunk_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_chunks</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">length</span> <span class="o">/</span> <span class="n">num_chunks</span><span class="p">)))[:</span><span class="n">length</span><span class="p">]</span>
+        <span class="n">u_one_hot</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">length</span><span class="p">,</span> <span class="n">num_chunks</span><span class="p">))</span>
+        <span class="n">u_one_hot</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">length</span><span class="p">),</span> <span class="n">chunk_indices</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">u_one_hot</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_deep_update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">updates</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+        <span class="n">merged</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">updates</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">merged</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">),</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="n">merged</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deep_update</span><span class="p">(</span><span class="n">merged</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">value</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">merged</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">merged</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_sample_from_search_space</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">trial</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">search_space</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+        <span class="n">sampled_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">parameter_name</span><span class="p">,</span> <span class="n">specification</span> <span class="ow">in</span> <span class="n">search_space</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s1">&#39;choices&#39;</span> <span class="ow">in</span> <span class="n">specification</span><span class="p">:</span>
+                <span class="n">sampled_value</span> <span class="o">=</span> <span class="n">trial</span><span class="o">.</span><span class="n">suggest_categorical</span><span class="p">(</span><span class="n">parameter_name</span><span class="p">,</span> <span class="n">specification</span><span class="p">[</span><span class="s1">&#39;choices&#39;</span><span class="p">])</span>
+            <span class="k">elif</span> <span class="n">specification</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;float&#39;</span><span class="p">:</span>
+                <span class="n">sampled_value</span> <span class="o">=</span> <span class="n">trial</span><span class="o">.</span><span class="n">suggest_float</span><span class="p">(</span>
+                    <span class="n">parameter_name</span><span class="p">,</span>
+                    <span class="nb">float</span><span class="p">(</span><span class="n">specification</span><span class="p">[</span><span class="s1">&#39;low&#39;</span><span class="p">]),</span>
+                    <span class="nb">float</span><span class="p">(</span><span class="n">specification</span><span class="p">[</span><span class="s1">&#39;high&#39;</span><span class="p">]),</span>
+                    <span class="n">log</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">specification</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="n">specification</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;int&#39;</span><span class="p">:</span>
+                <span class="n">sampled_value</span> <span class="o">=</span> <span class="n">trial</span><span class="o">.</span><span class="n">suggest_float</span><span class="p">(</span>
+                    <span class="n">parameter_name</span><span class="p">,</span>
+                    <span class="nb">float</span><span class="p">(</span><span class="n">specification</span><span class="p">[</span><span class="s1">&#39;low&#39;</span><span class="p">]),</span>
+                    <span class="nb">float</span><span class="p">(</span><span class="n">specification</span><span class="p">[</span><span class="s1">&#39;high&#39;</span><span class="p">]),</span>
+                    <span class="n">log</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">specification</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+                <span class="p">)</span>
+                <span class="n">sampled_value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">sampled_value</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported search-space specification for &#39;</span><span class="si">{</span><span class="n">parameter_name</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">specification</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">specification</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cast&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;int&#39;</span><span class="p">:</span>
+                <span class="n">sampled_value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">sampled_value</span><span class="p">)))</span>
+                <span class="k">if</span> <span class="s1">&#39;low&#39;</span> <span class="ow">in</span> <span class="n">specification</span><span class="p">:</span>
+                    <span class="n">sampled_value</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">specification</span><span class="p">[</span><span class="s1">&#39;low&#39;</span><span class="p">]))),</span> <span class="n">sampled_value</span><span class="p">)</span>
+                <span class="k">if</span> <span class="s1">&#39;high&#39;</span> <span class="ow">in</span> <span class="n">specification</span><span class="p">:</span>
+                    <span class="n">sampled_value</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">specification</span><span class="p">[</span><span class="s1">&#39;high&#39;</span><span class="p">]))),</span> <span class="n">sampled_value</span><span class="p">)</span>
+
+            <span class="n">sampled_parameters</span><span class="p">[</span><span class="n">parameter_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampled_value</span>
+
+        <span class="k">return</span> <span class="n">sampled_parameters</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_score_proposal_candidate</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">train_data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">validation_data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">groups_as_sets</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span>
+        <span class="n">candidate_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="n">fallback_fraction</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">candidate_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;fallback_latent_dims_fraction&#39;</span><span class="p">,</span> <span class="mf">0.33</span><span class="p">))</span>
+        <span class="n">num_chunks</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">candidate_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;num_chunks_of_time_index&#39;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)))</span>
+        <span class="n">num_chunks</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_chunks</span><span class="p">)</span>
+        <span class="n">ivae_params</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">candidate_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ivae_params&#39;</span><span class="p">,</span> <span class="p">{}))</span>
+
+        <span class="n">train_u</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_time_index_u</span><span class="p">(</span><span class="n">train_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">num_chunks</span><span class="p">)</span>
+        <span class="n">validation_u</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_time_index_u</span><span class="p">(</span><span class="n">validation_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">num_chunks</span><span class="p">)</span>
+
+        <span class="n">group_scores</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups_as_sets</span><span class="p">:</span>
+            <span class="n">group_cols</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">group</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">group_cols</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">latent_dim</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">fallback_fraction</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">group_cols</span><span class="p">))),</span> <span class="nb">len</span><span class="p">(</span><span class="n">group_cols</span><span class="p">)))</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">IVAE_wrapper</span><span class="p">(</span>
+                <span class="n">train_data</span><span class="p">[:,</span> <span class="n">group_cols</span><span class="p">],</span>
+                <span class="n">train_u</span><span class="p">,</span>
+                <span class="n">inference_dim</span><span class="o">=</span><span class="n">latent_dim</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">ivae_params</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">reducer</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;reducer&#39;</span><span class="p">]</span>
+            <span class="n">group_scores</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">reducer</span><span class="o">.</span><span class="n">score_elbo</span><span class="p">(</span><span class="n">validation_data</span><span class="p">[:,</span> <span class="n">group_cols</span><span class="p">],</span> <span class="n">validation_u</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">group_scores</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;-inf&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">group_scores</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_score_gcdmi_candidate</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">train_data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">validation_data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">groups_as_sets</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span>
+        <span class="n">causalDiscovery</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">candidate_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">causalDiscovery</span><span class="p">(</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">train_data</span><span class="p">,</span>
+            <span class="n">groups</span><span class="o">=</span><span class="n">groups_as_sets</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">candidate_parameters</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">candidate</span><span class="o">.</span><span class="n">_train_structure</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">candidate</span><span class="o">.</span><span class="n">score_validation_nll</span><span class="p">(</span><span class="n">validation_data</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_score_group_resit_candidate</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">train_data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">validation_data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">groups_as_sets</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span>
+        <span class="n">causalDiscovery</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">candidate_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">causalDiscovery</span><span class="p">(</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">train_data</span><span class="p">,</span>
+            <span class="n">groups</span><span class="o">=</span><span class="n">groups_as_sets</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">candidate_parameters</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">candidate</span><span class="o">.</span><span class="n">score_validation_mse</span><span class="p">(</span><span class="n">validation_data</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_optimize_hyperparameters</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">causal_dataset</span><span class="p">:</span> <span class="n">CausalDataset</span><span class="p">,</span>
+        <span class="n">causalDiscovery</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">algorithm_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+        <span class="n">optimization_spec</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">algorithm_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;hyperparameter_optimization&#39;</span><span class="p">,</span> <span class="p">{}))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">optimization_spec</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">algorithm_parameters</span><span class="p">),</span> <span class="p">{}</span>
+
+        <span class="n">search_space</span> <span class="o">=</span> <span class="n">optimization_spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;search_space&#39;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">search_space</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">algorithm_parameters</span><span class="p">),</span> <span class="p">{}</span>
+
+        <span class="n">objective</span> <span class="o">=</span> <span class="n">optimization_spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;objective&#39;</span><span class="p">)</span>
+        <span class="n">validation_fraction</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">optimization_spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;validation_fraction&#39;</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">))</span>
+        <span class="n">n_trials</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">optimization_spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;n_trials&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">))</span>
+        <span class="n">seed</span> <span class="o">=</span> <span class="n">optimization_spec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;seed&#39;</span><span class="p">,</span> <span class="mi">42</span><span class="p">)</span>
+        <span class="n">sampler</span> <span class="o">=</span> <span class="n">optuna</span><span class="o">.</span><span class="n">samplers</span><span class="o">.</span><span class="n">TPESampler</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">time_series</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;CausalDataset.time_series is required for hyperparameter optimization.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">groups</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;CausalDataset.groups is required for hyperparameter optimization.&#39;</span><span class="p">)</span>
+
+        <span class="n">train_data</span><span class="p">,</span> <span class="n">validation_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_split_train_validation</span><span class="p">(</span><span class="n">causal_dataset</span><span class="o">.</span><span class="n">time_series</span><span class="p">,</span> <span class="n">validation_fraction</span><span class="p">)</span>
+        <span class="n">groups_as_sets</span> <span class="o">=</span> <span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">group</span><span class="p">)</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">groups</span><span class="p">]</span>
+
+        <span class="n">base_parameters</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">algorithm_parameters</span><span class="p">)</span>
+        <span class="n">base_parameters</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;hyperparameter_optimization&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">objective</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s1">&#39;elbo&#39;</span><span class="p">,</span> <span class="s1">&#39;nll&#39;</span><span class="p">,</span> <span class="s1">&#39;mse&#39;</span><span class="p">}:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Unsupported hyperparameter optimization objective: </span><span class="si">{</span><span class="n">objective</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="n">direction</span> <span class="o">=</span> <span class="s1">&#39;maximize&#39;</span> <span class="k">if</span> <span class="n">objective</span> <span class="o">==</span> <span class="s1">&#39;elbo&#39;</span> <span class="k">else</span> <span class="s1">&#39;minimize&#39;</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">objective_function</span><span class="p">(</span><span class="n">trial</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+            <span class="n">candidate_update</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sample_from_search_space</span><span class="p">(</span><span class="n">trial</span><span class="p">,</span> <span class="n">search_space</span><span class="p">)</span>
+            <span class="n">trial</span><span class="o">.</span><span class="n">set_user_attr</span><span class="p">(</span><span class="s1">&#39;normalized_params&#39;</span><span class="p">,</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">candidate_update</span><span class="p">))</span>
+            <span class="n">candidate_parameters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deep_update</span><span class="p">(</span><span class="n">base_parameters</span><span class="p">,</span> <span class="n">candidate_update</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">objective</span> <span class="o">==</span> <span class="s1">&#39;elbo&#39;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_score_proposal_candidate</span><span class="p">(</span><span class="n">train_data</span><span class="p">,</span> <span class="n">validation_data</span><span class="p">,</span> <span class="n">groups_as_sets</span><span class="p">,</span> <span class="n">candidate_parameters</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">objective</span> <span class="o">==</span> <span class="s1">&#39;nll&#39;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_score_gcdmi_candidate</span><span class="p">(</span><span class="n">train_data</span><span class="p">,</span> <span class="n">validation_data</span><span class="p">,</span> <span class="n">groups_as_sets</span><span class="p">,</span> <span class="n">causalDiscovery</span><span class="p">,</span> <span class="n">candidate_parameters</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_score_group_resit_candidate</span><span class="p">(</span><span class="n">train_data</span><span class="p">,</span> <span class="n">validation_data</span><span class="p">,</span> <span class="n">groups_as_sets</span><span class="p">,</span> <span class="n">causalDiscovery</span><span class="p">,</span> <span class="n">candidate_parameters</span><span class="p">)</span>
+
+        <span class="n">study</span> <span class="o">=</span> <span class="n">optuna</span><span class="o">.</span><span class="n">create_study</span><span class="p">(</span><span class="n">direction</span><span class="o">=</span><span class="n">direction</span><span class="p">,</span> <span class="n">sampler</span><span class="o">=</span><span class="n">sampler</span><span class="p">)</span>
+        <span class="n">study</span><span class="o">.</span><span class="n">optimize</span><span class="p">(</span><span class="n">objective_function</span><span class="p">,</span> <span class="n">n_trials</span><span class="o">=</span><span class="n">n_trials</span><span class="p">,</span> <span class="n">show_progress_bar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="n">best_candidate</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">study</span><span class="o">.</span><span class="n">best_trial</span><span class="o">.</span><span class="n">user_attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;normalized_params&#39;</span><span class="p">,</span> <span class="n">study</span><span class="o">.</span><span class="n">best_trial</span><span class="o">.</span><span class="n">params</span><span class="p">))</span>
+        <span class="n">best_parameters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deep_update</span><span class="p">(</span><span class="n">base_parameters</span><span class="p">,</span> <span class="n">best_candidate</span><span class="p">)</span>
+        <span class="n">best_score</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">study</span><span class="o">.</span><span class="n">best_value</span><span class="p">)</span>
+
+        <span class="n">optimization_report</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;optimization_objective&#39;</span><span class="p">:</span> <span class="n">objective</span><span class="p">,</span>
+            <span class="s1">&#39;validation_fraction&#39;</span><span class="p">:</span> <span class="n">validation_fraction</span><span class="p">,</span>
+            <span class="s1">&#39;n_trials&#39;</span><span class="p">:</span> <span class="n">n_trials</span><span class="p">,</span>
+            <span class="s1">&#39;best_hyperparameters&#39;</span><span class="p">:</span> <span class="n">best_candidate</span><span class="p">,</span>
+            <span class="s1">&#39;best_optimization_score&#39;</span><span class="p">:</span> <span class="n">best_score</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">best_parameters</span><span class="p">[</span><span class="s1">&#39;optimization_report&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">optimization_report</span>
+        <span class="k">return</span> <span class="n">best_parameters</span><span class="p">,</span> <span class="n">optimization_report</span>
+
+<div class="viewcode-block" id="BenchmarkGroupCausalDiscovery.generate_datasets">
+<a class="viewcode-back" href="../../../group_causation.benchmark.html#group_causation.benchmark.benchmark_group_causal_discovery.BenchmarkGroupCausalDiscovery.generate_datasets">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_datasets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">n_datasets</span><span class="p">,</span> <span class="n">datasets_folder</span><span class="p">,</span> <span class="n">data_option</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Function to generate the datasets for the benchmark</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Generating datasets...&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_generate_group_dataset</span><span class="p">(</span><span class="n">iteration</span><span class="p">,</span> <span class="n">n_datasets</span><span class="p">,</span> <span class="n">datasets_folder</span><span class="p">,</span> <span class="n">data_option</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BenchmarkGroupCausalDiscovery.load_datasets">
+<a class="viewcode-back" href="../../../group_causation.benchmark.html#group_causation.benchmark.benchmark_group_causal_discovery.BenchmarkGroupCausalDiscovery.load_datasets">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">load_datasets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">datasets_folder</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">CausalDataset</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Function to load the datasets for the benchmark</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">_load_group_datasets</span><span class="p">(</span><span class="n">datasets_folder</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BenchmarkGroupCausalDiscovery.test_particular_algorithm_particular_dataset">
+<a class="viewcode-back" href="../../../group_causation.benchmark.html#group_causation.benchmark.benchmark_group_causal_discovery.BenchmarkGroupCausalDiscovery.test_particular_algorithm_particular_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_particular_algorithm_particular_dataset</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">causal_dataset</span><span class="p">:</span> <span class="n">CausalDataset</span><span class="p">,</span>
+        <span class="n">causalDiscovery</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">algorithm_parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Execute the algorithm one single time and calculate the necessary scores.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">time_series</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;CausalDataset.time_series is required for benchmarking.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">parents_dict</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;CausalDataset.parents_dict is required for benchmarking.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">groups</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;CausalDataset.groups is required for group benchmarking.&#39;</span><span class="p">)</span>
+
+        <span class="n">groups_as_sets</span> <span class="o">=</span> <span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">group</span><span class="p">)</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">groups</span><span class="p">]</span>
+        <span class="n">current_algorithm_parameters</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">algorithm_parameters</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;hyperparameter_optimization&#39;</span> <span class="ow">in</span> <span class="n">current_algorithm_parameters</span><span class="p">:</span>
+            <span class="n">current_algorithm_parameters</span><span class="p">,</span> <span class="n">optimization_report</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optimize_hyperparameters</span><span class="p">(</span>
+                <span class="n">causal_dataset</span><span class="p">,</span>
+                <span class="n">causalDiscovery</span><span class="p">,</span>
+                <span class="n">current_algorithm_parameters</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Completed hyperparameter optimization for </span><span class="si">{</span><span class="n">causalDiscovery</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2"> with report: </span><span class="si">{</span><span class="n">optimization_report</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">optimization_report</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="n">predicted_parents</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">predicted_parents_window</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">predicted_parents_summary</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+        <span class="n">memory</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+        <span class="k">if</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">non_stationarity_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;applied&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">non_stationarity_info</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">causal_dataset</span><span class="o">.</span><span class="n">non_stationarity_info</span><span class="p">)</span>
+            <span class="n">current_algorithm_parameters</span><span class="p">[</span><span class="s1">&#39;non_stationarity_info&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">non_stationarity_info</span>
+
+            <span class="n">node_params</span> <span class="o">=</span> <span class="n">current_algorithm_parameters</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;node_causal_discovery_params&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node_params</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="n">node_params</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">node_params</span><span class="p">)</span>
+                <span class="n">node_params</span><span class="p">[</span><span class="s1">&#39;non_stationarity_info&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">non_stationarity_info</span>
+                <span class="n">current_algorithm_parameters</span><span class="p">[</span><span class="s1">&#39;node_causal_discovery_params&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">node_params</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">causalDiscovery</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: propagated non_stationarity_info=</span><span class="si">{</span><span class="n">non_stationarity_info</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">algorithm</span> <span class="o">=</span> <span class="n">causalDiscovery</span><span class="p">(</span>
+                <span class="n">data</span><span class="o">=</span><span class="n">causal_dataset</span><span class="o">.</span><span class="n">time_series</span><span class="p">,</span>
+                <span class="n">groups</span><span class="o">=</span><span class="n">groups_as_sets</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">current_algorithm_parameters</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">predicted_parents</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">memory</span> <span class="o">=</span> <span class="n">algorithm</span><span class="o">.</span><span class="n">extract_parents_time_and_memory</span><span class="p">()</span>
+
+            <span class="n">predicted_parents_window</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">son</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+                    <span class="k">else</span> <span class="p">(</span><span class="n">parent_to_node</span><span class="p">(</span><span class="n">p</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parents</span>
+                <span class="p">]</span>
+                <span class="k">for</span> <span class="n">son</span><span class="p">,</span> <span class="n">parents</span> <span class="ow">in</span> <span class="n">predicted_parents</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
+
+            <span class="n">predicted_parents_summary</span> <span class="o">=</span> <span class="n">window_to_summary_graph</span><span class="p">(</span><span class="n">predicted_parents_window</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s1">&#39;Algorithm </span><span class="si">{</span><span class="n">causalDiscovery</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1"> executed in </span><span class="si">{</span><span class="n">time</span><span class="si">:</span><span class="s1">.3f</span><span class="si">}</span><span class="s1"> seconds and </span><span class="si">{</span><span class="n">memory</span><span class="si">:</span><span class="s1">.3f</span><span class="si">}</span><span class="s1"> MB of memory&#39;</span>
+                <span class="p">)</span>
+
+        <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Algorithm </span><span class="si">{</span><span class="n">causalDiscovery</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1"> interrupted by user&#39;</span><span class="p">)</span>
+            <span class="k">raise</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Error in algorithm </span><span class="si">{</span><span class="n">causalDiscovery</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Returning nan values for this algorithm&#39;</span><span class="p">)</span>
+            <span class="n">predicted_parents</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">predicted_parents_window</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">predicted_parents_summary</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">time</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="n">memory</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;time&#39;</span><span class="p">:</span> <span class="n">time</span><span class="p">,</span> <span class="s1">&#39;memory&#39;</span><span class="p">:</span> <span class="n">memory</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">optimization_report</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">optimization_report</span><span class="p">)</span>
+
+        <span class="n">actual_parents</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">son</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">parents</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">son</span><span class="p">,</span> <span class="n">parents</span> <span class="ow">in</span> <span class="n">causal_dataset</span><span class="o">.</span><span class="n">parents_dict</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+
+        <span class="n">n_nodes</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">actual_parents</span><span class="p">)</span>
+        <span class="n">actual_parents_summary</span> <span class="o">=</span> <span class="n">window_to_summary_graph</span><span class="p">(</span><span class="n">actual_parents</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Predicted parents: </span><span class="se">\t</span><span class="si">{</span><span class="w"> </span><span class="p">{</span><span class="n">parent</span><span class="p">:</span><span class="w"> </span><span class="nb">sorted</span><span class="p">(</span><span class="n">sons</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">parent</span><span class="p">,</span><span class="w"> </span><span class="n">sons</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">predicted_parents</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span><span class="w"> </span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Actual parents: </span><span class="se">\t\t</span><span class="si">{</span><span class="w"> </span><span class="p">{</span><span class="n">parent</span><span class="p">:</span><span class="w"> </span><span class="nb">sorted</span><span class="p">(</span><span class="n">sons</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">parent</span><span class="p">,</span><span class="w"> </span><span class="n">sons</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">actual_parents</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span><span class="w"> </span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Predicted parents summary: </span><span class="se">\t</span><span class="si">{</span><span class="w"> </span><span class="p">{</span><span class="n">parent</span><span class="p">:</span><span class="w"> </span><span class="nb">sorted</span><span class="p">(</span><span class="n">sons</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">parent</span><span class="p">,</span><span class="w"> </span><span class="n">sons</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">predicted_parents_summary</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span><span class="w"> </span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Actual parents summary: </span><span class="se">\t\t</span><span class="si">{</span><span class="w"> </span><span class="p">{</span><span class="n">parent</span><span class="p">:</span><span class="w"> </span><span class="nb">sorted</span><span class="p">(</span><span class="n">sons</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">parent</span><span class="p">,</span><span class="w"> </span><span class="n">sons</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">actual_parents_summary</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span><span class="w"> </span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="n">gt_lagged</span><span class="p">,</span> <span class="n">gt_contemp</span> <span class="o">=</span> <span class="n">split_lagged_and_contemporaneous</span><span class="p">(</span><span class="n">actual_parents</span><span class="p">)</span>
+        <span class="n">pred_lagged</span><span class="p">,</span> <span class="n">pred_contemp</span> <span class="o">=</span> <span class="n">split_lagged_and_contemporaneous</span><span class="p">(</span><span class="n">predicted_parents_window</span><span class="p">)</span>
+
+        <span class="n">gt_lagged_edges</span> <span class="o">=</span> <span class="n">get_dag_edge_set</span><span class="p">(</span><span class="n">gt_lagged</span><span class="p">)</span>
+        <span class="n">pred_lagged_edges</span> <span class="o">=</span> <span class="n">get_dag_edge_set</span><span class="p">(</span><span class="n">pred_lagged</span><span class="p">)</span>
+
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;precision_lagged&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_precision</span><span class="p">(</span><span class="n">gt_lagged_edges</span><span class="p">,</span> <span class="n">pred_lagged_edges</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;recall_lagged&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_recall</span><span class="p">(</span><span class="n">gt_lagged_edges</span><span class="p">,</span> <span class="n">pred_lagged_edges</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;f1_lagged&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_f1</span><span class="p">(</span><span class="n">gt_lagged_edges</span><span class="p">,</span> <span class="n">pred_lagged_edges</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;fpr_lagged&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_false_positive_ratio</span><span class="p">(</span><span class="n">gt_lagged_edges</span><span class="p">,</span> <span class="n">pred_lagged_edges</span><span class="p">,</span> <span class="n">n_nodes</span><span class="p">)</span>
+
+        <span class="n">gt_contemp_edges</span><span class="p">,</span> <span class="n">gt_contemp_cpdag</span> <span class="o">=</span> <span class="n">get_cpdag_and_edge_set</span><span class="p">(</span><span class="n">gt_contemp</span><span class="p">)</span>
+        <span class="n">pred_contemp_edges</span><span class="p">,</span> <span class="n">pred_contemp_cpdag</span> <span class="o">=</span> <span class="n">get_cpdag_and_edge_set</span><span class="p">(</span><span class="n">pred_contemp</span><span class="p">)</span>
+
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;precision_contemp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_precision</span><span class="p">(</span><span class="n">gt_contemp_edges</span><span class="p">,</span> <span class="n">pred_contemp_edges</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;recall_contemp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_recall</span><span class="p">(</span><span class="n">gt_contemp_edges</span><span class="p">,</span> <span class="n">pred_contemp_edges</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;f1_contemp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_f1</span><span class="p">(</span><span class="n">gt_contemp_edges</span><span class="p">,</span> <span class="n">pred_contemp_edges</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;fpr_contemp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_false_positive_ratio</span><span class="p">(</span><span class="n">gt_contemp_edges</span><span class="p">,</span> <span class="n">pred_contemp_edges</span><span class="p">,</span> <span class="n">n_nodes</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;shd_contemp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_shd</span><span class="p">(</span><span class="n">gt_contemp_cpdag</span><span class="p">,</span> <span class="n">pred_contemp_cpdag</span><span class="p">)</span>
+
+        <span class="n">global_metrics</span> <span class="o">=</span> <span class="n">get_global_window_metrics</span><span class="p">(</span>
+            <span class="n">gt_lagged_edges</span><span class="p">,</span>
+            <span class="n">pred_lagged_edges</span><span class="p">,</span>
+            <span class="n">gt_contemp_edges</span><span class="p">,</span>
+            <span class="n">pred_contemp_edges</span><span class="p">,</span>
+            <span class="n">gt_contemp_cpdag</span><span class="p">,</span>
+            <span class="n">pred_contemp_cpdag</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">global_metrics</span><span class="p">)</span>
+
+        <span class="n">gt_summary_edges</span><span class="p">,</span> <span class="n">gt_summary_cpdag</span> <span class="o">=</span> <span class="n">get_cpdag_and_edge_set</span><span class="p">(</span><span class="n">actual_parents_summary</span><span class="p">)</span>
+        <span class="n">pred_summary_edges</span><span class="p">,</span> <span class="n">pred_summary_cpdag</span> <span class="o">=</span> <span class="n">get_cpdag_and_edge_set</span><span class="p">(</span><span class="n">predicted_parents_summary</span><span class="p">)</span>
+
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;precision_summary&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_precision</span><span class="p">(</span><span class="n">gt_summary_edges</span><span class="p">,</span> <span class="n">pred_summary_edges</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;recall_summary&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_recall</span><span class="p">(</span><span class="n">gt_summary_edges</span><span class="p">,</span> <span class="n">pred_summary_edges</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;f1_summary&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_f1</span><span class="p">(</span><span class="n">gt_summary_edges</span><span class="p">,</span> <span class="n">pred_summary_edges</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;fpr_summary&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_false_positive_ratio</span><span class="p">(</span><span class="n">gt_summary_edges</span><span class="p">,</span> <span class="n">pred_summary_edges</span><span class="p">,</span> <span class="n">n_nodes</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;shd_summary&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_shd</span><span class="p">(</span><span class="n">gt_summary_cpdag</span><span class="p">,</span> <span class="n">pred_summary_cpdag</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">result</span></div>
+</div>
+
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_generate_group_dataset</span><span class="p">(</span><span class="n">iteration</span><span class="p">,</span> <span class="n">n_datasets</span><span class="p">,</span> <span class="n">datasets_folder</span><span class="p">,</span> <span class="n">data_option</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Function to generate the datasets for the benchmark</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        n_datasets : int The number of datasets to be generated</span>
+<span class="sd">        datasets_folder : str The folder in which the datasets will be saved</span>
+<span class="sd">        data_option : dict[str, Any] The options to generate the datasets</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">causal_datasets</span> <span class="o">=</span> <span class="p">[</span><span class="n">CausalDataset</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_datasets</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">current_dataset_index</span><span class="p">,</span> <span class="n">causal_dataset</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">causal_datasets</span><span class="p">):</span>
+        <span class="n">dataset_index</span> <span class="o">=</span> <span class="n">iteration</span> <span class="o">*</span> <span class="n">n_datasets</span> <span class="o">+</span> <span class="n">current_dataset_index</span>
+        <span class="n">causal_dataset</span><span class="o">.</span><span class="n">generate_group_toy_data</span><span class="p">(</span><span class="n">dataset_index</span><span class="p">,</span> <span class="n">datasets_folder</span><span class="o">=</span><span class="n">datasets_folder</span><span class="p">,</span> <span class="o">**</span><span class="n">data_option</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">causal_datasets</span>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_load_group_datasets</span><span class="p">(</span><span class="n">datasets_folder</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">CausalDataset</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Function to load the datasets for the benchmark</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        datasets_folder : str The folder in which the datasets are saved</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">causal_datasets</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">datasets_folder</span><span class="p">):</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">datasets_folder</span><span class="p">)</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.csv&#39;</span><span class="p">)]</span>
+        <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])):</span>
+            <span class="n">dataset</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">datasets_folder</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">dataset_prefix</span> <span class="o">=</span> <span class="n">filename</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">parents_filename</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">datasets_folder</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">dataset_prefix</span><span class="si">}</span><span class="s1">_parents.txt&#39;</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">parents_filename</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">parents_dict</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+            <span class="n">groups_filename</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">datasets_folder</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">dataset_prefix</span><span class="si">}</span><span class="s1">_groups.txt&#39;</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">groups_filename</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">groups</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+            <span class="n">non_stationarity_filename</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">datasets_folder</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">dataset_prefix</span><span class="si">}</span><span class="s1">_non_stationarity_info.txt&#39;</span>
+
+            <span class="n">causal_dataset</span> <span class="o">=</span> <span class="n">CausalDataset</span><span class="p">(</span>
+                <span class="n">time_series</span><span class="o">=</span><span class="n">dataset</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                <span class="n">parents_dict</span><span class="o">=</span><span class="n">parents_dict</span><span class="p">,</span>
+                <span class="n">groups</span><span class="o">=</span><span class="n">groups</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">non_stationarity_filename</span><span class="p">):</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">non_stationarity_filename</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">causal_dataset</span><span class="o">.</span><span class="n">non_stationarity_info</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+
+            <span class="n">causal_datasets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">causal_dataset</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;The dataset folder </span><span class="si">{</span><span class="n">datasets_folder</span><span class="si">}</span><span class="s1"> does not exist&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">causal_datasets</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Joaquín Mateos Barroso.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

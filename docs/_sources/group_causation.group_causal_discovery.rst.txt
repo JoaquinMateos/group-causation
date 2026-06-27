@@ -1,0 +1,77 @@
+group\_causation.group\_causal\_discovery package
+=================================================
+
+Submodules
+----------
+
+group\_causation.group\_causal\_discovery.dimension\_reduction module
+---------------------------------------------------------------------
+
+.. automodule:: group_causation.group_causal_discovery.dimension_reduction
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.group\_causal\_discovery.gcdmi module
+------------------------------------------------------
+
+.. automodule:: group_causation.group_causal_discovery.gcdmi
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.group\_causal\_discovery.groupPCMCI module
+-----------------------------------------------------------
+
+.. automodule:: group_causation.group_causal_discovery.groupPCMCI
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.group\_causal\_discovery.group\_causal\_discovery\_base module
+-------------------------------------------------------------------------------
+
+.. automodule:: group_causation.group_causal_discovery.group_causal_discovery_base
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.group\_causal\_discovery.group\_resit module
+-------------------------------------------------------------
+
+.. automodule:: group_causation.group_causal_discovery.group_resit
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.group\_causal\_discovery.hybrid module
+-------------------------------------------------------
+
+.. automodule:: group_causation.group_causal_discovery.hybrid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.group\_causal\_discovery.micro\_level module
+-------------------------------------------------------------
+
+.. automodule:: group_causation.group_causal_discovery.micro_level
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.group\_causal\_discovery.proposal\_non\_stationarity module
+----------------------------------------------------------------------------
+
+.. automodule:: group_causation.group_causal_discovery.proposal_non_stationarity
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: group_causation.group_causal_discovery
+   :members:
+   :undoc-members:
+   :show-inheritance:

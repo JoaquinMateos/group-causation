@@ -162,6 +162,8 @@ def get_cpdag_and_edge_set(graph_dict: ParentGraph) -> Tuple[Set[Any], cd.PDAG]:
     Helper function to convert a parents dictionary into a causaldag PDAG.
     This function must be applied only on the contemporaneous graph,
     where all lags have been collapsed to 0, to ensure correct MEC evaluation.
+    
+    Args:
         Logic: Inside the MEC calculation, we collapse all nodes to integers 
         to ensure the library identifies v-structures correctly.
     """
@@ -303,7 +305,7 @@ TIME SERIES GRAPHS UTILITIES
 def window_to_summary_graph(window_graph: dict[int, list[tuple[int, int]]]) -> dict[int, list[tuple[int, int]]]:
     '''
     Convert a window graph, in the way X^i_t' -> X^j_t
-        to a summary graph, X^i_- ->X^j_t
+    to a summary graph, X^i_- ->X^j_t
     Maintains strict (node, lag) format but collapses all non-zero lags to -1.
     
     Args:

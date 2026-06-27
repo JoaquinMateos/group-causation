@@ -1,0 +1,649 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>group_causation package &mdash; group-causation  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=fd3f3429" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="group_causation.benchmark package" href="group_causation.benchmark.html" />
+    <link rel="prev" title="group_causation" href="modules.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            group-causation
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">API Reference &amp; Modules:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">group_causation</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">group_causation package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#subpackages">Subpackages</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html">group_causation.benchmark package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html">group_causation.group_causal_discovery package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.groups_extraction.html">group_causation.groups_extraction package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html">group_causation.independence_tests package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.micro_causal_discovery.html">group_causation.micro_causal_discovery package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-group_causation.causal_discovery_base">group_causation.causal_discovery_base module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.causal_discovery_base.CausalDiscovery"><code class="docutils literal notranslate"><span class="pre">CausalDiscovery</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#module-group_causation.utils">group_causation.utils module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.changing_N_groups"><code class="docutils literal notranslate"><span class="pre">changing_N_groups()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.changing_N_variables"><code class="docutils literal notranslate"><span class="pre">changing_N_variables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.changing_N_vars_per_group"><code class="docutils literal notranslate"><span class="pre">changing_N_vars_per_group()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.changing_alg_params"><code class="docutils literal notranslate"><span class="pre">changing_alg_params()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.changing_latent_confounding_fraction"><code class="docutils literal notranslate"><span class="pre">changing_latent_confounding_fraction()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.changing_non_stationarity_params"><code class="docutils literal notranslate"><span class="pre">changing_non_stationarity_params()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.changing_preselection_alpha"><code class="docutils literal notranslate"><span class="pre">changing_preselection_alpha()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.configure_root_logging"><code class="docutils literal notranslate"><span class="pre">configure_root_logging()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_FN"><code class="docutils literal notranslate"><span class="pre">get_FN()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_FP"><code class="docutils literal notranslate"><span class="pre">get_FP()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_TP"><code class="docutils literal notranslate"><span class="pre">get_TP()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_cpdag_and_edge_set"><code class="docutils literal notranslate"><span class="pre">get_cpdag_and_edge_set()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_dag_edge_set"><code class="docutils literal notranslate"><span class="pre">get_dag_edge_set()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_f1"><code class="docutils literal notranslate"><span class="pre">get_f1()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_false_positive_ratio"><code class="docutils literal notranslate"><span class="pre">get_false_positive_ratio()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_global_window_metrics"><code class="docutils literal notranslate"><span class="pre">get_global_window_metrics()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_next_filename"><code class="docutils literal notranslate"><span class="pre">get_next_filename()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_precision"><code class="docutils literal notranslate"><span class="pre">get_precision()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_recall"><code class="docutils literal notranslate"><span class="pre">get_recall()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.get_shd"><code class="docutils literal notranslate"><span class="pre">get_shd()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.increasing_N_vars_per_group"><code class="docutils literal notranslate"><span class="pre">increasing_N_vars_per_group()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.split_lagged_and_contemporaneous"><code class="docutils literal notranslate"><span class="pre">split_lagged_and_contemporaneous()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.static_parameters"><code class="docutils literal notranslate"><span class="pre">static_parameters()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group_causation.utils.window_to_summary_graph"><code class="docutils literal notranslate"><span class="pre">window_to_summary_graph()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#module-group_causation">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">group-causation</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">group_causation</a></li>
+      <li class="breadcrumb-item active">group_causation package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/group_causation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="group-causation-package">
+<h1>group_causation package<a class="headerlink" href="#group-causation-package" title="Link to this heading"></a></h1>
+<section id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Link to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="group_causation.benchmark.html">group_causation.benchmark package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.benchmark.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark.benchmark_base">group_causation.benchmark.benchmark_base module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.benchmark_causal_discovery"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.benchmark_causal_discovery()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.benchmark_with_given_data"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.benchmark_with_given_data()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.benchmark_with_toy_data"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.benchmark_with_toy_data()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.generate_datasets"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.generate_datasets()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.load_datasets"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.load_datasets()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.plot_moving_results"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.plot_moving_results()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.plot_particular_result"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.plot_particular_result()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.plot_ts_datasets"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.plot_ts_datasets()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.save_results"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.save_results()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.test_algorithms"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.test_algorithms()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.test_particular_algorithm"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.test_particular_algorithm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.BenchmarkBase.test_particular_algorithm_particular_dataset"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase.test_particular_algorithm_particular_dataset()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.ThreadBufferedHandler"><code class="docutils literal notranslate"><span class="pre">ThreadBufferedHandler</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.ThreadBufferedHandler.emit"><code class="docutils literal notranslate"><span class="pre">ThreadBufferedHandler.emit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.ThreadBufferedHandler.flush_thread"><code class="docutils literal notranslate"><span class="pre">ThreadBufferedHandler.flush_thread()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_base.parent_to_node"><code class="docutils literal notranslate"><span class="pre">parent_to_node()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark.benchmark_causal_discovery">group_causation.benchmark.benchmark_causal_discovery module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_causal_discovery.BenchmarkCausalDiscovery"><code class="docutils literal notranslate"><span class="pre">BenchmarkCausalDiscovery</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_causal_discovery.BenchmarkCausalDiscovery.generate_datasets"><code class="docutils literal notranslate"><span class="pre">BenchmarkCausalDiscovery.generate_datasets()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_causal_discovery.BenchmarkCausalDiscovery.load_datasets"><code class="docutils literal notranslate"><span class="pre">BenchmarkCausalDiscovery.load_datasets()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_causal_discovery.BenchmarkCausalDiscovery.test_particular_algorithm_particular_dataset"><code class="docutils literal notranslate"><span class="pre">BenchmarkCausalDiscovery.test_particular_algorithm_particular_dataset()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark.benchmark_group_causal_discovery">group_causation.benchmark.benchmark_group_causal_discovery module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_group_causal_discovery.BenchmarkGroupCausalDiscovery"><code class="docutils literal notranslate"><span class="pre">BenchmarkGroupCausalDiscovery</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_group_causal_discovery.BenchmarkGroupCausalDiscovery.generate_datasets"><code class="docutils literal notranslate"><span class="pre">BenchmarkGroupCausalDiscovery.generate_datasets()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_group_causal_discovery.BenchmarkGroupCausalDiscovery.load_datasets"><code class="docutils literal notranslate"><span class="pre">BenchmarkGroupCausalDiscovery.load_datasets()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_group_causal_discovery.BenchmarkGroupCausalDiscovery.test_particular_algorithm_particular_dataset"><code class="docutils literal notranslate"><span class="pre">BenchmarkGroupCausalDiscovery.test_particular_algorithm_particular_dataset()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark.benchmark_group_extraction">group_causation.benchmark.benchmark_group_extraction module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_group_extraction.BenchmarkGroupsExtraction"><code class="docutils literal notranslate"><span class="pre">BenchmarkGroupsExtraction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_group_extraction.BenchmarkGroupsExtraction.generate_datasets"><code class="docutils literal notranslate"><span class="pre">BenchmarkGroupsExtraction.generate_datasets()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_group_extraction.BenchmarkGroupsExtraction.load_datasets"><code class="docutils literal notranslate"><span class="pre">BenchmarkGroupsExtraction.load_datasets()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html#group_causation.benchmark.benchmark_group_extraction.BenchmarkGroupsExtraction.test_particular_algorithm_particular_dataset"><code class="docutils literal notranslate"><span class="pre">BenchmarkGroupsExtraction.test_particular_algorithm_particular_dataset()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark.example_benchmark_execution">group_causation.benchmark.example_benchmark_execution module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="group_causation.group_causal_discovery.html">group_causation.group_causal_discovery package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.group_causal_discovery.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.dimension_reduction">group_causation.group_causal_discovery.dimension_reduction module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.dimension_reduction.DimensionReductionGroupCausalDiscovery"><code class="docutils literal notranslate"><span class="pre">DimensionReductionGroupCausalDiscovery</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.dimension_reduction.DimensionReductionGroupCausalDiscovery.extract_parents"><code class="docutils literal notranslate"><span class="pre">DimensionReductionGroupCausalDiscovery.extract_parents()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.gcdmi">group_causation.group_causal_discovery.gcdmi module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.gcdmi.DeepAR"><code class="docutils literal notranslate"><span class="pre">DeepAR</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.gcdmi.DeepAR.forward"><code class="docutils literal notranslate"><span class="pre">DeepAR.forward()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.gcdmi.TimeSeriesKnockoffGenerator"><code class="docutils literal notranslate"><span class="pre">TimeSeriesKnockoffGenerator</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.gcdmi.TimeSeriesKnockoffGenerator.generate"><code class="docutils literal notranslate"><span class="pre">TimeSeriesKnockoffGenerator.generate()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.gcdmi.gCDMICausalDiscovery"><code class="docutils literal notranslate"><span class="pre">gCDMICausalDiscovery</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.gcdmi.gCDMICausalDiscovery.extract_parents"><code class="docutils literal notranslate"><span class="pre">gCDMICausalDiscovery.extract_parents()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.gcdmi.gCDMICausalDiscovery.score_validation_nll"><code class="docutils literal notranslate"><span class="pre">gCDMICausalDiscovery.score_validation_nll()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.gcdmi.gaussian_nll_loss"><code class="docutils literal notranslate"><span class="pre">gaussian_nll_loss()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.groupPCMCI">group_causation.group_causal_discovery.groupPCMCI module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.groupPCMCI.GroupPCMCICausalDiscovery"><code class="docutils literal notranslate"><span class="pre">GroupPCMCICausalDiscovery</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.groupPCMCI.GroupPCMCICausalDiscovery.extract_parents"><code class="docutils literal notranslate"><span class="pre">GroupPCMCICausalDiscovery.extract_parents()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.group_causal_discovery_base">group_causation.group_causal_discovery.group_causal_discovery_base module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_causal_discovery_base.GroupCausalDiscovery"><code class="docutils literal notranslate"><span class="pre">GroupCausalDiscovery</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_causal_discovery_base.GroupCausalDiscovery.extract_parents"><code class="docutils literal notranslate"><span class="pre">GroupCausalDiscovery.extract_parents()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.group_resit">group_causation.group_causal_discovery.group_resit module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.GroupRESITTimeSeriesCausalDiscovery"><code class="docutils literal notranslate"><span class="pre">GroupRESITTimeSeriesCausalDiscovery</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.GroupRESITTimeSeriesCausalDiscovery.extract_parents"><code class="docutils literal notranslate"><span class="pre">GroupRESITTimeSeriesCausalDiscovery.extract_parents()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.GroupRESITTimeSeriesCausalDiscovery.score_validation_mse"><code class="docutils literal notranslate"><span class="pre">GroupRESITTimeSeriesCausalDiscovery.score_validation_mse()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.GroupRegressor"><code class="docutils literal notranslate"><span class="pre">GroupRegressor</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.GroupRegressor.fit"><code class="docutils literal notranslate"><span class="pre">GroupRegressor.fit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.GroupRegressor.predict"><code class="docutils literal notranslate"><span class="pre">GroupRegressor.predict()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.MultiOutputMLP"><code class="docutils literal notranslate"><span class="pre">MultiOutputMLP</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.MultiOutputMLP.forward"><code class="docutils literal notranslate"><span class="pre">MultiOutputMLP.forward()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.SpatioTemporalMURGSRegressor"><code class="docutils literal notranslate"><span class="pre">SpatioTemporalMURGSRegressor</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.SpatioTemporalMURGSRegressor.fit"><code class="docutils literal notranslate"><span class="pre">SpatioTemporalMURGSRegressor.fit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.SpatioTemporalMURGSRegressor.get_group_norms"><code class="docutils literal notranslate"><span class="pre">SpatioTemporalMURGSRegressor.get_group_norms()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.hybrid">group_causation.group_causal_discovery.hybrid module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.hybrid.HybridGroupCausalDiscovery"><code class="docutils literal notranslate"><span class="pre">HybridGroupCausalDiscovery</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.hybrid.HybridGroupCausalDiscovery.extract_parents"><code class="docutils literal notranslate"><span class="pre">HybridGroupCausalDiscovery.extract_parents()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.micro_level">group_causation.group_causal_discovery.micro_level module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.micro_level.MicroLevelGroupCausalDiscovery"><code class="docutils literal notranslate"><span class="pre">MicroLevelGroupCausalDiscovery</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.micro_level.MicroLevelGroupCausalDiscovery.extract_parents"><code class="docutils literal notranslate"><span class="pre">MicroLevelGroupCausalDiscovery.extract_parents()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.proposal_non_stationarity">group_causation.group_causal_discovery.proposal_non_stationarity module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.proposal_non_stationarity.IVAE_GroupPCMCI_Proposal"><code class="docutils literal notranslate"><span class="pre">IVAE_GroupPCMCI_Proposal</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.proposal_non_stationarity.IVAE_GroupPCMCI_Proposal.extract_parents"><code class="docutils literal notranslate"><span class="pre">IVAE_GroupPCMCI_Proposal.extract_parents()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.proposal_non_stationarity.IVAE_GroupPCMCI_Proposal.get_effect_val_matrix"><code class="docutils literal notranslate"><span class="pre">IVAE_GroupPCMCI_Proposal.get_effect_val_matrix()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="group_causation.groups_extraction.html">group_causation.groups_extraction package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.groups_extraction.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction.causal_groups_extraction">group_causation.groups_extraction.causal_groups_extraction module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.causal_groups_extraction.CausalGroupsExtractorBase"><code class="docutils literal notranslate"><span class="pre">CausalGroupsExtractorBase</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.causal_groups_extraction.CausalGroupsExtractorBase.extract_groups"><code class="docutils literal notranslate"><span class="pre">CausalGroupsExtractorBase.extract_groups()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.causal_groups_extraction.CausalGroupsExtractorBase.extract_groups_time_and_memory"><code class="docutils literal notranslate"><span class="pre">CausalGroupsExtractorBase.extract_groups_time_and_memory()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction.exhaustive_causal_groups_extraction">group_causation.groups_extraction.exhaustive_causal_groups_extraction module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.exhaustive_causal_groups_extraction.ExhaustiveCausalGroupsExtractor"><code class="docutils literal notranslate"><span class="pre">ExhaustiveCausalGroupsExtractor</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.exhaustive_causal_groups_extraction.ExhaustiveCausalGroupsExtractor.extract_groups"><code class="docutils literal notranslate"><span class="pre">ExhaustiveCausalGroupsExtractor.extract_groups()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction.genetic_causal_groups_extraction">group_causation.groups_extraction.genetic_causal_groups_extraction module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.genetic_causal_groups_extraction.GeneticCausalGroupsExtractor"><code class="docutils literal notranslate"><span class="pre">GeneticCausalGroupsExtractor</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.genetic_causal_groups_extraction.GeneticCausalGroupsExtractor.extract_groups"><code class="docutils literal notranslate"><span class="pre">GeneticCausalGroupsExtractor.extract_groups()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.genetic_causal_groups_extraction.crossover_partitions"><code class="docutils literal notranslate"><span class="pre">crossover_partitions()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction.random_causal_groups_extraction">group_causation.groups_extraction.random_causal_groups_extraction module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.random_causal_groups_extraction.RandomCausalGroupsExtractor"><code class="docutils literal notranslate"><span class="pre">RandomCausalGroupsExtractor</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.random_causal_groups_extraction.RandomCausalGroupsExtractor.extract_groups"><code class="docutils literal notranslate"><span class="pre">RandomCausalGroupsExtractor.extract_groups()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction.stat_utils">group_causation.groups_extraction.stat_utils module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.stat_utils.get_average_pc1_explained_variance"><code class="docutils literal notranslate"><span class="pre">get_average_pc1_explained_variance()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.stat_utils.get_explainability_score"><code class="docutils literal notranslate"><span class="pre">get_explainability_score()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.stat_utils.get_harmonic_explained_variance"><code class="docutils literal notranslate"><span class="pre">get_harmonic_explained_variance()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.stat_utils.get_normalized_mutual_information"><code class="docutils literal notranslate"><span class="pre">get_normalized_mutual_information()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.stat_utils.get_pc1_explained_variance"><code class="docutils literal notranslate"><span class="pre">get_pc1_explained_variance()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.groups_extraction.html#group_causation.groups_extraction.stat_utils.get_scores_getter"><code class="docutils literal notranslate"><span class="pre">get_scores_getter()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="group_causation.independence_tests.html">group_causation.independence_tests package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.independence_tests.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.independence_tests.html#module-group_causation.independence_tests.conditional_independence_base">group_causation.independence_tests.conditional_independence_base module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.conditional_independence_base.ConditionalIndependence_base"><code class="docutils literal notranslate"><span class="pre">ConditionalIndependence_base</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.conditional_independence_base.ConditionalIndependence_base.conditional_test"><code class="docutils literal notranslate"><span class="pre">ConditionalIndependence_base.conditional_test()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.conditional_independence_base.ConditionalIndependence_base.conditional_test_regimes"><code class="docutils literal notranslate"><span class="pre">ConditionalIndependence_base.conditional_test_regimes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.conditional_independence_base.ConditionalIndependence_base.test"><code class="docutils literal notranslate"><span class="pre">ConditionalIndependence_base.test()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.conditional_independence_base.ConditionalIndependence_base.test_regimes"><code class="docutils literal notranslate"><span class="pre">ConditionalIndependence_base.test_regimes()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.independence_tests.html#module-group_causation.independence_tests.hsic">group_causation.independence_tests.hsic module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.hsic.HSIC_Test"><code class="docutils literal notranslate"><span class="pre">HSIC_Test</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.hsic.HSIC_Test.conditional_test"><code class="docutils literal notranslate"><span class="pre">HSIC_Test.conditional_test()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.hsic.HSIC_Test.get_gram_matrix"><code class="docutils literal notranslate"><span class="pre">HSIC_Test.get_gram_matrix()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.hsic.HSIC_Test.get_kernel_width"><code class="docutils literal notranslate"><span class="pre">HSIC_Test.get_kernel_width()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.hsic.HSIC_Test.test"><code class="docutils literal notranslate"><span class="pre">HSIC_Test.test()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.independence_tests.html#module-group_causation.independence_tests.max_corr">group_causation.independence_tests.max_corr module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.max_corr.MaxCorr_Test"><code class="docutils literal notranslate"><span class="pre">MaxCorr_Test</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.max_corr.MaxCorr_Test.conditional_test"><code class="docutils literal notranslate"><span class="pre">MaxCorr_Test.conditional_test()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.max_corr.MaxCorr_Test.conditional_test_regimes"><code class="docutils literal notranslate"><span class="pre">MaxCorr_Test.conditional_test_regimes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.max_corr.MaxCorr_Test.test"><code class="docutils literal notranslate"><span class="pre">MaxCorr_Test.test()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html#group_causation.independence_tests.max_corr.MaxCorr_Test.test_regimes"><code class="docutils literal notranslate"><span class="pre">MaxCorr_Test.test_regimes()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.independence_tests.html#module-group_causation.independence_tests">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="group_causation.micro_causal_discovery.html">group_causation.micro_causal_discovery package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.micro_causal_discovery.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery.causal_discovery_causalai">group_causation.micro_causal_discovery.causal_discovery_causalai module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalai.GrangerWrapper"><code class="docutils literal notranslate"><span class="pre">GrangerWrapper</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalai.GrangerWrapper.extract_parents"><code class="docutils literal notranslate"><span class="pre">GrangerWrapper.extract_parents()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalai.VARLINGAMWrapper"><code class="docutils literal notranslate"><span class="pre">VARLINGAMWrapper</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalai.VARLINGAMWrapper.extract_parents"><code class="docutils literal notranslate"><span class="pre">VARLINGAMWrapper.extract_parents()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalai.get_parents_dict"><code class="docutils literal notranslate"><span class="pre">get_parents_dict()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery.causal_discovery_causalnex">group_causation.micro_causal_discovery.causal_discovery_causalnex module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalnex.DynotearsWrapper"><code class="docutils literal notranslate"><span class="pre">DynotearsWrapper</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalnex.DynotearsWrapper.extract_parents"><code class="docutils literal notranslate"><span class="pre">DynotearsWrapper.extract_parents()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalnex.convert_to_dynotears_format"><code class="docutils literal notranslate"><span class="pre">convert_to_dynotears_format()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalnex.from_numpy_dynamic"><code class="docutils literal notranslate"><span class="pre">from_numpy_dynamic()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalnex.from_pandas_dynamic"><code class="docutils literal notranslate"><span class="pre">from_pandas_dynamic()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery.causal_discovery_custom">group_causation.micro_causal_discovery.causal_discovery_custom module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_custom.check_stationarity"><code class="docutils literal notranslate"><span class="pre">check_stationarity()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_custom.create_lag_matrix"><code class="docutils literal notranslate"><span class="pre">create_lag_matrix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_custom.insert_top_k_edges"><code class="docutils literal notranslate"><span class="pre">insert_top_k_edges()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_custom.select_order_univariate"><code class="docutils literal notranslate"><span class="pre">select_order_univariate()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_custom.summarized_causality_ind_test"><code class="docutils literal notranslate"><span class="pre">summarized_causality_ind_test()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_custom.summarized_causality_multivariate_granger"><code class="docutils literal notranslate"><span class="pre">summarized_causality_multivariate_granger()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_custom.summarized_causality_univariate_granger"><code class="docutils literal notranslate"><span class="pre">summarized_causality_univariate_granger()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery.causal_discovery_tigramite">group_causation.micro_causal_discovery.causal_discovery_tigramite module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.LocalizedResidualTest"><code class="docutils literal notranslate"><span class="pre">LocalizedResidualTest</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.LocalizedResidualTest.get_model_selection_criterion"><code class="docutils literal notranslate"><span class="pre">LocalizedResidualTest.get_model_selection_criterion()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.LocalizedResidualTest.run_test"><code class="docutils literal notranslate"><span class="pre">LocalizedResidualTest.run_test()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.LocalizedResidualTest.set_dataframe"><code class="docutils literal notranslate"><span class="pre">LocalizedResidualTest.set_dataframe()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.PCMCIWrapper"><code class="docutils literal notranslate"><span class="pre">PCMCIWrapper</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.PCMCIWrapper.extract_parents"><code class="docutils literal notranslate"><span class="pre">PCMCIWrapper.extract_parents()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.convert_to_tigramite_dataframe"><code class="docutils literal notranslate"><span class="pre">convert_to_tigramite_dataframe()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery.micro_causal_discovery_base">group_causation.micro_causal_discovery.micro_causal_discovery_base module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.micro_causal_discovery_base.MicroCausalDiscovery"><code class="docutils literal notranslate"><span class="pre">MicroCausalDiscovery</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+</section>
+<section id="module-group_causation.causal_discovery_base">
+<span id="group-causation-causal-discovery-base-module"></span><h2>group_causation.causal_discovery_base module<a class="headerlink" href="#module-group_causation.causal_discovery_base" title="Link to this heading"></a></h2>
+<p>Module with the base class for causal discovery algorithms.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="group_causation.causal_discovery_base.CausalDiscovery">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">group_causation.causal_discovery_base.</span></span><span class="sig-name descname"><span class="pre">CausalDiscovery</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">standarize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/group_causation/causal_discovery_base.html#CausalDiscovery"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.causal_discovery_base.CausalDiscovery" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Base class for causal discovery algorithms</p>
+<p>To be implemented by subclasses</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> – np.array with the data, shape (n_samples, n_variables)</p></li>
+<li><p><strong>standarize</strong> – bool indicating if the data should be standarized. default=True</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="group_causation.causal_discovery_base.CausalDiscovery.extract_parents">
+<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">extract_parents</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/causal_discovery_base.html#CausalDiscovery.extract_parents"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.causal_discovery_base.CausalDiscovery.extract_parents" title="Link to this definition"></a></dt>
+<dd><p>To be implemented by subclasses</p>
+<dl class="simple">
+<dt>Returns</dt><dd><p>Dictionary with the parents of each node</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="group_causation.causal_discovery_base.CausalDiscovery.extract_parents_time_and_memory">
+<span class="sig-name descname"><span class="pre">extract_parents_time_and_memory</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/causal_discovery_base.html#CausalDiscovery.extract_parents_time_and_memory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.causal_discovery_base.CausalDiscovery.extract_parents_time_and_memory" title="Link to this definition"></a></dt>
+<dd><p>Execute the extract_parents method and return the parents dict, the time that took to run the algorithm</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-group_causation.utils">
+<span id="group-causation-utils-module"></span><h2>group_causation.utils module<a class="headerlink" href="#module-group_causation.utils" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.changing_N_groups">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">changing_N_groups</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">algorithms_parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_N_groups</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">relation_vars_per_group</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Generator</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#changing_N_groups"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.changing_N_groups" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.changing_N_variables">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">changing_N_variables</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">algorithms_parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_N_variables</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Generator</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#changing_N_variables"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.changing_N_variables" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.changing_N_vars_per_group">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">changing_N_vars_per_group</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">algorithms_parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_N_vars_per_group</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Generator</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#changing_N_vars_per_group"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.changing_N_vars_per_group" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.changing_alg_params">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">changing_alg_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">algorithms_parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alg_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_modifying_algorithms_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Generator</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#changing_alg_params"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.changing_alg_params" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.changing_latent_confounding_fraction">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">changing_latent_confounding_fraction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">algorithms_parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_latent_confounding_fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Generator</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#changing_latent_confounding_fraction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.changing_latent_confounding_fraction" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.changing_non_stationarity_params">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">changing_non_stationarity_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">algorithms_parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_non_stationarity_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Generator</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#changing_non_stationarity_params"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.changing_non_stationarity_params" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.changing_preselection_alpha">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">changing_preselection_alpha</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">algorithms_parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_preselection_alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Generator</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#changing_preselection_alpha"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.changing_preselection_alpha" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.configure_root_logging">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">configure_root_logging</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">info_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/group_causation/utils.html#configure_root_logging"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.configure_root_logging" title="Link to this definition"></a></dt>
+<dd><p>Configures a thread-safe logging system using a QueueListener.
+All log records are pushed to a queue and written sequentially
+by a background thread to prevent interleaved logs.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_FN">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_FN</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_FN"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_FN" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_FP">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_FP</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_FP"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_FP" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_TP">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_TP</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_TP"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_TP" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_cpdag_and_edge_set">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_cpdag_and_edge_set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">graph_dict</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Mapping</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Set</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">PDAG</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_cpdag_and_edge_set"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_cpdag_and_edge_set" title="Link to this definition"></a></dt>
+<dd><p>Helper function to convert a parents dictionary into a causaldag PDAG.
+This function must be applied only on the contemporaneous graph,
+where all lags have been collapsed to 0, to ensure correct MEC evaluation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>Logic</strong> – Inside the MEC calculation, we collapse all nodes to integers</p></li>
+<li><p><strong>correctly.</strong> (<em>to ensure the library identifies v-structures</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_dag_edge_set">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_dag_edge_set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">graph_dict</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Mapping</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Set</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_dag_edge_set"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_dag_edge_set" title="Link to this definition"></a></dt>
+<dd><p>Returns a canonical set of strictly directed edges for exact DAG evaluation.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_f1">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_f1</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_f1"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_f1" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_false_positive_ratio">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_false_positive_ratio</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_nodes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_false_positive_ratio"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_false_positive_ratio" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_global_window_metrics">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_global_window_metrics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt_lagged_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_lagged_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gt_contemp_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_contemp_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gt_contemp_cpdag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PDAG</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_contemp_cpdag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PDAG</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_global_window_metrics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_global_window_metrics" title="Link to this definition"></a></dt>
+<dd><p>Calculates the combined global window metrics (F1, Precision, Recall, SHD)
+across both lagged and contemporaneous subgraphs.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_next_filename">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_next_filename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/group_causation/utils.html#get_next_filename"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_next_filename" title="Link to this definition"></a></dt>
+<dd><p>Looks for the first unused filename by appending a counter to the base name.
+Example: if ‘debug.log’ exists, try ‘debug2.log’, ‘debug3.log’…</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_precision">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_precision</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_precision"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_precision" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_recall">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_recall</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_edges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">set</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_recall"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_recall" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.get_shd">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">get_shd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gt_cpdag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PDAG</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_cpdag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">PDAG</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#get_shd"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.get_shd" title="Link to this definition"></a></dt>
+<dd><p>Calculate the Structural Hamming Distance between two PDAGs.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.increasing_N_vars_per_group">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">increasing_N_vars_per_group</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">algorithms_parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_N_vars_per_group</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Generator</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#increasing_N_vars_per_group"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.increasing_N_vars_per_group" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.split_lagged_and_contemporaneous">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">split_lagged_and_contemporaneous</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">graph_dict</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Mapping</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Mapping</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Mapping</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#split_lagged_and_contemporaneous"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.split_lagged_and_contemporaneous" title="Link to this definition"></a></dt>
+<dd><p>Splits a window graph into lagged (keeps tuple) and contemporaneous (strips lag to integer) subgraphs.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.static_parameters">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">static_parameters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">algorithms_parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Generator</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#static_parameters"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.static_parameters" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="group_causation.utils.window_to_summary_graph">
+<span class="sig-prename descclassname"><span class="pre">group_causation.utils.</span></span><span class="sig-name descname"><span class="pre">window_to_summary_graph</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">window_graph</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/group_causation/utils.html#window_to_summary_graph"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#group_causation.utils.window_to_summary_graph" title="Link to this definition"></a></dt>
+<dd><p>Convert a window graph, in the way X^i_t’ -&gt; X^j_t
+to a summary graph, X^i_- -&gt;X^j_t
+Maintains strict (node, lag) format but collapses all non-zero lags to -1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>window_graph</strong> – dict[int, list[tuple[int, int]]]
+A dictionary where the keys are the time points and the values are lists of parents.
+Each parent is a tuple (node, lag).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>dict[int, list[tuple[int, int]]]</dt><dd><p>A dictionary where the keys are the time points and the values are lists of parents.
+Each parent is a tuple (node, lag).</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>summary_graph</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-group_causation">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-group_causation" title="Link to this heading"></a></h2>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="modules.html" class="btn btn-neutral float-left" title="group_causation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="group_causation.benchmark.html" class="btn btn-neutral float-right" title="group_causation.benchmark package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Joaquín Mateos Barroso.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

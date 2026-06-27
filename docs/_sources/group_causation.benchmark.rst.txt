@@ -1,0 +1,53 @@
+group\_causation.benchmark package
+==================================
+
+Submodules
+----------
+
+group\_causation.benchmark.benchmark\_base module
+-------------------------------------------------
+
+.. automodule:: group_causation.benchmark.benchmark_base
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.benchmark.benchmark\_causal\_discovery module
+--------------------------------------------------------------
+
+.. automodule:: group_causation.benchmark.benchmark_causal_discovery
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.benchmark.benchmark\_group\_causal\_discovery module
+---------------------------------------------------------------------
+
+.. automodule:: group_causation.benchmark.benchmark_group_causal_discovery
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.benchmark.benchmark\_group\_extraction module
+--------------------------------------------------------------
+
+.. automodule:: group_causation.benchmark.benchmark_group_extraction
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.benchmark.example\_benchmark\_execution module
+---------------------------------------------------------------
+
+.. automodule:: group_causation.benchmark.example_benchmark_execution
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: group_causation.benchmark
+   :members:
+   :undoc-members:
+   :show-inheritance:

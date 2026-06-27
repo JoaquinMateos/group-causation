@@ -1,0 +1,345 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>group_causation.micro_causal_discovery.causal_discovery_tigramite &mdash; group-causation  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=fd3f3429" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            group-causation
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">API Reference &amp; Modules:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">group_causation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">group-causation</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">group_causation.micro_causal_discovery.causal_discovery_tigramite</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for group_causation.micro_causal_discovery.causal_discovery_tigramite</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Any</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy.stats</span><span class="w"> </span><span class="kn">import</span> <span class="n">pearsonr</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.linear_model</span><span class="w"> </span><span class="kn">import</span> <span class="n">LinearRegression</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">tigramite</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tigramite.data_processing</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tigramite.independence_tests.parcorr</span><span class="w"> </span><span class="kn">import</span> <span class="n">ParCorr</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tigramite.independence_tests.cmiknn</span><span class="w"> </span><span class="kn">import</span> <span class="n">CMIknn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tigramite.independence_tests.gpdc</span><span class="w"> </span><span class="kn">import</span> <span class="n">GPDC</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tigramite.pcmci</span><span class="w"> </span><span class="kn">import</span> <span class="n">PCMCI</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">causalai.data.time_series</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeSeriesData</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.micro_causal_discovery.micro_causal_discovery_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">MicroCausalDiscovery</span>
+
+
+<div class="viewcode-block" id="PCMCIWrapper">
+<a class="viewcode-back" href="../../../group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.PCMCIWrapper">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PCMCIWrapper</span><span class="p">(</span><span class="n">MicroCausalDiscovery</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">cond_ind_test</span><span class="o">=</span><span class="s1">&#39;parcorr&#39;</span><span class="p">,</span>
+                 <span class="n">min_lag</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_lag</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">pc_alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span> 
+                 <span class="n">non_stationarity_info</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+                 <span class="n">num_generated_regimes_if_no_shift_info</span><span class="p">:</span> <span class="nb">int</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                 <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">min_lag</span> <span class="o">=</span> <span class="n">min_lag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_lag</span> <span class="o">=</span> <span class="n">max_lag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pc_alpha</span> <span class="o">=</span> <span class="n">pc_alpha</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extra_args</span> <span class="o">=</span> <span class="n">kwargs</span>
+        <span class="n">non_stationarity_info</span> <span class="o">=</span> <span class="n">non_stationarity_info</span> <span class="ow">or</span> <span class="p">{}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">cond_ind_test</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;shift_based_local_&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">non_stationarity_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;regime_shifts&#39;</span><span class="p">:</span>
+            <span class="n">affected_vars</span> <span class="o">=</span> <span class="n">non_stationarity_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;affected_vars&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="n">affected_vars</span><span class="p">:</span>
+                <span class="n">first_var</span> <span class="o">=</span> <span class="n">affected_vars</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">shifts</span> <span class="o">=</span> <span class="n">non_stationarity_info</span><span class="p">[</span><span class="s1">&#39;shift_details&#39;</span><span class="p">][</span><span class="n">first_var</span><span class="p">]</span>
+                
+                <span class="n">total_T</span> <span class="o">=</span> <span class="n">shifts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;end&#39;</span><span class="p">]</span>
+                <span class="n">u_full</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">total_T</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">shift</span> <span class="ow">in</span> <span class="n">shifts</span><span class="p">:</span>
+                    <span class="n">u_full</span><span class="p">[</span><span class="n">shift</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]:</span><span class="n">shift</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">shift</span><span class="p">[</span><span class="s1">&#39;regime&#39;</span><span class="p">]</span>
+                
+                <span class="n">T_data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">u_aligned</span> <span class="o">=</span> <span class="n">u_full</span><span class="p">[</span><span class="o">-</span><span class="n">T_data</span><span class="p">:]</span>
+                
+                <span class="n">num_regimes</span> <span class="o">=</span> <span class="n">non_stationarity_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;num_shifts&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">shifts</span><span class="p">))</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">T_data</span><span class="p">,</span> <span class="n">num_regimes</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">T_data</span><span class="p">),</span> <span class="n">u_aligned</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+                
+        <span class="k">elif</span> <span class="n">cond_ind_test</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;localized_&#39;</span><span class="p">):</span>
+            <span class="n">num_regimes</span> <span class="o">=</span> <span class="n">num_generated_regimes_if_no_shift_info</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Assuming </span><span class="si">{</span><span class="n">num_regimes</span><span class="si">}</span><span class="s2"> regimes for localized test without explicit regime shift info.&quot;</span><span class="p">)</span>
+            <span class="n">T_data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">chunk_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">T_data</span> <span class="o">/</span> <span class="n">num_regimes</span><span class="p">))</span>
+            
+            <span class="n">u_aligned</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_regimes</span><span class="p">),</span> <span class="n">chunk_size</span><span class="p">)[:</span><span class="n">T_data</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">T_data</span><span class="p">,</span> <span class="n">num_regimes</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">T_data</span><span class="p">),</span> <span class="n">u_aligned</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="k">if</span> <span class="n">cond_ind_test</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;shift_based_local_hsic&#39;</span><span class="p">,</span> <span class="s1">&#39;localized_hsic&#39;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cond_ind_test</span> <span class="o">=</span> <span class="n">LocalizedResidualTest</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">,</span> <span class="n">test_type</span><span class="o">=</span><span class="s1">&#39;hsic&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">cond_ind_test</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;shift_based_local_parcorr&#39;</span><span class="p">,</span> <span class="s1">&#39;localized_parcorr&#39;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cond_ind_test</span> <span class="o">=</span> <span class="n">LocalizedResidualTest</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">,</span> <span class="n">test_type</span><span class="o">=</span><span class="s1">&#39;parcorr&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cond_ind_test</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;parcorr&#39;</span><span class="p">:</span> <span class="n">ParCorr</span><span class="p">(),</span>
+                <span class="s1">&#39;gpdc&#39;</span><span class="p">:</span> <span class="n">GPDC</span><span class="p">(),</span>
+                <span class="s1">&#39;cmiknn&#39;</span><span class="p">:</span> <span class="n">CMIknn</span><span class="p">(</span><span class="n">significance</span><span class="o">=</span><span class="s1">&#39;fixed_thres&#39;</span><span class="p">),</span>
+            <span class="p">}[</span><span class="n">cond_ind_test</span><span class="p">]</span>
+        
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Initialized PCMCIWrapper with cond_ind_test=</span><span class="si">{</span><span class="n">cond_ind_test</span><span class="si">}</span><span class="s2">, min_lag=</span><span class="si">{</span><span class="n">min_lag</span><span class="si">}</span><span class="s2">, max_lag=</span><span class="si">{</span><span class="n">max_lag</span><span class="si">}</span><span class="s2">, pc_alpha=</span><span class="si">{</span><span class="n">pc_alpha</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        
+        <span class="n">dataframe</span> <span class="o">=</span> <span class="n">convert_to_tigramite_dataframe</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pcmci</span> <span class="o">=</span> <span class="n">PCMCI</span><span class="p">(</span>
+            <span class="n">dataframe</span><span class="o">=</span><span class="n">dataframe</span><span class="p">,</span>
+            <span class="n">cond_ind_test</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cond_ind_test</span><span class="p">,</span>
+            <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="p">)</span>
+    
+<div class="viewcode-block" id="PCMCIWrapper.extract_parents">
+<a class="viewcode-back" href="../../../group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.PCMCIWrapper.extract_parents">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">extract_parents</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]:</span>
+        <span class="n">safe_extra_args</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">extra_args</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s1">&#39;num_regimes&#39;</span><span class="p">}</span>
+        
+        <span class="n">results</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcmci</span><span class="o">.</span><span class="n">run_pcmciplus</span><span class="p">(</span>
+            <span class="n">tau_min</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">min_lag</span><span class="p">,</span> 
+            <span class="n">tau_max</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">max_lag</span><span class="p">,</span>
+            <span class="n">pc_alpha</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pc_alpha</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">safe_extra_args</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcmci</span><span class="o">.</span><span class="n">return_parents_dict</span><span class="p">(</span>
+            <span class="n">graph</span><span class="o">=</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;graph&#39;</span><span class="p">],</span> 
+            <span class="n">val_matrix</span><span class="o">=</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;val_matrix&#39;</span><span class="p">],</span>
+            <span class="n">include_lagzero_parents</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="LocalizedResidualTest">
+<a class="viewcode-back" href="../../../group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.LocalizedResidualTest">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LocalizedResidualTest</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">u</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">test_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;hsic&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="n">u</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">test_type</span> <span class="o">=</span> <span class="n">test_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">measure</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Localized_Residual_</span><span class="si">{</span><span class="n">test_type</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">confidence</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="LocalizedResidualTest.set_dataframe">
+<a class="viewcode-back" href="../../../group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.LocalizedResidualTest.set_dataframe">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_dataframe</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataframe</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span> <span class="o">=</span> <span class="n">dataframe</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">dataframe</span><span class="p">,</span> <span class="s2">&quot;values&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">values</span>
+            <span class="k">elif</span> <span class="n">values</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;=</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="LocalizedResidualTest.run_test">
+<a class="viewcode-back" href="../../../group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.LocalizedResidualTest.run_test">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run_test</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">Y</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">Z</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">tau_max</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">alpha_or_thres</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluates conditional independence using Pooled Standardized Residuals (Early Fusion).</span>
+<span class="sd">        It regresses X and Y on Z locally within each regime, standardizes the residuals </span>
+<span class="sd">        to remove non-stationarity, pools them, and runs a single high-powered test.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">all_lags</span> <span class="o">=</span> <span class="p">[</span><span class="n">lag</span> <span class="k">for</span> <span class="n">var</span><span class="p">,</span> <span class="n">lag</span> <span class="ow">in</span> <span class="n">X</span> <span class="o">+</span> <span class="n">Y</span> <span class="o">+</span> <span class="n">Z</span><span class="p">]</span>
+        <span class="n">min_lag</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">all_lags</span><span class="p">)</span> <span class="k">if</span> <span class="n">all_lags</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="n">start_t</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">min_lag</span><span class="p">)</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">start_t</span> <span class="o">&gt;=</span> <span class="n">T</span> <span class="o">-</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="kc">False</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">get_lagged_data</span><span class="p">(</span><span class="n">var_lag_list</span><span class="p">):</span>
+            <span class="n">arrays</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">start_t</span> <span class="o">+</span> <span class="n">lag</span> <span class="p">:</span> <span class="n">T</span> <span class="o">+</span> <span class="n">lag</span><span class="p">,</span> <span class="n">var</span><span class="p">]</span> <span class="k">for</span> <span class="n">var</span><span class="p">,</span> <span class="n">lag</span> <span class="ow">in</span> <span class="n">var_lag_list</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">(</span><span class="n">arrays</span><span class="p">)</span> <span class="k">if</span> <span class="n">arrays</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">T</span> <span class="o">-</span> <span class="n">start_t</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="n">X_data</span> <span class="o">=</span> <span class="n">get_lagged_data</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">Y_data</span> <span class="o">=</span> <span class="n">get_lagged_data</span><span class="p">(</span><span class="n">Y</span><span class="p">)</span>
+        <span class="n">Z_data</span> <span class="o">=</span> <span class="n">get_lagged_data</span><span class="p">(</span><span class="n">Z</span><span class="p">)</span> <span class="k">if</span> <span class="n">Z</span> <span class="k">else</span> <span class="kc">None</span>
+
+        <span class="c1"># 1. Build regime masks</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">u_sliced</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">[</span><span class="n">start_t</span> <span class="p">:</span> <span class="n">T</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">u_sliced</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">num_regimes</span> <span class="o">=</span> <span class="n">u_sliced</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">regime_masks</span> <span class="o">=</span> <span class="p">[</span><span class="n">u_sliced</span><span class="p">[:,</span> <span class="n">r</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_regimes</span><span class="p">)]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">regime_masks</span> <span class="o">=</span> <span class="p">[</span><span class="n">u_sliced</span> <span class="o">==</span> <span class="n">val</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">u_sliced</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">regime_masks</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">T</span> <span class="o">-</span> <span class="n">start_t</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)]</span>
+
+        <span class="n">pooled_rX</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">pooled_rY</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># 2. Localized Regression and Standardization</span>
+        <span class="k">for</span> <span class="n">mask</span> <span class="ow">in</span> <span class="n">regime_masks</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">:</span> <span class="c1"># Minimum required for OLS and standard deviation (ddof=1)</span>
+                <span class="k">continue</span>
+
+            <span class="n">X_local</span> <span class="o">=</span> <span class="n">X_data</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+            <span class="n">Y_local</span> <span class="o">=</span> <span class="n">Y_data</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+
+            <span class="c1"># Extract local residuals</span>
+            <span class="k">if</span> <span class="n">Z_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">Z_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">Z_local</span> <span class="o">=</span> <span class="n">Z_data</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+                
+                <span class="n">reg_x</span> <span class="o">=</span> <span class="n">LinearRegression</span><span class="p">()</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">Z_local</span><span class="p">,</span> <span class="n">X_local</span><span class="p">)</span>
+                <span class="n">res_x</span> <span class="o">=</span> <span class="n">X_local</span> <span class="o">-</span> <span class="n">reg_x</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">Z_local</span><span class="p">)</span>
+                
+                <span class="n">reg_y</span> <span class="o">=</span> <span class="n">LinearRegression</span><span class="p">()</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">Z_local</span><span class="p">,</span> <span class="n">Y_local</span><span class="p">)</span>
+                <span class="n">res_y</span> <span class="o">=</span> <span class="n">Y_local</span> <span class="o">-</span> <span class="n">reg_y</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">Z_local</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Unconditional test: residuals are just the mean-centered data</span>
+                <span class="n">res_x</span> <span class="o">=</span> <span class="n">X_local</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">X_local</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">res_y</span> <span class="o">=</span> <span class="n">Y_local</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">Y_local</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+            <span class="c1"># Local Z-score standardization (0 mean, 1 variance)</span>
+            <span class="c1"># We use np.maximum to prevent division by zero on constant dimensions</span>
+            <span class="n">std_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">res_x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ddof</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="mf">1e-8</span><span class="p">)</span>
+            <span class="n">std_y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">res_y</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ddof</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="mf">1e-8</span><span class="p">)</span>
+            
+            <span class="n">rx_std</span> <span class="o">=</span> <span class="p">(</span><span class="n">res_x</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">res_x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span> <span class="o">/</span> <span class="n">std_x</span>
+            <span class="n">ry_std</span> <span class="o">=</span> <span class="p">(</span><span class="n">res_y</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">res_y</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span> <span class="o">/</span> <span class="n">std_y</span>
+
+            <span class="n">pooled_rX</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rx_std</span><span class="p">)</span>
+            <span class="n">pooled_rY</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ry_std</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">pooled_rX</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="kc">False</span>
+
+        <span class="c1"># 3. Early Fusion: Combine all standardized residuals into a global distribution</span>
+        <span class="n">rX_concat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">pooled_rX</span><span class="p">)</span>
+        <span class="n">rY_concat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">pooled_rY</span><span class="p">)</span>
+
+        <span class="c1"># 4. Single high-powered statistical test execution</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;test_type&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;hsic&#39;</span><span class="p">:</span>
+            <span class="c1"># HSIC expects PyTorch tensors, so we explicitly convert the NumPy arrays</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.group_causal_discovery.group_resit</span><span class="w"> </span><span class="kn">import</span> <span class="n">HSIC_Test</span>
+            
+            <span class="n">t_X</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">rX_concat</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+            <span class="n">t_Y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">rY_concat</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+            
+            <span class="n">_stat</span><span class="p">,</span> <span class="n">_pval</span> <span class="o">=</span> <span class="n">HSIC_Test</span><span class="o">.</span><span class="n">test</span><span class="p">(</span><span class="n">t_X</span><span class="p">,</span> <span class="n">t_Y</span><span class="p">)</span>
+            
+            <span class="n">stat_val</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">_stat</span><span class="p">)</span>
+            <span class="n">pval_val</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">_pval</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">stat_val</span><span class="p">,</span> <span class="n">pval_val</span> <span class="o">=</span> <span class="n">pearsonr</span><span class="p">(</span><span class="n">rX_concat</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">rY_concat</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span>
+
+        <span class="n">dependent</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">pval_val</span> <span class="o">&lt;=</span> <span class="n">alpha_or_thres</span><span class="p">)</span> <span class="c1"># type: ignore</span>
+
+        <span class="k">return</span> <span class="n">stat_val</span><span class="p">,</span> <span class="n">pval_val</span><span class="p">,</span> <span class="n">dependent</span></div>
+
+
+<div class="viewcode-block" id="LocalizedResidualTest.get_model_selection_criterion">
+<a class="viewcode-back" href="../../../group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.LocalizedResidualTest.get_model_selection_criterion">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_model_selection_criterion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">parents</span><span class="p">,</span> <span class="n">tau_max</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Auto-alpha selection is unsupported for </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">measure</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="convert_to_tigramite_dataframe">
+<a class="viewcode-back" href="../../../group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.convert_to_tigramite_dataframe">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">convert_to_tigramite_dataframe</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">TimeSeriesData</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">tigramite</span><span class="o">.</span><span class="n">data_processing</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">TimeSeriesData</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">tigramite</span><span class="o">.</span><span class="n">data_processing</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">data_arrays</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">var_names</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">var_names</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">tigramite</span><span class="o">.</span><span class="n">data_processing</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">var_names</span><span class="o">=</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])])</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Joaquín Mateos Barroso.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

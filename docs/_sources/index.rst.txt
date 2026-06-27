@@ -1,50 +1,28 @@
-.. ts-causal-discovery-benchmark documentation master file, created by
-   sphinx-quickstart on Tue Mar 25 10:12:02 2025.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+===========================================
+Welcome to group-causation's documentation!
+===========================================
 
-Group Causation's documentation
-===================================================================
-Group Causation is an open source Python library for causal discovery on time series and groups of time series. It provides tools for identifying causal relationships, automating benchmarks, and evaluating causal inference methods. The library is designed for researchers and practitioners in causal inference, machine learning, and time series analysis. Check the code `here <https://github.com/JoaquinMateosBarroso/group-causation/>`_.
+**Group Causation** is an open-source Python library for causal discovery on time series and groups of time series. 
+It provides tools for identifying causal relationships, automating benchmarks, and evaluating causal inference methods. 
+The library is designed for researchers and practitioners in causal inference, machine learning, and time series analysis.
 
-.. image:: _static/Causal-Discovery-Example-horizontal.png
-   :alt: My Image Description
-   :width: 1200px
-   :align: center
+Features
+--------
+* **Group Causal Discovery:** Dedicated tools to uncover causal relationships across groups of time series.
+* **Automated Benchmarking:** Standardized evaluation of causal inference methods.
+* **Seamless Integration:** Designed to fit naturally into standard machine learning workflows.
 
-Causal Discovery Class Diagram
-==============================
-..   inheritance-diagram::
-	micro_causal_discovery.MicroCausalDiscovery
-	micro_causal_discovery.GrangerWrapper
-	micro_causal_discovery.VARLINGAMWrapper
-	micro_causal_discovery.DynotearsWrapper
-	micro_causal_discovery.PCStableWrapper
-	micro_causal_discovery.PCMCIWrapper
-	micro_causal_discovery.LPCMCIWrapper
-	group_causal_discovery.GroupCausalDiscovery
-	group_causal_discovery.MicroLevelGroupCausalDiscovery
-	group_causal_discovery.DimensionReductionGroupCausalDiscovery
-	group_causal_discovery.HybridGroupCausalDiscovery
-	:parts: 1
-	:caption: ABC stands for Abstract Base Class.
-	
-	
+Architecture
+------------
 
-Group Extraction Class Diagram
-==============================
-..   inheritance-diagram::
-	groups_extraction.CausalGroupsExtractorBase
-	groups_extraction.ExhaustiveCausalGroupsExtractor
-	groups_extraction.RandomCausalGroupsExtractor
-	groups_extraction.GeneticCausalGroupsExtractor
-	:parts: 1
-	:caption: ABC stands for Abstract Base Class.
+Below is the inheritance structure for the main causal discovery class. 
+*(Note: Click on the boxes to navigate to the documentation of each class).*
 
+.. inheritance-diagram:: group_causation.group_causal_discovery.GroupCausalDiscovery group_causation.group_causal_discovery.MicroLevelGroupCausalDiscovery group_causation.group_causal_discovery.DimensionReductionGroupCausalDiscovery group_causation.group_causal_discovery.HybridGroupCausalDiscovery group_causation.group_causal_discovery.GroupRESITTimeSeriesCausalDiscovery group_causation.group_causal_discovery.gCDMICausalDiscovery group_causation.group_causal_discovery.IVAE_GroupPCMCI_Proposal group_causation.micro_causal_discovery.MicroCausalDiscovery group_causation.micro_causal_discovery.GrangerWrapper group_causation.micro_causal_discovery.VARLINGAMWrapper group_causation.micro_causal_discovery.DynotearsWrapper group_causation.micro_causal_discovery.PCMCIWrapper
+   :parts: 1
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 5
+   :caption: API Reference & Modules:
 
    modules
-   code_examples.rst

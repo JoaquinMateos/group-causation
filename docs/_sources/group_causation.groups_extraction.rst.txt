@@ -1,0 +1,53 @@
+group\_causation.groups\_extraction package
+===========================================
+
+Submodules
+----------
+
+group\_causation.groups\_extraction.causal\_groups\_extraction module
+---------------------------------------------------------------------
+
+.. automodule:: group_causation.groups_extraction.causal_groups_extraction
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.groups\_extraction.exhaustive\_causal\_groups\_extraction module
+---------------------------------------------------------------------------------
+
+.. automodule:: group_causation.groups_extraction.exhaustive_causal_groups_extraction
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.groups\_extraction.genetic\_causal\_groups\_extraction module
+------------------------------------------------------------------------------
+
+.. automodule:: group_causation.groups_extraction.genetic_causal_groups_extraction
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.groups\_extraction.random\_causal\_groups\_extraction module
+-----------------------------------------------------------------------------
+
+.. automodule:: group_causation.groups_extraction.random_causal_groups_extraction
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.groups\_extraction.stat\_utils module
+------------------------------------------------------
+
+.. automodule:: group_causation.groups_extraction.stat_utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: group_causation.groups_extraction
+   :members:
+   :undoc-members:
+   :show-inheritance:

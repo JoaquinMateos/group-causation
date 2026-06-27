@@ -6,9 +6,9 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Group Causation’s documentation &mdash; Group Causation, a library for Group Time Series Analysis  documentation</title>
+  <title>Welcome to group-causation’s documentation! &mdash; group-causation  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=fd3f3429" />
 
   
@@ -17,13 +17,10 @@
       <script src="_static/documentation_options.js?v=5929fcd5"></script>
       <script src="_static/doctools.js?v=9a2dae69"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="&lt;no title&gt;" href="modules.html" />
-    <link href="_static/wide-page-style.css" rel="stylesheet" type="text/css">
-
+    <link rel="next" title="group_causation" href="modules.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -35,7 +32,7 @@
           
           
           <a href="#" class="icon icon-home">
-            Group Causation, a library for Group Time Series Analysis
+            group-causation
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -45,14 +42,9 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+              <p class="caption" role="heading"><span class="caption-text">API Reference &amp; Modules:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="micro_causal_discovery.html">micro_causal_discovery package</a></li>
-<li class="toctree-l1"><a class="reference internal" href="groups_extraction.html">groups_extraction package</a></li>
-<li class="toctree-l1"><a class="reference internal" href="group_causal_discovery.html">group_causal_discovery package</a></li>
-<li class="toctree-l1"><a class="reference internal" href="benchmark.html">benchmark module</a></li>
-<li class="toctree-l1"><a class="reference internal" href="create_toy_datasets.html">create_toy_datasets module</a></li>
-<li class="toctree-l1"><a class="reference internal" href="code_examples.html">Examples of Benchmarks Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">group_causation</a></li>
 </ul>
 
         </div>
@@ -61,7 +53,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="#">Group Causation, a library for Group Time Series Analysis</a>
+          <a href="#">group-causation</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -69,7 +61,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Group Causation’s documentation</li>
+      <li class="breadcrumb-item active">Welcome to group-causation’s documentation!</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -79,110 +71,154 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="group-causation-s-documentation">
-<h1>Group Causation’s documentation<a class="headerlink" href="#group-causation-s-documentation" title="Link to this heading"></a></h1>
-<p>Group Causation is an open source Python library for causal discovery on time series and groups of time series. It provides tools for identifying causal relationships, automating benchmarks, and evaluating causal inference methods. The library is designed for researchers and practitioners in causal inference, machine learning, and time series analysis. Check the code <a class="reference external" href="https://github.com/JoaquinMateosBarroso/group-causation/">here</a>.</p>
-<a class="reference internal image-reference" href="_images/Causal-Discovery-Example-horizontal.png"><img alt="My Image Description" class="align-center" src="_images/Causal-Discovery-Example-horizontal.png" style="width: 1200px;" />
-</a>
+  <section id="welcome-to-group-causation-s-documentation">
+<h1>Welcome to group-causation’s documentation!<a class="headerlink" href="#welcome-to-group-causation-s-documentation" title="Link to this heading"></a></h1>
+<p><strong>Group Causation</strong> is an open-source Python library for causal discovery on time series and groups of time series.
+It provides tools for identifying causal relationships, automating benchmarks, and evaluating causal inference methods.
+The library is designed for researchers and practitioners in causal inference, machine learning, and time series analysis.</p>
+<section id="features">
+<h2>Features<a class="headerlink" href="#features" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Group Causal Discovery:</strong> Dedicated tools to uncover causal relationships across groups of time series.</p></li>
+<li><p><strong>Automated Benchmarking:</strong> Standardized evaluation of causal inference methods.</p></li>
+<li><p><strong>Seamless Integration:</strong> Designed to fit naturally into standard machine learning workflows.</p></li>
+</ul>
 </section>
-<section id="causal-discovery-class-diagram">
-<h1>Causal Discovery Class Diagram<a class="headerlink" href="#causal-discovery-class-diagram" title="Link to this heading"></a></h1>
-<figure class="align-default" id="id1">
-<div class="graphviz"><img src="_images/inheritance-e35a07ccd938ea2614017b16a7751c22793d6581.png" alt="Inheritance diagram of micro_causal_discovery.MicroCausalDiscovery, micro_causal_discovery.GrangerWrapper, micro_causal_discovery.VARLINGAMWrapper, micro_causal_discovery.DynotearsWrapper, micro_causal_discovery.PCStableWrapper, micro_causal_discovery.PCMCIWrapper, micro_causal_discovery.LPCMCIWrapper, group_causal_discovery.GroupCausalDiscovery, group_causal_discovery.MicroLevelGroupCausalDiscovery, group_causal_discovery.DimensionReductionGroupCausalDiscovery, group_causal_discovery.HybridGroupCausalDiscovery" usemap="#inheritance00353c0cd3" class="inheritance graphviz" /></div>
-<map id="inheritance00353c0cd3" name="inheritance00353c0cd3">
-<area shape="rect" id="node4" href="group_causal_discovery.html#group_causal_discovery.group_causal_discovery_base.GroupCausalDiscovery" target="_top" title="Base class for causal discovery on groups of variables algorithms" alt="" coords="280,96,437,119"/>
-<area shape="rect" id="node6" href="micro_causal_discovery.html#micro_causal_discovery.micro_causal_discovery_base.MicroCausalDiscovery" target="_top" title="Class for micro causal discovery algorithms" alt="" coords="282,209,436,232"/>
-<area shape="rect" id="node3" href="group_causal_discovery.html#group_causal_discovery.dimension_reduction.DimensionReductionGroupCausalDiscovery" target="_top" title="Class that implements the dimension reduction algorithm for causal discovery on groups of variables." alt="" coords="482,5,763,28"/>
-<area shape="rect" id="node8" href="group_causal_discovery.html#group_causal_discovery.hybrid.HybridGroupCausalDiscovery" target="_top" title="Class that implements a group causal discovery algorithm which combines dimension reduction" alt="" coords="524,50,721,74"/>
-<area shape="rect" id="node10" href="group_causal_discovery.html#group_causal_discovery.micro_level.MicroLevelGroupCausalDiscovery" target="_top" title="Class that implements the dimension reduction algorithm for causal discovery on groups of variables." alt="" coords="511,96,734,119"/>
-<area shape="rect" id="node5" href="micro_causal_discovery.html#micro_causal_discovery.causal_discovery_causalnex.DynotearsWrapper" target="_top" title="Wrapper for DYNOTEARS algorithm" alt="" coords="556,141,689,165"/>
-<area shape="rect" id="node7" href="micro_causal_discovery.html#micro_causal_discovery.causal_discovery_causalai.GrangerWrapper" target="_top" title="Wrapper for Granger algorithm" alt="" coords="563,187,682,210"/>
-<area shape="rect" id="node9" href="micro_causal_discovery.html#micro_causal_discovery.causal_discovery_tigramite.LPCMCIWrapper" target="_top" title="Wrapper for LPCMCI algorithm" alt="" coords="564,232,681,256"/>
-<area shape="rect" id="node11" href="micro_causal_discovery.html#micro_causal_discovery.causal_discovery_tigramite.PCMCIWrapper" target="_top" title="Wrapper for PCMCI algorithm" alt="" coords="568,278,677,301"/>
-<area shape="rect" id="node12" href="micro_causal_discovery.html#micro_causal_discovery.causal_discovery_tigramite.PCStableWrapper" target="_top" title="Wrapper for PC Stable algorithm" alt="" coords="560,323,684,347"/>
-<area shape="rect" id="node13" href="micro_causal_discovery.html#micro_causal_discovery.causal_discovery_causalai.VARLINGAMWrapper" target="_top" title="Wrapper for VARLINGAM algorithm" alt="" coords="551,369,694,392"/>
-</map><figcaption>
-<p><span class="caption-text">ABC stands for Abstract Base Class.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
-</figcaption>
-</figure>
-</section>
-<section id="group-extraction-class-diagram">
-<h1>Group Extraction Class Diagram<a class="headerlink" href="#group-extraction-class-diagram" title="Link to this heading"></a></h1>
-<figure class="align-default" id="id2">
-<div class="graphviz"><img src="_images/inheritance-1d23d984d5822c5cd47ca8e924a9fb9f3a82ac2e.png" alt="Inheritance diagram of groups_extraction.CausalGroupsExtractorBase, groups_extraction.ExhaustiveCausalGroupsExtractor, groups_extraction.RandomCausalGroupsExtractor, groups_extraction.GeneticCausalGroupsExtractor" usemap="#inheritance5a94c05ac2" class="inheritance graphviz" /></div>
-<map id="inheritance5a94c05ac2" name="inheritance5a94c05ac2">
-<area shape="rect" id="node2" href="groups_extraction.html#groups_extraction.causal_groups_extraction.CausalGroupsExtractorBase" target="_top" title="Base class to extract a set of groups of variables that may be used to later" alt="" coords="125,55,328,80"/>
-<area shape="rect" id="node3" href="groups_extraction.html#groups_extraction.exhaustive_causal_groups_extraction.ExhaustiveCausalGroupsExtractor" target="_top" title="Class to extract a set of groups of variables by using an exhaustive search." alt="" coords="376,5,619,31"/>
-<area shape="rect" id="node4" href="groups_extraction.html#groups_extraction.genetic_causal_groups_extraction.GeneticCausalGroupsExtractor" target="_top" title="Class to extract a set of groups of variables by using an exhaustive search" alt="" coords="387,55,608,80"/>
-<area shape="rect" id="node5" href="groups_extraction.html#groups_extraction.random_causal_groups_extraction.RandomCausalGroupsExtractor" target="_top" title="Class to extract a set of groups of variables by using a random search" alt="" coords="385,104,610,129"/>
-</map><figcaption>
-<p><span class="caption-text">ABC stands for Abstract Base Class.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
-</figcaption>
-</figure>
-<div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<section id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading"></a></h2>
+<p>Below is the inheritance structure for the main causal discovery class.
+<em>(Note: Click on the boxes to navigate to the documentation of each class).</em></p>
+<div class="graphviz"><img src="_images/inheritance-e87424841355dbfa1de2235daa8eec934f8c9e26.png" alt="Inheritance diagram of group_causation.group_causal_discovery.GroupCausalDiscovery, group_causation.group_causal_discovery.MicroLevelGroupCausalDiscovery, group_causation.group_causal_discovery.DimensionReductionGroupCausalDiscovery, group_causation.group_causal_discovery.HybridGroupCausalDiscovery, group_causation.group_causal_discovery.GroupRESITTimeSeriesCausalDiscovery, group_causation.group_causal_discovery.gCDMICausalDiscovery, group_causation.group_causal_discovery.IVAE_GroupPCMCI_Proposal, group_causation.micro_causal_discovery.MicroCausalDiscovery, group_causation.micro_causal_discovery.GrangerWrapper, group_causation.micro_causal_discovery.VARLINGAMWrapper, group_causation.micro_causal_discovery.DynotearsWrapper, group_causation.micro_causal_discovery.PCMCIWrapper" usemap="#inheritance79414c475c" class="inheritance graphviz" /></div>
+<map id="inheritance79414c475c" name="inheritance79414c475c">
+<area shape="rect" id="node2" href="group_causation.html#group_causation.causal_discovery_base.CausalDiscovery" target="_top" title="Base class for causal discovery algorithms" alt="" coords="116,232,236,256"/>
+<area shape="rect" id="node4" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_causal_discovery_base.GroupCausalDiscovery" target="_top" title="Base class for causal discovery on groups of variables algorithms" alt="" coords="280,141,437,165"/>
+<area shape="rect" id="node6" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.micro_causal_discovery_base.MicroCausalDiscovery" target="_top" title="Class for micro causal discovery algorithms" alt="" coords="282,323,436,347"/>
+<area shape="rect" id="node3" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.dimension_reduction.DimensionReductionGroupCausalDiscovery" target="_top" title="Class that implements the dimension reduction algorithm for causal discovery on groups of variables." alt="" coords="482,5,763,28"/>
+<area shape="rect" id="node8" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.group_resit.GroupRESITTimeSeriesCausalDiscovery" target="_top" title="Time&#45;Series adaptation of the GroupRESIT Algorithm." alt="" coords="493,50,751,74"/>
+<area shape="rect" id="node9" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.hybrid.HybridGroupCausalDiscovery" target="_top" title="Class that implements a group causal discovery algorithm which combines dimension reduction" alt="" coords="524,96,721,119"/>
+<area shape="rect" id="node10" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.proposal_non_stationarity.IVAE_GroupPCMCI_Proposal" target="_top" title="Group causal discovery algorithm for non&#45;stationary data." alt="" coords="529,141,716,165"/>
+<area shape="rect" id="node11" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.micro_level.MicroLevelGroupCausalDiscovery" target="_top" title="Class that implements the dimension reduction algorithm for causal discovery on groups of variables." alt="" coords="511,187,734,210"/>
+<area shape="rect" id="node14" href="group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.gcdmi.gCDMICausalDiscovery" target="_top" title="Group Interventions on Deep Networks for Causal Discovery (gCDMI)." alt="" coords="542,232,703,256"/>
+<area shape="rect" id="node5" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalnex.DynotearsWrapper" target="_top" title="Wrapper for DYNOTEARS algorithm" alt="" coords="556,278,689,301"/>
+<area shape="rect" id="node7" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalai.GrangerWrapper" target="_top" title="Wrapper for Granger algorithm" alt="" coords="563,323,682,347"/>
+<area shape="rect" id="node12" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_tigramite.PCMCIWrapper" target="_top" title="PCMCIWrapper" alt="" coords="568,369,677,392"/>
+<area shape="rect" id="node13" href="group_causation.micro_causal_discovery.html#group_causation.micro_causal_discovery.causal_discovery_causalai.VARLINGAMWrapper" target="_top" title="Wrapper for VARLINGAM algorithm" alt="" coords="551,414,694,437"/>
+</map><div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">API Reference &amp; Modules:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="micro_causal_discovery.html">micro_causal_discovery package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="micro_causal_discovery.html#module-micro_causal_discovery.micro_causal_discovery_base">micro_causal_discovery.micro_causal_discovery_base module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="micro_causal_discovery.html#module-micro_causal_discovery.causal_discovery_causalai">causal_discovery_algorithms.causal_discovery_causalai module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="micro_causal_discovery.html#module-micro_causal_discovery.causal_discovery_causalnex">causal_discovery_algorithms.causal_discovery_causalnex module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="micro_causal_discovery.html#module-micro_causal_discovery.causal_discovery_custom">causal_discovery_algorithms.causal_discovery_custom module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="micro_causal_discovery.html#module-micro_causal_discovery.causal_discovery_tigramite">causal_discovery_algorithms.causal_discovery_tigramite module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="micro_causal_discovery.html#module-micro_causal_discovery.modified_pcmci">causal_discovery_algorithms.modified_pcmci module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="micro_causal_discovery.html#module-micro_causal_discovery">Module contents</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">group_causation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="group_causation.html">group_causation package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.html#subpackages">Subpackages</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.benchmark.html">group_causation.benchmark package</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.benchmark.html#submodules">Submodules</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark.benchmark_base">group_causation.benchmark.benchmark_base module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark.benchmark_causal_discovery">group_causation.benchmark.benchmark_causal_discovery module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark.benchmark_group_causal_discovery">group_causation.benchmark.benchmark_group_causal_discovery module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark.benchmark_group_extraction">group_causation.benchmark.benchmark_group_extraction module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark.example_benchmark_execution">group_causation.benchmark.example_benchmark_execution module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.benchmark.html#module-group_causation.benchmark">Module contents</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="groups_extraction.html">groups_extraction package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="groups_extraction.html#module-groups_extraction.causal_groups_extraction">causal_groups_extraction.causal_groups_extraction module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="groups_extraction.html#module-groups_extraction.exhaustive_causal_groups_extraction">causal_groups_extraction.exhaustive_causal_groups_extraction module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="groups_extraction.html#module-groups_extraction.genetic_causal_groups_extraction">causal_groups_extraction.genetic_causal_groups_extraction module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="groups_extraction.html#module-groups_extraction.random_causal_groups_extraction">causal_groups_extraction.random_causal_groups_extraction module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="groups_extraction.html#module-groups_extraction.stat_utils">causal_groups_extraction.stat_utils module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="groups_extraction.html#module-groups_extraction">Module contents</a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.group_causal_discovery.html">group_causation.group_causal_discovery package</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.group_causal_discovery.html#submodules">Submodules</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.dimension_reduction">group_causation.group_causal_discovery.dimension_reduction module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.gcdmi">group_causation.group_causal_discovery.gcdmi module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.groupPCMCI">group_causation.group_causal_discovery.groupPCMCI module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.group_causal_discovery_base">group_causation.group_causal_discovery.group_causal_discovery_base module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.group_resit">group_causation.group_causal_discovery.group_resit module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.hybrid">group_causation.group_causal_discovery.hybrid module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.micro_level">group_causation.group_causal_discovery.micro_level module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery.proposal_non_stationarity">group_causation.group_causal_discovery.proposal_non_stationarity module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.group_causal_discovery.html#module-group_causation.group_causal_discovery">Module contents</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="group_causal_discovery.html">group_causal_discovery package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="group_causal_discovery.html#module-group_causal_discovery.dimension_reduction">group_causal_discovery.dimension_reduction module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="group_causal_discovery.html#module-group_causal_discovery.group_causal_discovery_base">group_causal_discovery.group_causal_discovery_base module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="group_causal_discovery.html#module-group_causal_discovery.hybrid">group_causal_discovery.hybrid module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="group_causal_discovery.html#module-group_causal_discovery.micro_level">group_causal_discovery.micro_level module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="group_causal_discovery.html#module-group_causal_discovery">Module contents</a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.groups_extraction.html">group_causation.groups_extraction package</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.groups_extraction.html#submodules">Submodules</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction.causal_groups_extraction">group_causation.groups_extraction.causal_groups_extraction module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction.exhaustive_causal_groups_extraction">group_causation.groups_extraction.exhaustive_causal_groups_extraction module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction.genetic_causal_groups_extraction">group_causation.groups_extraction.genetic_causal_groups_extraction module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction.random_causal_groups_extraction">group_causation.groups_extraction.random_causal_groups_extraction module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction.stat_utils">group_causation.groups_extraction.stat_utils module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.groups_extraction.html#module-group_causation.groups_extraction">Module contents</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="benchmark.html">benchmark module</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="benchmark.html#benchmark.BenchmarkBase"><code class="docutils literal notranslate"><span class="pre">BenchmarkBase</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="benchmark.html#benchmark.BenchmarkCausalDiscovery"><code class="docutils literal notranslate"><span class="pre">BenchmarkCausalDiscovery</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="benchmark.html#benchmark.BenchmarkGroupCausalDiscovery"><code class="docutils literal notranslate"><span class="pre">BenchmarkGroupCausalDiscovery</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="benchmark.html#benchmark.BenchmarkGroupsExtraction"><code class="docutils literal notranslate"><span class="pre">BenchmarkGroupsExtraction</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.independence_tests.html">group_causation.independence_tests package</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.independence_tests.html#submodules">Submodules</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.independence_tests.html#module-group_causation.independence_tests.conditional_independence_base">group_causation.independence_tests.conditional_independence_base module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.independence_tests.html#module-group_causation.independence_tests.hsic">group_causation.independence_tests.hsic module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.independence_tests.html#module-group_causation.independence_tests.max_corr">group_causation.independence_tests.max_corr module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.independence_tests.html#module-group_causation.independence_tests">Module contents</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="create_toy_datasets.html">create_toy_datasets module</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="create_toy_datasets.html#create_toy_datasets.CausalDataset"><code class="docutils literal notranslate"><span class="pre">CausalDataset</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="create_toy_datasets.html#create_toy_datasets.get_parents_dict"><code class="docutils literal notranslate"><span class="pre">get_parents_dict()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="create_toy_datasets.html#create_toy_datasets.plot_ts_graph"><code class="docutils literal notranslate"><span class="pre">plot_ts_graph()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.micro_causal_discovery.html">group_causation.micro_causal_discovery package</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.micro_causal_discovery.html#submodules">Submodules</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery.causal_discovery_causalai">group_causation.micro_causal_discovery.causal_discovery_causalai module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery.causal_discovery_causalnex">group_causation.micro_causal_discovery.causal_discovery_causalnex module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery.causal_discovery_custom">group_causation.micro_causal_discovery.causal_discovery_custom module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery.causal_discovery_tigramite">group_causation.micro_causal_discovery.causal_discovery_tigramite module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery.micro_causal_discovery_base">group_causation.micro_causal_discovery.micro_causal_discovery_base module</a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.micro_causal_discovery.html#module-group_causation.micro_causal_discovery">Module contents</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="code_examples.html">Examples of Benchmarks Usage</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="code_examples.html#usage-of-base-time-series-causal-discovery-benchmark">Usage of Base Time Series Causal Discovery Benchmark</a></li>
-<li class="toctree-l2"><a class="reference internal" href="code_examples.html#usage-of-group-time-series-causal-discovery-benchmark">Usage of Group Time Series Causal Discovery Benchmark</a></li>
-<li class="toctree-l2"><a class="reference internal" href="code_examples.html#usage-of-time-series-causal-groups-extraction">Usage of Time Series Causal Groups Extraction</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.html#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.html#module-group_causation.causal_discovery_base">group_causation.causal_discovery_base module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.causal_discovery_base.CausalDiscovery"><code class="docutils literal notranslate"><span class="pre">CausalDiscovery</span></code></a><ul>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.html#group_causation.causal_discovery_base.CausalDiscovery.extract_parents"><code class="docutils literal notranslate"><span class="pre">CausalDiscovery.extract_parents()</span></code></a></li>
+<li class="toctree-l5"><a class="reference internal" href="group_causation.html#group_causation.causal_discovery_base.CausalDiscovery.extract_parents_time_and_memory"><code class="docutils literal notranslate"><span class="pre">CausalDiscovery.extract_parents_time_and_memory()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.html#module-group_causation.utils">group_causation.utils module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.changing_N_groups"><code class="docutils literal notranslate"><span class="pre">changing_N_groups()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.changing_N_variables"><code class="docutils literal notranslate"><span class="pre">changing_N_variables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.changing_N_vars_per_group"><code class="docutils literal notranslate"><span class="pre">changing_N_vars_per_group()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.changing_alg_params"><code class="docutils literal notranslate"><span class="pre">changing_alg_params()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.changing_latent_confounding_fraction"><code class="docutils literal notranslate"><span class="pre">changing_latent_confounding_fraction()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.changing_non_stationarity_params"><code class="docutils literal notranslate"><span class="pre">changing_non_stationarity_params()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.changing_preselection_alpha"><code class="docutils literal notranslate"><span class="pre">changing_preselection_alpha()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.configure_root_logging"><code class="docutils literal notranslate"><span class="pre">configure_root_logging()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_FN"><code class="docutils literal notranslate"><span class="pre">get_FN()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_FP"><code class="docutils literal notranslate"><span class="pre">get_FP()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_TP"><code class="docutils literal notranslate"><span class="pre">get_TP()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_cpdag_and_edge_set"><code class="docutils literal notranslate"><span class="pre">get_cpdag_and_edge_set()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_dag_edge_set"><code class="docutils literal notranslate"><span class="pre">get_dag_edge_set()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_f1"><code class="docutils literal notranslate"><span class="pre">get_f1()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_false_positive_ratio"><code class="docutils literal notranslate"><span class="pre">get_false_positive_ratio()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_global_window_metrics"><code class="docutils literal notranslate"><span class="pre">get_global_window_metrics()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_next_filename"><code class="docutils literal notranslate"><span class="pre">get_next_filename()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_precision"><code class="docutils literal notranslate"><span class="pre">get_precision()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_recall"><code class="docutils literal notranslate"><span class="pre">get_recall()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.get_shd"><code class="docutils literal notranslate"><span class="pre">get_shd()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.increasing_N_vars_per_group"><code class="docutils literal notranslate"><span class="pre">increasing_N_vars_per_group()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.split_lagged_and_contemporaneous"><code class="docutils literal notranslate"><span class="pre">split_lagged_and_contemporaneous()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.static_parameters"><code class="docutils literal notranslate"><span class="pre">static_parameters()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="group_causation.html#group_causation.utils.window_to_summary_graph"><code class="docutils literal notranslate"><span class="pre">window_to_summary_graph()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="group_causation.html#module-group_causation">Module contents</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
 </div>
+</section>
 </section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="modules.html" class="btn btn-neutral float-right" title="&lt;no title&gt;" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="modules.html" class="btn btn-neutral float-right" title="group_causation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2025, Joaquín Mateos.</p>
+    <p>&#169; Copyright 2026, Joaquín Mateos Barroso.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

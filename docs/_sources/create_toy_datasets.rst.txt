@@ -1,7 +1,0 @@
-create\_toy\_datasets module
-============================
-
-.. automodule:: create_toy_datasets
-   :members:
-   :undoc-members:
-   :show-inheritance:

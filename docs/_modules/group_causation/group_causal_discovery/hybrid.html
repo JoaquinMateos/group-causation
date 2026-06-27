@@ -1,0 +1,408 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>group_causation.group_causal_discovery.hybrid &mdash; group-causation  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=fd3f3429" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            group-causation
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">API Reference &amp; Modules:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">group_causation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">group-causation</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">group_causation.group_causal_discovery.hybrid</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for group_causation.group_causal_discovery.hybrid</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.decomposition</span><span class="w"> </span><span class="kn">import</span> <span class="n">PCA</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.dimensionality_reduction.adag_wrapper</span><span class="w"> </span><span class="kn">import</span> <span class="n">AdagWrapper</span><span class="p">,</span> <span class="n">TunablePCA</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.group_causal_discovery.group_causal_discovery_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">GroupCausalDiscovery</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.group_causal_discovery.micro_level</span><span class="w"> </span><span class="kn">import</span> <span class="n">MicroLevelGroupCausalDiscovery</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.independence_tests</span><span class="w"> </span><span class="kn">import</span> <span class="n">conditional_independence_tests</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">group_causation.independence_tests.conditional_independence_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConditionalIndependence_base</span>
+
+
+<div class="viewcode-block" id="HybridGroupCausalDiscovery">
+<a class="viewcode-back" href="../../../group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.hybrid.HybridGroupCausalDiscovery">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">HybridGroupCausalDiscovery</span><span class="p">(</span><span class="n">GroupCausalDiscovery</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Class that implements a group causal discovery algorithm which combines dimension reduction</span>
+<span class="sd">    techniques with microlevel causal discovery.</span>
+<span class="sd">    </span>
+<span class="sd">    Includes Adag (Adaptive Aggregation) optimization to automatically tune the PCA </span>
+<span class="sd">    latent dimensions based on the c_ind (independence consistency) score.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+                 <span class="n">groups</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span>
+                 <span class="n">dimensionality_reduction_params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+                 <span class="n">link_assumptions</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">str</span><span class="p">]],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">dimensionality_reduction</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;pca&#39;</span><span class="p">,</span>
+                 <span class="n">node_causal_discovery_alg</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;pcmci&#39;</span><span class="p">,</span>
+                 <span class="n">node_causal_discovery_params</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">apply_adag_optimization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                 <span class="n">conditional_independence_test_for_adag</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;max_corr&#39;</span><span class="p">,</span>
+                 <span class="n">pc_alpha_for_adag</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span><span class="p">,</span>
+                 <span class="n">target_c_ind</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.85</span><span class="p">,</span>
+                 <span class="n">verbose</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+                 <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">groups</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">_node_causal_discovery_alg</span> <span class="o">=</span> <span class="n">node_causal_discovery_alg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_node_causal_discovery_params</span> <span class="o">=</span> <span class="n">node_causal_discovery_params</span> <span class="k">if</span> <span class="n">node_causal_discovery_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_link_assumptions</span> <span class="o">=</span> <span class="n">link_assumptions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dimensionality_reduction</span> <span class="o">=</span> <span class="n">dimensionality_reduction</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dimensionality_reduction_params</span> <span class="o">=</span> <span class="n">dimensionality_reduction_params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_verbose</span> <span class="o">=</span> <span class="n">verbose</span>
+        
+        <span class="c1"># Adag specific parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">apply_adag_optimization</span> <span class="o">=</span> <span class="n">apply_adag_optimization</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Adag optimization is </span><span class="si">{</span><span class="s1">&#39;ENABLED&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">apply_adag_optimization</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;DISABLED&#39;</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_c_ind</span> <span class="o">=</span> <span class="n">target_c_ind</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pc_alpha</span> <span class="o">=</span> <span class="n">pc_alpha_for_adag</span>
+        
+        <span class="k">if</span> <span class="n">conditional_independence_test_for_adag</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">conditional_independence_tests</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported independence test: </span><span class="si">{</span><span class="n">conditional_independence_test_for_adag</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ci_test</span><span class="p">:</span> <span class="n">ConditionalIndependence_base</span> <span class="o">=</span> <span class="n">conditional_independence_tests</span><span class="p">[</span><span class="n">conditional_independence_test_for_adag</span><span class="p">]</span>
+
+        <span class="c1"># Device mapping for raw data CI testing</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;mps&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">mps</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># Normalize data once</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dimensionality_reduction</span> <span class="o">==</span> <span class="s1">&#39;pca&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">((</span><span class="n">std</span> <span class="o">:=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">):</span> 
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">/=</span> <span class="n">std</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Dimensionality reduction technique </span><span class="si">{</span><span class="n">dimensionality_reduction</span><span class="si">}</span><span class="s1"> not supported.&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Pre-slice raw data into tensors for fast Adag c_ind evaluation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_raw_group_data</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[:,</span> <span class="nb">list</span><span class="p">(</span><span class="n">group</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> 
+            <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_groups</span>
+        <span class="p">]</span>
+        
+        <span class="c1"># Placeholders for final state (populated during extract_parents)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">micro_groups</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">micro_data</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="HybridGroupCausalDiscovery.extract_parents">
+<a class="viewcode-back" href="../../../group_causation.group_causal_discovery.html#group_causation.group_causal_discovery.hybrid.HybridGroupCausalDiscovery.extract_parents">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">extract_parents</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]:</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Extract the parents of each group of variables. Branches depending on Adag hyperparameter.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">apply_adag_optimization</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Extracting parents: Adag optimization ENABLED (target c_ind=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">target_c_ind</span><span class="si">}</span><span class="s2">).&quot;</span><span class="p">)</span>
+            
+            <span class="c1"># 1. Initialize Adag Components</span>
+            <span class="n">adag_wrapper</span> <span class="o">=</span> <span class="n">AdagWrapper</span><span class="p">(</span>
+                <span class="n">ci_test_class</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ci_test</span><span class="p">,</span>
+                <span class="n">groups</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_groups</span><span class="p">,</span>
+                <span class="n">max_lag</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_node_causal_discovery_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;max_lag&#39;</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span>
+                <span class="n">p_val_threshold</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pc_alpha</span><span class="p">,</span>
+                <span class="n">num_regimes</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_node_causal_discovery_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;num_regimes&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">aggregator</span> <span class="o">=</span> <span class="n">TunablePCA</span><span class="p">()</span>
+            
+            <span class="c1"># We track the last found parents to avoid running CD one extra time at the end</span>
+            <span class="n">last_parents</span> <span class="o">=</span> <span class="p">{}</span>
+            
+            <span class="c1"># 2. Define the callback function for Adag</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">discovery_func</span><span class="p">(</span><span class="n">Z_m</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]]:</span>
+                <span class="k">nonlocal</span> <span class="n">last_parents</span>
+                
+                <span class="c1"># Format Z_m back to the micro_data / micro_groups layout</span>
+                <span class="n">micro_groups</span><span class="p">,</span> <span class="n">micro_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_z_m_to_micro</span><span class="p">(</span><span class="n">Z_m</span><span class="p">)</span>
+                
+                <span class="c1"># Save to class state</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">micro_groups</span> <span class="o">=</span> <span class="n">micro_groups</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">micro_data</span> <span class="o">=</span> <span class="n">micro_data</span>
+                
+                <span class="c1"># Run the inner algorithm</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_setup_micro_cd_algorithm</span><span class="p">(</span><span class="n">micro_groups</span><span class="p">,</span> <span class="n">micro_data</span><span class="p">)</span>
+                <span class="n">last_parents</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">micro_level_causal_discovery</span><span class="o">.</span><span class="n">extract_parents</span><span class="p">()</span>
+                <span class="k">return</span> <span class="n">last_parents</span>
+
+            <span class="c1"># 3. Execute Adag Loop</span>
+            <span class="n">Z_m</span><span class="p">,</span> <span class="n">c_ind_score</span><span class="p">,</span> <span class="n">final_m</span> <span class="o">=</span> <span class="n">adag_wrapper</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+                <span class="n">X_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_raw_group_data</span><span class="p">,</span>
+                <span class="n">discovery_func</span><span class="o">=</span><span class="n">discovery_func</span><span class="p">,</span>
+                <span class="n">aggregator</span><span class="o">=</span><span class="n">aggregator</span><span class="p">,</span>
+                <span class="n">target_alpha_q</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">target_c_ind</span>
+            <span class="p">)</span>
+            
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Adag optimization finished with components m=</span><span class="si">{</span><span class="n">final_m</span><span class="si">}</span><span class="s2"> and c_ind=</span><span class="si">{</span><span class="n">c_ind_score</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                
+            <span class="k">return</span> <span class="n">last_parents</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_verbose</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Extracting parents: Adag optimization DISABLED. Using fixed PCA parameters.&quot;</span><span class="p">)</span>
+            
+            <span class="c1"># Legacy initialization logic</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">micro_groups</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">micro_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_micro_groups_pca</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_dimensionality_reduction_params</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_setup_micro_cd_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">micro_groups</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">micro_data</span><span class="p">)</span>
+            
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">micro_level_causal_discovery</span><span class="o">.</span><span class="n">extract_parents</span><span class="p">()</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_format_z_m_to_micro</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Z_m</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Set</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Converts the list of aggregated tensors back into the micro_groups/micro_data format.&quot;&quot;&quot;</span>
+        <span class="n">micro_groups</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">micro_data</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">current_number_of_variables</span> <span class="o">=</span> <span class="mi">0</span>
+        
+        <span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">Z_m</span><span class="p">:</span>
+            <span class="n">z_np</span> <span class="o">=</span> <span class="n">z</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+            <span class="n">n_variables</span> <span class="o">=</span> <span class="n">z_np</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            
+            <span class="n">micro_group</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">current_number_of_variables</span><span class="p">,</span> <span class="n">current_number_of_variables</span> <span class="o">+</span> <span class="n">n_variables</span><span class="p">))</span>
+            <span class="n">micro_groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">micro_group</span><span class="p">)</span>
+            <span class="n">micro_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">z_np</span><span class="p">)</span>
+            
+            <span class="n">current_number_of_variables</span> <span class="o">+=</span> <span class="n">n_variables</span>
+            
+        <span class="n">micro_data_concat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">micro_data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">micro_groups</span><span class="p">,</span> <span class="n">micro_data_concat</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_setup_micro_cd_algorithm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">micro_groups</span><span class="p">,</span> <span class="n">micro_data</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Helper to safely re-initialize the inner CD algorithm with new micro data.&quot;&quot;&quot;</span>
+        <span class="n">micro_link_assumptions</span> <span class="o">=</span> <span class="n">_convert_link_assumptions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_link_assumptions</span><span class="p">,</span> <span class="n">micro_groups</span><span class="p">)</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node_causal_discovery_params</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">params</span><span class="p">[</span><span class="s1">&#39;link_assumptions&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">micro_link_assumptions</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">micro_level_causal_discovery</span> <span class="o">=</span> <span class="n">MicroLevelGroupCausalDiscovery</span><span class="p">(</span>
+            <span class="n">micro_data</span><span class="p">,</span> <span class="n">micro_groups</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node_causal_discovery_alg</span><span class="p">,</span> <span class="n">params</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_prepare_micro_groups_pca</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">explained_variance_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+                                  <span class="n">embedding_ratio</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                                  <span class="n">embedding_size</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                                  <span class="n">groups_division_method</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">&#39;group_embedding&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]],</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Execute the PCA dimensionality reduction algorithm to the groups of variables,</span>
+<span class="sd">        in order to obtain a univariate time series for each group.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">embedding_ratio</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">embedding_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Only one of embedding_ratio or embedding_size can be specified.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">embedding_ratio</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_variance_threshold_from_embedding_ratio_pca</span><span class="p">(</span><span class="n">embedding_ratio</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">embedding_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_variance_threshold_from_embedding_size_pca</span><span class="p">(</span><span class="n">embedding_size</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span> <span class="o">=</span> <span class="n">explained_variance_threshold</span>
+            
+        <span class="c1"># Admit a low error when explained_variance_threshold is 0.0</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span> <span class="o">=</span> <span class="mf">0.05</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Explained variance threshold must be between 0 and 1. Obtained: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span><span class="si">}</span><span class="s1">.</span><span class="se">\n</span><span class="s1">&#39;</span>
+                             <span class="s1">&#39;Note that if you specified embedding_ratio, the explained variance threshold will be calculated from it.&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span><span class="p">)</span>
+        
+        <span class="n">micro_groups</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">micro_data</span> <span class="o">=</span> <span class="p">[]</span> <span class="c1"># List where each element is the ts data of a microgroup</span>
+        <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_groups</span><span class="p">:</span>
+            
+            <span class="k">if</span> <span class="n">groups_division_method</span> <span class="o">==</span> <span class="s1">&#39;group_embedding&#39;</span><span class="p">:</span>
+                <span class="n">current_number_of_variables</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">micro_data</span><span class="p">)</span>
+                
+                <span class="n">micro_group</span><span class="p">,</span> <span class="n">group_data_pca</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_group_embedding</span><span class="p">(</span><span class="n">group</span><span class="p">,</span> <span class="n">current_number_of_variables</span><span class="p">)</span>
+                <span class="n">micro_groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">micro_group</span><span class="p">)</span>
+                <span class="n">micro_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">group_data_pca</span><span class="p">)</span>
+                
+            <span class="k">elif</span> <span class="n">groups_division_method</span> <span class="o">==</span> <span class="s1">&#39;subgroups&#39;</span><span class="p">:</span>                
+                <span class="n">micro_group</span><span class="p">,</span> <span class="n">group_data_pca</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_divide_subgroups</span><span class="p">(</span><span class="n">group</span><span class="p">)</span>
+                <span class="n">micro_groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="nb">set</span><span class="p">(</span><span class="n">micro_group</span><span class="p">)</span> <span class="p">)</span>
+                <span class="n">micro_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">group_data_pca</span><span class="p">)</span>
+            
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Invalid groups division method: </span><span class="si">{</span><span class="n">groups_division_method</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        
+        <span class="n">micro_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">micro_data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Data dimensionality has been reduced to </span><span class="si">{</span><span class="n">micro_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1"> in order to perform microlevel causal discovery.&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">micro_groups</span><span class="p">,</span> <span class="n">micro_data</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_group_embedding</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">current_number_of_variables</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+        <span class="n">group_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[:,</span> <span class="nb">list</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+                
+        <span class="c1"># Extract the principal components of the group</span>
+        <span class="n">pca</span> <span class="o">=</span> <span class="n">PCA</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span><span class="p">)</span>
+        <span class="n">group_data_pca</span> <span class="o">=</span> <span class="n">pca</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">group_data</span><span class="p">)</span>
+
+        <span class="c1"># Create the microgroup</span>
+        <span class="n">n_variables</span> <span class="o">=</span> <span class="n">group_data_pca</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">micro_group</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">current_number_of_variables</span><span class="p">,</span>
+                                <span class="n">current_number_of_variables</span> <span class="o">+</span> <span class="n">n_variables</span><span class="p">))</span>
+        
+        <span class="k">return</span> <span class="n">micro_group</span><span class="p">,</span> <span class="n">group_data_pca</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">_divide_subgroups</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">current_subgroup</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">current_number_of_variables</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+        <span class="n">current_subgroup_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[:,</span> <span class="nb">list</span><span class="p">(</span><span class="n">current_subgroup</span><span class="p">)]</span>
+        <span class="n">pca</span> <span class="o">=</span> <span class="n">PCA</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">group_data_pca</span> <span class="o">=</span> <span class="n">pca</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">current_subgroup_data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pca</span><span class="o">.</span><span class="n">explained_variance_ratio_</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_explained_variance_threshold</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_subgroup</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">used_subgroup</span> <span class="o">=</span> <span class="p">[</span><span class="n">current_number_of_variables</span><span class="p">]</span>
+            <span class="n">current_number_of_variables</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="n">used_subgroup</span><span class="p">,</span> <span class="n">group_data_pca</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ordered_nodes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">pca</span><span class="o">.</span><span class="n">components_</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">half</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_subgroup</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+            <span class="n">first_half</span> <span class="o">=</span> <span class="n">ordered_nodes</span><span class="p">[:</span><span class="n">half</span><span class="p">]</span>
+            <span class="n">second_half</span> <span class="o">=</span> <span class="n">ordered_nodes</span><span class="p">[</span><span class="n">half</span><span class="p">:]</span>
+            <span class="n">first_subgroup</span><span class="p">,</span> <span class="n">first_subgroup_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_divide_subgroups</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">current_subgroup</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">first_half</span><span class="p">],</span>
+                <span class="n">current_number_of_variables</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">second_subgroup</span><span class="p">,</span> <span class="n">second_subgroup_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_divide_subgroups</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">current_subgroup</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">second_half</span><span class="p">],</span>
+                <span class="n">current_number_of_variables</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">first_subgroup</span><span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="n">first_subgroup</span> <span class="o">+</span> <span class="n">second_subgroup</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">first_subgroup_data</span><span class="p">,</span> <span class="n">second_subgroup_data</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_variance_threshold_from_embedding_ratio_pca</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">embedding_ratio</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">embedding_ratio</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;embedding_ratio must be provided when using embedding_ratio mode.&#39;</span><span class="p">)</span>
+
+        <span class="n">variance_thresholds</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_groups</span><span class="p">:</span>
+            <span class="n">group_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[:,</span> <span class="nb">list</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+            <span class="n">pca</span> <span class="o">=</span> <span class="n">PCA</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span> <span class="n">embedding_ratio</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">group</span><span class="p">)</span> <span class="p">))</span>
+            <span class="n">pca</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">group_data</span><span class="p">)</span>
+            <span class="n">explained_variance</span> <span class="o">=</span> <span class="n">pca</span><span class="o">.</span><span class="n">explained_variance_ratio_</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="n">variance_thresholds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">explained_variance</span><span class="p">)</span>
+        <span class="n">explained_variance_threshold</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">variance_thresholds</span><span class="p">))</span>
+        
+        <span class="k">return</span> <span class="n">explained_variance_threshold</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_variance_threshold_from_embedding_size_pca</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">embedding_size</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">embedding_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;embedding_size must be provided when using embedding_size mode.&#39;</span><span class="p">)</span>
+
+        <span class="n">variance_thresholds</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_groups</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">embedding_size</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">group</span><span class="p">):</span>
+                <span class="n">variance_thresholds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="n">group_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[:,</span> <span class="nb">list</span><span class="p">(</span><span class="n">group</span><span class="p">)]</span>
+            <span class="n">pca</span> <span class="o">=</span> <span class="n">PCA</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span> <span class="n">embedding_size</span> <span class="p">))</span>
+            <span class="n">pca</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">group_data</span><span class="p">)</span>
+            <span class="n">explained_variance</span> <span class="o">=</span> <span class="n">pca</span><span class="o">.</span><span class="n">explained_variance_ratio_</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="n">variance_thresholds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">explained_variance</span><span class="p">)</span>
+        <span class="n">explained_variance_threshold</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">variance_thresholds</span><span class="p">))</span>
+        
+        <span class="k">return</span> <span class="n">explained_variance_threshold</span></div>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_convert_link_assumptions</span><span class="p">(</span><span class="n">link_assumptions</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">str</span><span class="p">]],</span> <span class="kc">None</span><span class="p">],</span> <span class="n">micro_groups</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">str</span><span class="p">]],</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">link_assumptions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    
+    <span class="n">micro_link_assumptions</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">son_group_idx</span><span class="p">,</span> <span class="n">son_group</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">micro_groups</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">son_node_idx</span> <span class="ow">in</span> <span class="n">son_group</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">son_node_idx</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">micro_link_assumptions</span><span class="p">:</span>
+                <span class="n">micro_link_assumptions</span><span class="p">[</span><span class="n">son_node_idx</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">parent_group_idx</span><span class="p">,</span> <span class="n">lag</span><span class="p">),</span> <span class="n">link_type</span> <span class="ow">in</span> <span class="n">link_assumptions</span><span class="p">[</span><span class="n">son_group_idx</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">parent_node_idx</span> <span class="ow">in</span> <span class="n">micro_groups</span><span class="p">[</span><span class="n">parent_group_idx</span><span class="p">]:</span>
+                    <span class="n">micro_link_assumptions</span><span class="p">[</span><span class="n">son_node_idx</span><span class="p">][(</span><span class="n">parent_node_idx</span><span class="p">,</span> <span class="n">lag</span><span class="p">)]</span> <span class="o">=</span> <span class="n">link_type</span>
+    
+    <span class="k">return</span> <span class="n">micro_link_assumptions</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Joaquín Mateos Barroso.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

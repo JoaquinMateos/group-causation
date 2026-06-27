@@ -1,0 +1,41 @@
+group\_causation package
+========================
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   group_causation.benchmark
+   group_causation.group_causal_discovery
+   group_causation.groups_extraction
+   group_causation.independence_tests
+   group_causation.micro_causal_discovery
+
+Submodules
+----------
+
+group\_causation.causal\_discovery\_base module
+-----------------------------------------------
+
+.. automodule:: group_causation.causal_discovery_base
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+group\_causation.utils module
+-----------------------------
+
+.. automodule:: group_causation.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: group_causation
+   :members:
+   :undoc-members:
+   :show-inheritance:

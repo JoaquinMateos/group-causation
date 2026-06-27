@@ -1,8 +1,7 @@
+group_causation
+===============
+
 .. toctree::
    :maxdepth: 4
 
-   micro_causal_discovery
-   groups_extraction
-   group_causal_discovery
-   benchmark
-   create_toy_datasets
+   group_causation
