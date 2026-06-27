@@ -1,6 +1,6 @@
 # Group Causation
 
-Group Causation is an open source Python library for causal discovery on time series and groups of time series. It provides tools for identifying causal relationships, automating benchmarks, and evaluating causal inference methods. The library is designed for researchers and practitioners in causal inference, machine learning, and time series analysis. Check the [docs](https://joaquinmateosbarroso.github.io/group-causation/) for more detailed information.
+Group Causation is an open source Python library for causal discovery on time series and groups of time series. It provides tools for identifying causal relationships, automating benchmarks, and evaluating causal inference methods. The library is designed for researchers and practitioners in causal inference, machine learning, and time series analysis. Check the [docs](https://joaquinmateos.github.io/group-causation/) for more detailed information.
 
 ![Untitled](https://github.com/user-attachments/assets/25aa8679-4185-4d1a-808e-5527c80a301d)
 
