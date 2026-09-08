@@ -9,7 +9,7 @@ import logging
 import torch
 
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
-from group_causation.dimensionality_reduction.iVAE.wrappers import IVAE_wrapper
+from group_causation.dimensionality_reduction.iVAE.wrappers import IVAEWrapper
 from group_causation.independence_tests import conditional_independence_tests
 from group_causation.independence_tests.conditional_independence_base import ConditionalIndependence_base
 
@@ -208,9 +208,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             group_data = self._data[:, list(group)]
             
             group_params = dict(self._ivae_params)
-            group_params['inference_dim'] = latent_dims[idx]
-            
-            group_latents, _, _, _ = IVAE_wrapper(group_data, self.u, device=self.device, **group_params)
+            group_latents, _, _, _ = IVAEWrapper(group_data, self.u, latent_dims[idx], **group_params)
             group_latents = group_latents.detach().clone().to(dtype=torch.float32, device=self.device)
             group_embeddings.append(group_latents)
             

@@ -58,12 +58,11 @@ class DimensionReductionGroupCausalDiscovery(GroupCausalDiscovery):
                 pca = PCA(n_components=1)
                 group_data = pca.fit_transform(group_data)
             elif dimensionality_reduction == 'avg':
-                group_data = np.mean(group_data, axis=0)
+                group_data = np.mean(group_data, axis=1, keepdims=True)
             else:
                 raise ValueError(f'Invalid dimensionality reduction technique: {dimensionality_reduction}')
             groups_data.append(group_data)
         
-        time_series = np.array(groups_data).reshape(len(groups_data), -1).T
         time_series = np.concatenate(groups_data, axis=1)
         return time_series
     

@@ -25,7 +25,8 @@ class CausalDiscovery(ABC): # Abstract class
     def __init__(self, data: np.ndarray, standarize: bool=True, **kwargs):
         if standarize:
             self._data = data - data.mean(axis=0)
-            if np.all((std:=data.std(axis=0))!=0): data /=std
+            if np.all((std:=self._data.std(axis=0))!=0):
+                self._data /= std
         else:
             self._data = data
     

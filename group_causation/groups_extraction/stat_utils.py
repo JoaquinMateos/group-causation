@@ -74,7 +74,7 @@ def get_scores_getter(data: np.ndarray, scores: list[str]) -> Callable:
     Generate a score getter function that receives a set of groups and returns a score to maximize.
     '''
     scores_getters = {
-        'average_variance_explained': get_pc1_explained_variance,
+        'average_variance_explained': get_average_pc1_explained_variance,
         'harmonic_variance_explained': get_harmonic_explained_variance,
         'explainability_score': get_explainability_score,
     }

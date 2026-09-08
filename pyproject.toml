@@ -37,5 +37,10 @@ dependencies = [
     "torch>=2.0",
 ]
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: tests that train PyTorch models and may take minutes to complete",
+]
+
 [project.urls]
 Homepage = "https://github.com/JoaquinMateos/group-causation"

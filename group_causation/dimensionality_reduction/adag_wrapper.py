@@ -1,13 +1,36 @@
+from abc import ABC, abstractmethod
 import logging
-from sklearn.decomposition import PCA
 import torch
 import numpy as np
-from typing import Any, Callable, List, Tuple, Optional, Dict
-import numpy as np
-from typing import List, Tuple
-from group_causation.dimensionality_reduction.iVAE.wrappers import IVAEDimensionalityReduction
+from sklearn.decomposition import PCA
+from typing import Any, Callable, List, Tuple, Optional, Dict, Union, Type
 
-class TunableDeepLatent:
+from group_causation.dimensionality_reduction.dimensionality_reduction_base import DimensionalityReduction
+from group_causation.dimensionality_reduction.iVAE.wrappers import IVAEWrapper
+from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
+from group_causation.independence_tests.conditional_independence_base import ConditionalIndependence_base
+from group_causation.causal_discovery_base import CausalDiscovery # Asegúrate de importar GroupCausalDiscovery donde corresponda
+
+
+class AggregationMap(ABC):
+    """Abstract base class for aggregation maps."""
+
+    @abstractmethod
+    def aggregate(self, X: torch.Tensor, m: int, U: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Reduces vector variable X to a latent representation of dimension m.
+        
+        Args:
+            X (torch.Tensor): Input tensor of shape (T, d) where T is the number of samples and d is the original dimension.
+            m (int): Target latent dimension for the aggregated representation.
+            U (Optional[torch.Tensor]): Optional auxiliary tensor for iVAE-based aggregation.
+        
+        Returns:
+            torch.Tensor: Aggregated representation of shape (T, m).
+        """
+        raise NotImplementedError("Subclasses must implement the aggregate method.")
+
+class TunableDeepLatent(AggregationMap):
     """Tunable aggregation map using your provided VAE or iVAE wrappers."""
     
     def __init__(self, **model_kwargs):
@@ -28,12 +51,15 @@ class TunableDeepLatent:
         
         if U is None:
             raise ValueError("Auxiliary tensor 'U' must be provided when use_auxiliary=True (iVAE).")
-        # Force both latent_dim and inference_dim to m
-        reducer = IVAEDimensionalityReduction(latent_dim=m, **self.model_kwargs)
+        
+        # Instantiate and fit the new class-based IVAEWrapper using the unified interface
+        reducer = IVAEWrapper(latent_dim=m, **self.model_kwargs)
         return reducer.fit_transform(X, U)
 
-class TunablePCA:
+
+class TunablePCA(AggregationMap):
     """Tunable aggregation map using PCA to interface with AdagWrapper."""
+    
     def aggregate(self, X: torch.Tensor, m: int, U: Optional[torch.Tensor] = None) -> torch.Tensor:
         dim = X.shape[1] if X.ndim > 1 else 1
         m = min(m, dim)
@@ -44,153 +70,250 @@ class TunablePCA:
         
         return torch.tensor(X_pca, dtype=torch.float32, device=X.device)
 
-class AdagWrapper:
+
+class AdagWrapper(DimensionalityReduction):
     """
     Adaptive Aggregation (Adag) wrapper for Causal Discovery over vector-valued variables.
-    Includes localized conditional independence testing for non-stationary time series.
     """
-    def __init__(self, ci_test_class, groups: List[List[int]], max_lag: int,
-                 p_val_threshold: float = 0.05, num_regimes: int = 1):
+    def __init__(self, 
+                 ci_test_class: type,
+                 groups: List[List[int]], 
+                 max_lag: int,
+                 discovery_class: type[GroupCausalDiscovery],
+                 aggregator: AggregationMap,
+                 discovery_kwargs: Optional[Dict[str, Any]] = None,
+                 p_val_threshold: float = 0.05, 
+                 num_regimes: int = 1,
+                 target_alpha_q: float = 0.8,
+                 score_type: str = 'ac'):
+        """
+        Args:
+            ci_test_class (type): Class of the conditional independence test to use.
+            groups (List[List[int]]): List of groups, where each group is a list of variable indices.
+            max_lag (int): Maximum lag to consider for time series data.
+            discovery_class (type[GroupCausalDiscovery]): Class of the causal discovery model.
+            aggregator (Any): Aggregation map instance (e.g., TunableDeepLatent or TunablePCA).
+            discovery_kwargs (Optional[Dict]): Extra keyword arguments to pass to the discovery model on instantiation.
+            p_val_threshold (float): Significance level for independence tests.
+            num_regimes (int): Number of regimes for regime-switching models.
+            target_alpha_q (float): Target score threshold for stopping the adaptive aggregation search.
+            score_type (str): Type of score to evaluate ('c_ind', 'c_dep', or 'ac').
+        """
+        
         self.ci_test = ci_test_class
         self._groups = groups
         self.max_lag = max_lag
         self.alpha = p_val_threshold
         self.num_regimes = num_regimes
-        self._raw_group_data = None # Will be populated during run()
+        
+        self.discovery_class = discovery_class
+        self.aggregator = aggregator
+        self.target_alpha_q = target_alpha_q
+        self.score_type = score_type
+        self.discovery_kwargs = discovery_kwargs or {}
+        
+        valid_scores = ['c_ind', 'c_dep', 'ac']
+        if self.score_type not in valid_scores:
+            raise ValueError(f"score_type must be one of {valid_scores}")
+            
+        self._raw_group_data = None  
+        self._cached_Zm = None
+
+    def fit(self, X: List[torch.Tensor], U: Optional[List[torch.Tensor]] = None, **kwargs) -> 'AdagWrapper':
+        """Fits the aggregator to find optimal dimensions. Use fit_transform to get latents directly."""
+        self.fit_transform(X, U, **kwargs)
+        return self
+
+    def transform(self, X: List[torch.Tensor], U: Optional[List[torch.Tensor]] = None, **kwargs) -> List[torch.Tensor]:
+        """Returns the discovered latent representations."""
+        if self._cached_Zm is None:
+            raise RuntimeError("AdagWrapper must be fitted before calling transform().")
+        return self._cached_Zm
 
     def is_independent(self, p_val: float) -> bool:
         return p_val > self.alpha
 
-    def _compute_c_ind(self, group_parents: Dict[int, List[Tuple[int, int]]]) -> float:
+    def fit_transform(self, X: List[torch.Tensor], U: Optional[List[torch.Tensor]] = None, **kwargs) -> Tuple[List[torch.Tensor], float, List[int]]:
         """
-        Evaluates independence consistency on the raw un-aggregated data.
+        Runs the Adag dimensionality search and transforms the data.
+        Returns the latent representations, the achieved score, and the final dimensions.
         """
-        C_ind_count = 0
-        I_ind_count = 0
-        N = len(self._groups)
+        self._raw_group_data = X
         
-        for j in range(N):
-            parents_of_j = group_parents.get(j, [])
-            
-            for i in range(N):
-                for tau in range(1, self.max_lag + 1):
-                    if (i, -tau) not in parents_of_j:
-                        
-                        pval = self._test_ci_raw(
-                            x_var=i, x_lag=tau, 
-                            y_var=j, y_lag=0, 
-                            cond_groups=parents_of_j
-                        )
-                        
-                        if self.is_independent(pval):
-                            C_ind_count += 1
-                        else:
-                            I_ind_count += 1
-                        
-        total = C_ind_count + I_ind_count
-        return C_ind_count / total if total > 0 else 1.0
-
-    def _test_ci_raw(self, x_var: int, x_lag: int, y_var: int, y_lag: int, cond_groups: List[Tuple[int, int]]) -> float:
-        """
-        Tests conditional independence between raw high-dimensional groups.
-        Splits the aligned time-series into `num_regimes` chunks and uses Pooled Standardized Residuals
-        (Early Fusion) via the ci_test interface to handle non-stationarity.
-        """
-        if self._raw_group_data is None:
-            raise RuntimeError("Raw group data is missing. AdagWrapper.run() must be called first.")
-            
-        T = self._raw_group_data[0].shape[0]
-        
-        max_z_lag = max([abs(lag) for _, lag in cond_groups]) if cond_groups else 0
-        safe_max_lag = max(x_lag, y_lag, max_z_lag)
-        
-        start_t = safe_max_lag
-        end_t = T
-        
-        if start_t >= end_t - 5:
-            return 1.0 
-            
-        # 1. Shift target variables and ensure correct dtype
-        X_full = self._raw_group_data[x_var][start_t - x_lag : end_t - x_lag].to(torch.float32)
-        Y_full = self._raw_group_data[y_var][start_t - y_lag : end_t - y_lag].to(torch.float32)
-        
-        Z_full = None
-        if cond_groups:
-            Z_list = [
-                self._raw_group_data[z_var][start_t - abs(z_lag) : end_t - abs(z_lag)].to(torch.float32) 
-                for z_var, z_lag in cond_groups
-            ]
-            Z_full = torch.cat(Z_list, dim=1)
-            
-        # 2. Localized Chunking (Equally spaced intervals)
-        chunk_size = int(np.ceil(X_full.shape[0] / self.num_regimes))
-        X_regimes, Y_regimes, Z_regimes = [], [], []
-        
-        for r in range(self.num_regimes):
-            idx_start = r * chunk_size
-            idx_end = min((r + 1) * chunk_size, X_full.shape[0])
-            
-            # Skip chunks that are too small for a valid statistical test (OLS needs min 6)
-            if idx_end - idx_start < 6:
-                continue
-                
-            X_regimes.append(X_full[idx_start:idx_end])
-            Y_regimes.append(Y_full[idx_start:idx_end])
-            if Z_full is not None:
-                Z_regimes.append(Z_full[idx_start:idx_end])
-                
-        if not X_regimes:
-            return 1.0
-            
-        # 3. Delegate to the independence test class (Pooled Residuals Early Fusion)
-        if Z_full is not None:
-            if hasattr(self.ci_test, 'conditional_test_regimes'):
-                _, pval = self.ci_test.conditional_test_regimes(X_regimes, Y_regimes, Z_regimes)
-            else:
-                # Fallback for older tests that haven't explicitly separated conditional logic
-                _, pval = self.ci_test.test_regimes(X_regimes, Y_regimes, Z_regimes) 
-        else:
-            _, pval = self.ci_test.test_regimes(X_regimes, Y_regimes)
-            
-        # Return solely the p-value as expected by the original raw test signature
-        return max(float(pval), 1e-15)
-
-    def run(self, 
-            X_data: List[torch.Tensor], 
-            discovery_func: Callable, 
-            aggregator: Any,
-            U_data: Optional[List[torch.Tensor]] = None,
-            target_alpha_q: float = 0.8,
-            **kwargs) -> Tuple[List[torch.Tensor], float, List[int]]:
-        
-        self._raw_group_data = X_data
-        
-        N = len(X_data)
+        N = len(X)
         m = [1] * N
-        max_m = [x.shape[1] if x.ndim > 1 else 1 for x in X_data]
+        max_m = [x.shape[1] if x.ndim > 1 else 1 for x in X]
         
-        c_ind_score = 0.0
+        current_score = 0.0
         Z_m = []
-
-        while c_ind_score < target_alpha_q:
+    
+        while current_score < self.target_alpha_q:
             logging.debug(f"--- Adag Iteration | Current dimensions m: {m} ---")
             
             Z_m = []
             for i in range(N):
-                U_i = U_data[i] if U_data is not None else None
-                Z_m.append(aggregator.aggregate(X_data[i], m[i], U=U_i))
+                U_i = U[i] if U is not None else None
+                Z_m.append(self.aggregator.aggregate(X[i], m[i], U=U_i))
             
-            group_parents = discovery_func(Z_m)
+            # --- Integration with GroupCausalDiscovery ---
+            # 1. Convert the list of tensors Z_m to a single numpy array for the discovery model
+            Z_np = [z.detach().cpu().numpy() for z in Z_m]
+            data_np = np.concatenate(Z_np, axis=1)
+
+            # 2. Reconstruct the groups based on current dimensions m
+            current_groups = []
+            start_idx = 0
+            for m_i in m:
+                end_idx = start_idx + m_i
+                current_groups.append(set(range(start_idx, end_idx)))
+                start_idx = end_idx
+
+            # 3. Instantiate a new discovery model with the current data and groups
+            current_discovery = self.discovery_class(
+                data=data_np, 
+                groups=current_groups, 
+                **self.discovery_kwargs
+            )
+            
+            # 4. Extract the parents using the current discovery model
+            group_parents = current_discovery.extract_parents()
+            # --------------------------------------------
+
             logging.debug(f"Discovered independencies at m={m}: {group_parents}")
             
-            c_ind_score = self._compute_c_ind(group_parents)
-            logging.debug(f"Target c_ind: {target_alpha_q} | Achieved c_ind: {c_ind_score:.3f}")
+            # Compute respective aggregation consistency scores
+            c_ind = self._compute_c_ind(group_parents)
+            c_dep = self._compute_c_dep(group_parents)
             
-            if c_ind_score >= target_alpha_q or m == max_m:
+            if self.score_type == 'c_ind':
+                current_score = c_ind
+            elif self.score_type == 'c_dep':
+                current_score = c_dep
+            elif self.score_type == 'ac':
+                current_score = (c_ind + c_dep) / 2.0
+                
+            logging.debug(f"Target {self.score_type.upper()}: {self.target_alpha_q} | Achieved: {current_score:.3f}")
+            logging.debug(f"[Details] c_ind: {c_ind:.3f} | c_dep: {c_dep:.3f}")
+            
+            if current_score >= self.target_alpha_q or m == max_m:
                 break
                 
+            # Advance dimensions element-wise up to max_m 
             for i in range(N):
                 if m[i] < max_m[i]:
                     m[i] += 1
                     
-        return Z_m, c_ind_score, m
+        return Z_m, current_score, m
+
+    def _compute_c_ind(self, group_parents: Dict[int, List[Tuple[int, int]]]) -> float:
+        """
+        Evaluates independence consistency (c_ind) on the raw un-aggregated data.
+        """
+        if self._raw_group_data is None:
+            raise RuntimeError("Raw group data is missing. AdagWrapper.run() must be called first.")
+            
+        C_ind_count = 0
+        I_ind_count = 0
+        N = len(self._groups)
+        T = self._raw_group_data[0].shape[0]
+        
+        for j in range(N):
+            parents_of_j = group_parents.get(j, [])
+            max_z_lag = max([abs(lag) for _, lag in parents_of_j]) if parents_of_j else 0
+            
+            for i in range(N):
+                for tau in range(0, self.max_lag + 1):
+                    if i == j and tau == 0:
+                        continue  # Skip self-dependency at lag 0
+                    # Test non-adjacencies (conditional independencies)
+                    if (i, -tau) not in parents_of_j:
+                        
+                        safe_max_lag = max(tau, max_z_lag)
+                        start_t = safe_max_lag
+                        end_t = T
+                        
+                        if start_t >= end_t - 5:
+                            pval = 1.0 
+                        else:
+                            X_full = self._raw_group_data[i][start_t - tau : end_t - tau].to(torch.float32)
+                            Y_full = self._raw_group_data[j][start_t : end_t].to(torch.float32)
+                            
+                            Z_full = None
+                            if parents_of_j:
+                                Z_list = [
+                                    self._raw_group_data[z_var][start_t - abs(z_lag) : end_t - abs(z_lag)].to(torch.float32) 
+                                    for z_var, z_lag in parents_of_j
+                                ]
+                                Z_full = torch.cat(Z_list, dim=1)
+                            
+                            if Z_full is not None:
+                                logging.debug(f"Testing observed independence between group {i} (lag {tau}) and group {j} conditioned on parents of {j}.")
+                                _, pval = self.ci_test.conditional_test(X_full, Y_full, Z_full)
+                            else:
+                                logging.debug(f"Testing observed independence between group {i} (lag {tau}) and group {j} with no conditioning set.")
+                                _, pval = self.ci_test.test(X_full, Y_full)
+                                
+                            pval = max(float(pval), 1e-15)
+                            
+                        if self.is_independent(pval):
+                            C_ind_count += 1
+                        else:
+                            I_ind_count += 1
+                            
+        total = C_ind_count + I_ind_count
+        return C_ind_count / total if total > 0 else 1.0
+
+    def _compute_c_dep(self, group_parents: Dict[int, List[Tuple[int, int]]]) -> float:
+        """
+        Evaluates effective dependence consistency (c_dep_bar) on the raw un-aggregated data.
+        Checks if aggregate adjacencies map to true vector-level dependencies.
+        """
+        if self._raw_group_data is None:
+            raise RuntimeError("Raw group data is missing. AdagWrapper.run() must be called first.")
+            
+        C_adj_count = 0
+        I_adj_count = 0
+        N = len(self._groups)
+        T = self._raw_group_data[0].shape[0]
+
+        for j in range(N):
+            parents_of_j = group_parents.get(j, [])
+            
+            for (p_var, p_lag) in parents_of_j:
+                # The condition set is all other aggregate parents of j except the one currently being tested
+                cond_set = [p for p in parents_of_j if p != (p_var, p_lag)]
+                max_z_lag = max([abs(lag) for _, lag in cond_set]) if cond_set else 0
+                
+                safe_max_lag = max(abs(p_lag), max_z_lag)
+                start_t = safe_max_lag
+                end_t = T
+                
+                if start_t >= end_t - 5:
+                    pval = 0.0 # Assume dependent to avoid unfairly penalizing with sparse data
+                else:
+                    X_full = self._raw_group_data[p_var][start_t - abs(p_lag) : end_t - abs(p_lag)].to(torch.float32)
+                    Y_full = self._raw_group_data[j][start_t : end_t].to(torch.float32)
+                    
+                    Z_full = None
+                    if cond_set:
+                        Z_list = [
+                            self._raw_group_data[z_var][start_t - abs(z_lag) : end_t - abs(z_lag)].to(torch.float32) 
+                            for z_var, z_lag in cond_set
+                        ]
+                        Z_full = torch.cat(Z_list, dim=1)
+                    
+                    if Z_full is not None:
+                        _, pval = self.ci_test.conditional_test(X_full, Y_full, Z_full)
+                    else:
+                        _, pval = self.ci_test.test(X_full, Y_full)
+                        
+                    pval = max(float(pval), 1e-15)
+                
+                # We expect dependence (pval <= alpha). If it is dependent, it's consistent.
+                if not self.is_independent(pval):
+                    C_adj_count += 1
+                else:
+                    I_adj_count += 1
+                    
+        total = C_adj_count + I_adj_count
+        return C_adj_count / total if total > 0 else 1.0

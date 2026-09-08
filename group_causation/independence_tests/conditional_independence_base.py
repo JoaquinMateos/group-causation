@@ -101,21 +101,11 @@ class ConditionalIndependence_base(ABC):
         return sum(stats) / len(stats), statistics.median(p_vals)
     
     @classmethod
-    @abstractmethod
     def test_regimes(cls, X_regimes: list[torch.Tensor], Y_regimes: list[torch.Tensor], **kwargs) -> tuple[float, float]:
-        """
-        To be implemented by subclasses: computes an unconditional test across multiple regimes.
-        This allows subclasses to implement early-fusion techniques (like pooled standardized residuals)
-        or late-fusion techniques (like Brown's method) for non-stationary data.
-        """
-        pass
+        """Optional: Override in subclasses that support multi-regime unconditional testing."""
+        raise NotImplementedError(f"{cls.__name__} does not support multi-regime testing.")
 
     @classmethod
-    @abstractmethod
     def conditional_test_regimes(cls, X_regimes: list[torch.Tensor], Y_regimes: list[torch.Tensor], Z_regimes: list[torch.Tensor], **kwargs) -> tuple[float, float]:
-        """
-        To be implemented by subclasses: computes a conditional test across multiple regimes.
-        This allows subclasses to implement early-fusion techniques (like pooled standardized residuals)
-        or late-fusion techniques (like Brown's method) for non-stationary data.
-        """
-        pass
+        """Optional: Override in subclasses that support multi-regime conditional testing."""
+        raise NotImplementedError(f"{cls.__name__} does not support multi-regime conditional testing.")

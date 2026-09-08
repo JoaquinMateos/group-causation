@@ -146,15 +146,19 @@ class MLP(nn.Module):
                 raise ValueError(f'Incorrect activation: {act}')
 
         _fc_list = []
+        _bn_list = []
         if self.n_layers == 1:
             _fc_list.append(nn.Linear(self.input_dim, self.output_dim))
         else:
             _fc_list.append(nn.Linear(self.input_dim, self.hidden_dim[0]))
+            _bn_list.append(nn.BatchNorm1d(self.hidden_dim[0]))
             for i in range(1, self.n_layers - 1):
                 _fc_list.append(nn.Linear(self.hidden_dim[i - 1], self.hidden_dim[i]))
+                _bn_list.append(nn.BatchNorm1d(self.hidden_dim[i]))
             _fc_list.append(nn.Linear(self.hidden_dim[-1], self.output_dim))
             
         self.fc = nn.ModuleList(_fc_list)
+        self.bn = nn.ModuleList(_bn_list)
         self.to(self.device)
 
     @staticmethod
@@ -168,7 +172,9 @@ class MLP(nn.Module):
             if c == self.n_layers - 1:
                 h = self.fc[c](h) # No activation on output layer
             else:
-                h = self._act_f[c](self.fc[c](h))
+                h = self.fc[c](h)
+                h = self.bn[c](h)
+                h = self._act_f[c](h)
         return h
 
 
@@ -202,7 +208,7 @@ class iVAE(nn.Module):
         
         # Decoder MLP: Generates data `x` from latent `z`
         self.f = MLP(latent_dim, data_dim, hidden_dim, n_layers, activation=activation, slope=slope, device=device)
-        self.decoder_var = 0.01 * torch.ones(1).to(device)
+        self.decoder_logvar = nn.Parameter(torch.tensor([-4.6]).to(device)) # log(0.01) approx -4.6
         
         # Encoder MLPs: Infers latent `z` from data `x` + aux `u`
         self.g = MLP(data_dim + aux_dim, latent_dim, hidden_dim, n_layers, activation=activation, slope=slope, device=device)
@@ -217,12 +223,13 @@ class iVAE(nn.Module):
         xu = torch.cat((x, u), 1)
         enc_mean = self.g(xu)
         enc_logvar = self.logv(xu)
+        enc_logvar = torch.clamp(enc_logvar, min=-15.0, max=5.0)
         enc_var = torch.clamp(enc_logvar.exp(), min=1e-5)
         return enc_mean, enc_var
 
     def decoder_params(self, z: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         recon_mean = self.f(z)
-        return recon_mean, self.decoder_var
+        return recon_mean, self.decoder_logvar.exp()
 
     def prior_params(self, u: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         prior_logvar = self.logl(u)
@@ -318,7 +325,7 @@ class VAE(nn.Module):
 
         # Decoder MLP
         self.f = MLP(latent_dim, data_dim, hidden_dim, n_layers, activation=activation, slope=slope, device=device)
-        self.decoder_var = 0.01 * torch.ones(1).to(device)
+        self.decoder_logvar = nn.Parameter(torch.tensor([-4.6]).to(device)) # log(0.01) approx -4.6
         
         # Encoder MLPs
         self.g = MLP(data_dim, latent_dim, hidden_dim, n_layers, activation=activation, slope=slope, device=device)
@@ -329,11 +336,12 @@ class VAE(nn.Module):
     def encoder_params(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         enc_mean = self.g(x)
         enc_logvar = self.logv(x)
+        enc_logvar = torch.clamp(enc_logvar, min=-15.0, max=5.0)
         return enc_mean, enc_logvar.exp()
 
     def decoder_params(self, z: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         recon_mean = self.f(z)
-        return recon_mean, self.decoder_var
+        return recon_mean, self.decoder_logvar.exp()
 
     def forward(self, x: torch.Tensor) -> Tuple[Tuple, Tuple, torch.Tensor, Tuple]:
         encoder_params = self.encoder_params(x)

@@ -22,7 +22,8 @@ class GroupCausalDiscovery(CausalDiscovery): # Abstract class
                  standarize: bool=True, **kwargs):
         if standarize:
             self._data = data - data.mean(axis=0)
-            if np.all((std:=data.std(axis=0))!=0): data /=std
+            if np.all((std:=self._data.std(axis=0))!=0):
+                self._data /= std
         else:
             self._data = data
         if groups is None:
@@ -32,7 +33,7 @@ class GroupCausalDiscovery(CausalDiscovery): # Abstract class
         self.extra_args = kwargs
 
     @abstractmethod
-    def extract_parents(self) -> dict[int, list[int]]:
+    def extract_parents(self) -> dict[int, list[tuple[int, int]]]:
         '''
         To be implemented by subclasses
         

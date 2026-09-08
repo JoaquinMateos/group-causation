@@ -51,6 +51,19 @@ class HSIC_Test(ConditionalIndependence_base):
 
     @classmethod
     def test(cls, X: torch.Tensor, Y: torch.Tensor, max_samples=500, n_ensembles=5, sequential_chunks=False) -> tuple[float, float]:
+        '''
+        Performs the HSIC test for independence between two random variables X and Y. If the number of samples exceeds max_samples, it performs the test on multiple ensembles of randomly sampled subsets of the data and returns the average test statistic and median p-value.
+        
+        Args:
+            X (torch.Tensor): A 1D or 2D tensor representing the first random variable.
+            Y (torch.Tensor): A 1D or 2D tensor representing the second random variable.
+            max_samples (int): The maximum number of samples to use for each test.
+            n_ensembles (int): The number of ensembles to use when the number of samples exceeds max_samples.
+            sequential_chunks (bool): If True, the data is split into sequential chunks instead of random sampling for the ensembles.
+        
+        Returns:
+            tuple: A tuple containing the average test statistic and the median p-value across ensembles.
+        '''
         X = X.view(-1, 1) if X.ndim == 1 else X
         Y = Y.view(-1, 1) if Y.ndim == 1 else Y
         n = X.shape[0]
@@ -179,7 +192,7 @@ class HSIC_Test(ConditionalIndependence_base):
         Kc_Y = (Kc_Y + Kc_Y.T) / 2
         Kc_Z = (Kc_Z + Kc_Z.T) / 2
 
-        I = torch.eye(n, dtype=torch.float64, device=X.device)
+        I = torch.eye(n, dtype=X.dtype, device=X.device)
         scaled_epsilon = epsilon * n
         P_z = scaled_epsilon * torch.linalg.inv(Kc_Z + scaled_epsilon * I)
         P_z = (P_z + P_z.T) / 2

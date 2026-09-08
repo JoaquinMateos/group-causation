@@ -10,7 +10,7 @@ import pandas as pd
 from group_causation.benchmark.benchmark_base import parent_to_node
 from group_causation.benchmark.benchmark_causal_discovery import BenchmarkCausalDiscovery
 from group_causation.data_management.create_toy_datasets import CausalDataset
-from group_causation.dimensionality_reduction.iVAE.wrappers import IVAE_wrapper
+from group_causation.dimensionality_reduction.iVAE.wrappers import IVAEWrapper
 from group_causation.utils import (
     get_cpdag_and_edge_set,
     get_dag_edge_set,
@@ -107,7 +107,7 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
                 continue
 
             latent_dim = max(1, min(int(np.ceil(fallback_fraction * len(group_cols))), len(group_cols)))
-            _, _, _, info = IVAE_wrapper(
+            _, _, _, info = IVAEWrapper(
                 train_data[:, group_cols],
                 train_u,
                 inference_dim=latent_dim,
