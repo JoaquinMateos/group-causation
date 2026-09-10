@@ -1,4 +1,4 @@
-from typing import Any, Generator, Mapping, Sequence, Union
+from typing import Any, Generator, Mapping, Sequence
 
 
 # Imports
@@ -16,7 +16,7 @@ def static_parameters(options: dict[str, Any], algorithms_parameters: dict[str, 
 def changing_N_variables(
     options: dict[str, Any],
     algorithms_parameters: dict[str, Any],
-    list_N_variables: Union[list[int], None] = None
+    list_N_variables: list[int] | None = None
 ) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
     if list_N_variables is None:
         list_N_variables = [10, 20, 30, 40, 50]
@@ -34,7 +34,7 @@ def changing_N_variables(
 def changing_preselection_alpha(
     options: dict[str, Any],
     algorithms_parameters: dict[str, Any],
-    list_preselection_alpha: Union[list[float], None]
+    list_preselection_alpha: list[float] | None
 ) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
     if list_preselection_alpha is None:
         list_preselection_alpha = [0.01, 0.05, 0.1, 0.2]
@@ -47,7 +47,7 @@ def changing_preselection_alpha(
 def changing_N_groups(
     options: dict[str, Any],
     algorithms_parameters: dict[str, Any],
-    list_N_groups: Union[list[int], None] = None,
+    list_N_groups: list[int] | None = None,
     relation_vars_per_group: int = 5
 ) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
     if list_N_groups is None:
@@ -62,7 +62,7 @@ def changing_N_groups(
 def changing_N_vars_per_group(
     options: dict[str, Any],
     algorithms_parameters: dict[str, Any],
-    list_N_vars_per_group: Union[list[int], None] = None
+    list_N_vars_per_group: list[int] | None = None
 ) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
     if list_N_vars_per_group is None:
         list_N_vars_per_group = [2, 4, 6, 8, 10, 12]
@@ -79,7 +79,7 @@ def changing_N_vars_per_group(
 def changing_latent_confounding_fraction(
     options: dict[str, Any],
     algorithms_parameters: dict[str, Any],
-    list_latent_confounding_fraction: Union[list[float], None] = None
+    list_latent_confounding_fraction: list[float] | None = None
 ) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
     if list_latent_confounding_fraction is None:
         list_latent_confounding_fraction = [0.1, 0.2, 0.3, 0.4, 0.5]
@@ -92,7 +92,7 @@ def changing_latent_confounding_fraction(
 def changing_non_stationarity_params(
     options: dict[str, Any],
     algorithms_parameters: dict[str, Any],
-    list_non_stationarity_params: Union[list[dict[str, Any]], None] = None
+    list_non_stationarity_params: list[dict[str, Any]] | None = None
 ) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
     if list_non_stationarity_params is None:
         list_non_stationarity_params = [
@@ -109,7 +109,7 @@ def changing_non_stationarity_params(
 def increasing_N_vars_per_group(
     options: dict[str, Any],
     algorithms_parameters: dict[str, Any],
-    list_N_vars_per_group: Union[list[int], None] = None
+    list_N_vars_per_group: list[int] | None = None
 ) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
     if list_N_vars_per_group is None:
         list_N_vars_per_group = [2, 4, 6, 8, 10, 12]
@@ -152,12 +152,11 @@ def changing_alg_params(
     EVALUATION METRICS
 '''
 import causaldag as cd
-from typing import Any, Tuple, Set, Union, List, Dict
 
-ParentRef = Tuple[int, int]
+ParentRef = tuple[int, int]
 ParentGraph = Mapping[int, Sequence[ParentRef]]
 
-def get_cpdag_and_edge_set(graph_dict: ParentGraph) -> Tuple[Set[Any], cd.PDAG]:
+def get_cpdag_and_edge_set(graph_dict: ParentGraph) -> tuple[set[Any], cd.PDAG]:
     """
     Helper function to convert a parents dictionary into a causaldag PDAG.
     This function must be applied only on the contemporaneous graph,
@@ -170,7 +169,7 @@ def get_cpdag_and_edge_set(graph_dict: ParentGraph) -> Tuple[Set[Any], cd.PDAG]:
     dag = cd.DAG()
     
     # 1. Collect all unique nodes as INTEGERS
-    nodes: Set[int] = set()
+    nodes: set[int] = set()
     nodes.update(graph_dict.keys())
     for parents in graph_dict.values():
         # Unpack the node from the (node, lag) tuple
@@ -202,10 +201,10 @@ def get_cpdag_and_edge_set(graph_dict: ParentGraph) -> Tuple[Set[Any], cd.PDAG]:
         
     return edge_set, cpdag
 
-def split_lagged_and_contemporaneous(graph_dict: ParentGraph) -> Tuple[ParentGraph, ParentGraph]:
+def split_lagged_and_contemporaneous(graph_dict: ParentGraph) -> tuple[ParentGraph, ParentGraph]:
     """Splits a window graph into lagged (keeps tuple) and contemporaneous (strips lag to integer) subgraphs."""
-    lagged_graph: Dict[int, List[ParentRef]] = {node: [] for node in graph_dict.keys()}
-    contemp_graph: Dict[int, List[ParentRef]] = {node: [] for node in graph_dict.keys()}
+    lagged_graph: dict[int, list[ParentRef]] = {node: [] for node in graph_dict.keys()}
+    contemp_graph: dict[int, list[ParentRef]] = {node: [] for node in graph_dict.keys()}
 
     for child, parents in graph_dict.items():
         for parent_ref in parents:
@@ -219,7 +218,7 @@ def split_lagged_and_contemporaneous(graph_dict: ParentGraph) -> Tuple[ParentGra
 
     return lagged_graph, contemp_graph
 
-def get_dag_edge_set(graph_dict: ParentGraph) -> Set[Any]:
+def get_dag_edge_set(graph_dict: ParentGraph) -> set[Any]:
     """Returns a canonical set of strictly directed edges for exact DAG evaluation."""
     edge_set = set()
     for child, parents in graph_dict.items():

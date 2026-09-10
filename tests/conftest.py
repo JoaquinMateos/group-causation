@@ -78,8 +78,9 @@ def sample_parents_dict() -> dict[int, list[tuple[int, int]]]:
 def _mock_torch_no_cuda() -> Generator[None, None, None]:
     with (
         patch("torch.cuda.is_available", return_value=False),
-        patch("torch.backends.mps.is_available", return_value=False),
+        patch("torch.backends.mps.is_available", return_value=False) as mps_mock,
     ):
+        mps_mock.__wrapped__ = lambda self: False
         yield
 
 

@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from typing import Union, Optional
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.independence_tests import HSIC_Test
 
@@ -37,7 +36,7 @@ class GroupRegressor:
         self.lr = lr
         self.hidden_dim = hidden_dim
 
-    def fit(self, X: np.ndarray, Y: np.ndarray, U: Optional[np.ndarray] = None):
+    def fit(self, X: np.ndarray, Y: np.ndarray, U: np.ndarray | None = None):
         input_dim = X.shape[1]
         u_dim = U.shape[1] if U is not None else 0
         output_dim = Y.shape[1]
@@ -72,7 +71,7 @@ class GroupRegressor:
                 loss.backward()
                 optimizer.step()
 
-    def predict(self, X: np.ndarray, U: Optional[np.ndarray] = None) -> np.ndarray:
+    def predict(self, X: np.ndarray, U: np.ndarray | None = None) -> np.ndarray:
         self.model.eval()
         with torch.no_grad():
             X_t = torch.FloatTensor(X).to(self.device)
@@ -90,7 +89,7 @@ class SpatioTemporalMURGSRegressor(GroupRegressor):
         super().__init__(epochs, batch_size, lr, hidden_dim)
         self.lambda_reg = lambda_reg
 
-    def fit(self, X: np.ndarray, Y: np.ndarray, group_dims: list[int], U: Optional[np.ndarray] = None):
+    def fit(self, X: np.ndarray, Y: np.ndarray, group_dims: list[int], U: np.ndarray | None = None):
         input_dim = X.shape[1]
         u_dim = U.shape[1] if U is not None else 0
         output_dim = Y.shape[1]
@@ -163,8 +162,8 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
     Phase I: HSIC-based Sink Node identification for contemporaneous order.
     Phase II: Spatio-Temporal MURGS pruning via Group-Lasso Neural Networks.
     '''
-    def __init__(self, data: np.ndarray, groups: Union[list[set[int]], None] = None,
-                 standarize: bool=True, non_stationarity_info: Union[dict, None] = None, 
+    def __init__(self, data: np.ndarray, groups: list[set[int]] | None = None,
+                 standarize: bool=True, non_stationarity_info: dict | None = None, 
                  use_nonstationarity_info: bool = False,
                  verbose: int = 0, **kwargs):
                  
@@ -225,7 +224,7 @@ class GroupRESITTimeSeriesCausalDiscovery(GroupCausalDiscovery):
         self._causal_order = [] 
         self._pa = {}           
 
-    def _get_data_and_dims_for_vars(self, vars_list: list[tuple[int, int]], data: Optional[np.ndarray] = None) -> tuple[np.ndarray, list[int]]:
+    def _get_data_and_dims_for_vars(self, vars_list: list[tuple[int, int]], data: np.ndarray | None = None) -> tuple[np.ndarray, list[int]]:
         """
         Constructs a flat 2D array of specific groups at specific lags,
         and returns the feature dimensions of each group block for the MURGS penalty.

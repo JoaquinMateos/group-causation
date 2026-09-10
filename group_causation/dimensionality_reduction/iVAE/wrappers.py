@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 import torch
@@ -16,7 +16,7 @@ from .nets import VAE, iVAE
 # DATA PREPARATION HELPERS
 # =========================================================================
 
-def _to_2d_float_tensor(data: Union[np.ndarray, torch.Tensor], name: str, device: Union[str, torch.device]) -> torch.Tensor:
+def _to_2d_float_tensor(data: np.ndarray | torch.Tensor, name: str, device: str | torch.device) -> torch.Tensor:
     """Converts numpy arrays or torch tensors to 2D float32 tensors and moves them to the target device.
     
     Args:
@@ -43,7 +43,7 @@ def _to_2d_float_tensor(data: Union[np.ndarray, torch.Tensor], name: str, device
     return tensor
 
 
-def _safe_standardize(tensor: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def _safe_standardize(tensor: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Standardizes a tensor to zero mean and unit variance.
     
     Safely handles columns with zero variance by leaving their scale as 1 to prevent division by zero.
@@ -81,19 +81,19 @@ class _TorchLatentReducer(DimensionalityReduction):
         latent_dim: int = 2,
         batch_size: int = 256,
         max_epoch: int = 500,
-        seed: Optional[int] = None,
+        seed: int | None = None,
         n_layers: int = 3,
         hidden_dim: int = 200,
         val_split: float = 0.0,
         lr: float = 1e-2,
-        device: Union[str, torch.device] = 'cpu',
+        device: str | torch.device = 'cpu',
         activation: str = 'lrelu',
         slope: float = 0.1,
         anneal: bool = True,
         scheduler_tol: int = 3,
         standardize: bool = True,
         use_auxiliary: bool = True,
-        early_stopping_patience: Optional[int] = None,
+        early_stopping_patience: int | None = None,
     ):
         """Initializes the _TorchLatentReducer.
         
@@ -136,19 +136,19 @@ class _TorchLatentReducer(DimensionalityReduction):
         # Internal state initialized during `fit`
         self.model_: Any = None
         self.history_: list[float] = []
-        self.params_: Dict[str, Any] = {}
-        self.embedding_: Optional[torch.Tensor] = None
+        self.params_: dict[str, Any] = {}
+        self.embedding_: torch.Tensor | None = None
         
         # Dimensions & Normalization statistics
-        self.data_dim_: Optional[int] = None
-        self.aux_dim_: Optional[int] = None
-        self.latent_dim_: Optional[int] = None
-        self.x_mean_: Optional[torch.Tensor] = None
-        self.x_std_: Optional[torch.Tensor] = None
-        self.u_mean_: Optional[torch.Tensor] = None
-        self.u_std_: Optional[torch.Tensor] = None
+        self.data_dim_: int | None = None
+        self.aux_dim_: int | None = None
+        self.latent_dim_: int | None = None
+        self.x_mean_: torch.Tensor | None = None
+        self.x_std_: torch.Tensor | None = None
+        self.u_mean_: torch.Tensor | None = None
+        self.u_std_: torch.Tensor | None = None
 
-    def fit(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None):
+    def fit(self, X: np.ndarray | torch.Tensor, U: np.ndarray | torch.Tensor | None = None):
         """Trains the VAE/iVAE model on the provided data.
         
         Args:
@@ -362,7 +362,7 @@ class _TorchLatentReducer(DimensionalityReduction):
         self.params_ = self._collect_model_params(X_orig, U_orig)
         return self
 
-    def transform(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None) -> torch.Tensor:
+    def transform(self, X: np.ndarray | torch.Tensor, U: np.ndarray | torch.Tensor | None = None) -> torch.Tensor:
         """Infers the latent representations (embeddings) for the given data.
         
         Args:
@@ -386,8 +386,8 @@ class _TorchLatentReducer(DimensionalityReduction):
         return self._encode(x_tensor)
 
     def fit_transform(self,
-                      X: Union[np.ndarray, torch.Tensor],
-                      U: Optional[Union[np.ndarray, torch.Tensor]] = None,
+                      X: np.ndarray | torch.Tensor,
+                      U: np.ndarray | torch.Tensor | None = None,
                       ) -> torch.Tensor:
         """Convenience method to fit the model and immediately return the latent embeddings.
         
@@ -406,21 +406,21 @@ class _TorchLatentReducer(DimensionalityReduction):
             raise RuntimeError('The fitted embedding is not available.')
         return self.embedding_
 
-    def _build_model(self, latent_dim: int, data_dim: int, device: Union[str, torch.device]):
+    def _build_model(self, latent_dim: int, data_dim: int, device: str | torch.device):
         """Instantiates a standard VAE model."""
         return VAE(
             latent_dim, data_dim, activation=self.activation, n_layers=self.n_layers,
             hidden_dim=self.hidden_dim, device=device, slope=self.slope,
         )
 
-    def _build_auxiliary_model(self, latent_dim: int, data_dim: int, aux_dim: int, device: Union[str, torch.device]):
+    def _build_auxiliary_model(self, latent_dim: int, data_dim: int, aux_dim: int, device: str | torch.device):
         """Instantiates an identifiable VAE (iVAE) model."""
         return iVAE(
             latent_dim, data_dim, aux_dim, activation=self.activation, device=device,
             n_layers=self.n_layers, hidden_dim=self.hidden_dim, slope=self.slope, anneal=self.anneal,
         )
 
-    def _prepare_x_for_inference(self, X: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+    def _prepare_x_for_inference(self, X: np.ndarray | torch.Tensor) -> torch.Tensor:
         """Standardizes and formats X using statistics learned during fit()."""
         x_tensor = _to_2d_float_tensor(X, 'X', self.device)
         if self.standardize:
@@ -429,7 +429,7 @@ class _TorchLatentReducer(DimensionalityReduction):
             x_tensor = (x_tensor - self.x_mean_) / self.x_std_
         return x_tensor
 
-    def _prepare_u_for_inference(self, U: Optional[Union[np.ndarray, torch.Tensor]], n_samples: int) -> torch.Tensor:
+    def _prepare_u_for_inference(self, U: np.ndarray | torch.Tensor | None, n_samples: int) -> torch.Tensor:
         """Standardizes and formats U using statistics learned during fit()."""
         if U is None:
             if self.aux_dim_ is None or self.aux_dim_ == 0:
@@ -448,7 +448,7 @@ class _TorchLatentReducer(DimensionalityReduction):
 
         return u_tensor
 
-    def _encode(self, X: torch.Tensor, U: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def _encode(self, X: torch.Tensor, U: torch.Tensor | None = None) -> torch.Tensor:
         """Runs the encoder network to obtain the mean of the latent distribution."""
         self.model_.eval()
         with torch.no_grad():
@@ -463,7 +463,7 @@ class _TorchLatentReducer(DimensionalityReduction):
             latent_mean = encoder_params[0] 
         return latent_mean
 
-    def _collect_model_params(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None) -> Dict[str, Tuple[torch.Tensor, ...]]:
+    def _collect_model_params(self, X: np.ndarray | torch.Tensor, U: np.ndarray | torch.Tensor | None = None) -> dict[str, tuple[torch.Tensor, ...]]:
         """Collects the outputs of all sub-networks (encoder, decoder, prior) for the given data."""
         self.model_.eval()
         with torch.no_grad():
@@ -480,7 +480,7 @@ class _TorchLatentReducer(DimensionalityReduction):
             'prior': tuple(item for item in prior_params),
         }
 
-    def score_elbo(self, X: Union[np.ndarray, torch.Tensor], U: Optional[Union[np.ndarray, torch.Tensor]] = None) -> float:
+    def score_elbo(self, X: np.ndarray | torch.Tensor, U: np.ndarray | torch.Tensor | None = None) -> float:
         """Evaluates the fitted model ELBO on a held-out split.
         
         Args:
@@ -536,11 +536,11 @@ class IVAEWrapper(_TorchLatentReducer):
         early_stopping_patience (Optional[int]): Epochs to wait for improvement before early stopping. Defaults to None.
     """
     def __init__(self, latent_dim: int, batch_size: int = 256, max_epoch: float = 7e4, 
-                 seed: Optional[int] = None, n_layers: int = 3, hidden_dim: int = 200, 
+                 seed: int | None = None, n_layers: int = 3, hidden_dim: int = 200, 
                  lr: float = 1e-2, device: str = 'cpu', activation: str = 'lrelu', 
                  slope: float = 0.1, anneal: bool = True, scheduler_tol: int = 3, 
                  standardize: bool = True, val_split: float = 0.0,
-                 early_stopping_patience: Optional[int] = None):
+                 early_stopping_patience: int | None = None):
         super().__init__(
             latent_dim=latent_dim, batch_size=batch_size, max_epoch=int(max_epoch),
             seed=seed, n_layers=n_layers, hidden_dim=hidden_dim, lr=lr, device=device,
@@ -555,11 +555,11 @@ class VAEWrapper(_TorchLatentReducer):
     Standard Variational Autoencoder (VAE) Dimensionality Reduction.
     """
     def __init__(self, latent_dim: int, batch_size: int = 256, max_epoch: float = 7e4, 
-                 seed: Optional[int] = None, n_layers: int = 3, hidden_dim: int = 200, 
+                 seed: int | None = None, n_layers: int = 3, hidden_dim: int = 200, 
                  lr: float = 1e-2, device: str = 'cpu', activation: str = 'lrelu', 
                  slope: float = 0.1, scheduler_tol: int = 3, standardize: bool = True,
                  val_split: float = 0.0,
-                 early_stopping_patience: Optional[int] = None):
+                 early_stopping_patience: int | None = None):
         super().__init__(
             latent_dim=latent_dim, batch_size=batch_size, max_epoch=int(max_epoch),
             seed=seed, n_layers=n_layers, hidden_dim=hidden_dim, lr=lr, device=device,

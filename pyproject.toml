@@ -1,7 +1,3 @@
-[build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "group-causation"
 version = "0.0.1"
@@ -10,31 +6,40 @@ authors = [{ name = "Joaquín Mateos Barroso", email = "jmateosbarroso@gmail.com
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
 readme = "README.md"
-requires-python = ">=3.9,<3.10"
+requires-python = ">=3.14"
 
 classifiers = [
-    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
 ]
 
 dependencies = [
-    "numpy>=1.21.6,<1.24",
-    "numba>=0.56.4",
-    "more_itertools>=10.1.0",
+    "numpy>=2.0",
+    "numba>=0.61",
+    "more-itertools>=10.1.0",
     "tqdm>=4.65.0",
     "dcor>=0.6",
     "deap>=1.4.2",
-    "memory_profiler>=0.60.0",
-    "scipy>=1.11.4",
-    "pandas>=1.5.3",
-    "seaborn>=0.12.2",
-    "lingam==1.5.5", # There are some issues with the latest version
-    "statsmodels==0.13.4",
+    "memory-profiler>=0.60.0",
+    "scipy>=1.14",
+    "pandas>=2.2",
+    "seaborn>=0.13",
+    "lingam>=1.5.5",
+    "statsmodels>=0.14",
     "tigramite>=5.2",
     "pgmpy>=0.1.19,<1",
-    "causaldag==0.1a163",
+    "causaldag>=0.1a163",
     "causalai @ git+https://github.com/salesforce/causalai.git@v2.0.0",
+    "optuna>=4.0",
     "torch>=2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-xdist>=3.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
 ]
 
 [tool.pytest.ini_options]

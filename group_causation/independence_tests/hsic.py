@@ -1,23 +1,24 @@
+"""Hilbert-Schmidt Independence Criterion using Gamma approximation (PyTorch Accelerated)."""
+
 import torch
-import math
-import statistics
 from scipy.stats import gamma
 
-from group_causation.independence_tests.conditional_independence_base import ConditionalIndependence_base
+from group_causation.independence_tests.conditional_independence_base import (
+    ConditionalIndependence_base,
+    _get_device,
+)
+
 
 class HSIC_Test(ConditionalIndependence_base):
-    """Hilbert-Schmidt Independence Criterion using Gamma approximation (PyTorch Accelerated)."""
-    
-    @staticmethod
-    def _get_device() -> torch.device:
-        if torch.cuda.is_available():
-            return torch.device("cuda")
-        elif torch.backends.mps.is_available():
-            return torch.device("mps")
-        return torch.device("cpu")
+    """HSIC independence test with Gamma approximation for p-values."""
+
+    # ------------------------------------------------------------------
+    # Kernel utilities
+    # ------------------------------------------------------------------
 
     @staticmethod
     def get_kernel_width(X: torch.Tensor, sample_cut: int = 100) -> float:
+        """Median heuristic for the Gaussian kernel width."""
         n_samples = X.shape[0]
         if n_samples > sample_cut:
             X_med = X[:sample_cut, :]
@@ -29,7 +30,7 @@ class HSIC_Test(ConditionalIndependence_base):
         dists = G + G.T - 2 * (X_med @ X_med.T)
         dists = dists - torch.tril(dists)
         dists = dists.reshape(-1)
-        
+
         pos_dists = dists[dists > 0]
         if len(pos_dists) > 0:
             med = torch.median(pos_dists).item()
@@ -38,72 +39,27 @@ class HSIC_Test(ConditionalIndependence_base):
 
     @staticmethod
     def get_gram_matrix(X: torch.Tensor, width: float) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return the kernel matrix K and its centred version Kc."""
         n = X.shape[0]
         G = torch.sum(X * X, dim=1)
         H = G.unsqueeze(0) + G.unsqueeze(1) - 2 * (X @ X.T)
-        K = torch.exp(-H / (2 * (width**2)))
-        
+        K = torch.exp(-H / (2 * (width ** 2)))
+
         K_colsums = K.sum(dim=0)
         K_rowsums = K.sum(dim=1)
         K_allsum = K_rowsums.sum()
-        Kc = K - (K_colsums.unsqueeze(0) + K_rowsums.unsqueeze(1)) / n + (K_allsum / n**2)
+        Kc = K - (K_colsums.unsqueeze(0) + K_rowsums.unsqueeze(1)) / n + (K_allsum / n ** 2)
         return K, Kc
 
-    @classmethod
-    def test(cls, X: torch.Tensor, Y: torch.Tensor, max_samples=500, n_ensembles=5, sequential_chunks=False) -> tuple[float, float]:
-        '''
-        Performs the HSIC test for independence between two random variables X and Y. If the number of samples exceeds max_samples, it performs the test on multiple ensembles of randomly sampled subsets of the data and returns the average test statistic and median p-value.
-        
-        Args:
-            X (torch.Tensor): A 1D or 2D tensor representing the first random variable.
-            Y (torch.Tensor): A 1D or 2D tensor representing the second random variable.
-            max_samples (int): The maximum number of samples to use for each test.
-            n_ensembles (int): The number of ensembles to use when the number of samples exceeds max_samples.
-            sequential_chunks (bool): If True, the data is split into sequential chunks instead of random sampling for the ensembles.
-        
-        Returns:
-            tuple: A tuple containing the average test statistic and the median p-value across ensembles.
-        '''
-        X = X.view(-1, 1) if X.ndim == 1 else X
-        Y = Y.view(-1, 1) if Y.ndim == 1 else Y
-        n = X.shape[0]
-        
-        if n <= max_samples:
-            return cls._single_test(X, Y)
-            
-        p_vals = []
-        stats = []
-        
-        if sequential_chunks:
-            # Native PyTorch tensor splitting
-            num_chunks = max(1, math.ceil(n / max_samples))
-            chunks_X = torch.tensor_split(X, num_chunks)
-            chunks_Y = torch.tensor_split(Y, num_chunks)
-            
-            for cX, cY in zip(chunks_X, chunks_Y):
-                if cX.shape[0] < 6:
-                    continue
-                s, p = cls._single_test(cX, cY)
-                p_vals.append(p)
-                stats.append(s)
-                
-            if not p_vals:
-                return 0.0, 1.0
-        else:
-            for _ in range(n_ensembles):
-                # Native PyTorch random indexing without replacement
-                idx = torch.randperm(n, device=X.device)[:max_samples]
-                s, p = cls._single_test(X[idx], Y[idx])
-                p_vals.append(p)
-                stats.append(s)
-            
-        return sum(stats) / len(stats), statistics.median(p_vals)
+    # ------------------------------------------------------------------
+    # Required hooks from ConditionalIndependence_base
+    # ------------------------------------------------------------------
 
     @classmethod
     def _single_test(cls, X: torch.Tensor, Y: torch.Tensor) -> tuple[float, float]:
         n = X.shape[0]
         if n < 6:
-            return 0.0, 1.0 
+            return 0.0, 1.0
 
         width_x = cls.get_kernel_width(X)
         width_y = cls.get_kernel_width(Y)
@@ -121,64 +77,28 @@ class HSIC_Test(ConditionalIndependence_base):
         L.fill_diagonal_(0)
         mu_X = 1 / (n * (n - 1)) * K.sum()
         mu_Y = 1 / (n * (n - 1)) * L.sum()
-        
+
         mean = 1 / n * (1 + mu_X * mu_Y - mu_X - mu_Y)
-        
+
         test_stat_val = test_stat.item()
         mean_val = mean.item()
         var_val = var.item()
-        
+
         if var_val <= 0 or mean_val <= 0:
             return float(test_stat_val), 1.0
 
-        alpha = mean_val**2 / var_val
+        alpha = mean_val ** 2 / var_val
         beta = var_val * n / mean_val
         p_val = gamma.sf(test_stat_val, alpha, scale=beta)
 
         return float(test_stat_val), float(p_val)
-    
-    @classmethod
-    def conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor, max_samples=500, n_ensembles=5, sequential_chunks=False, epsilon=1e-3) -> tuple[float, float]:
-        X = X.view(-1, 1) if X.ndim == 1 else X
-        Y = Y.view(-1, 1) if Y.ndim == 1 else Y
-        Z = Z.view(-1, 1) if Z.ndim == 1 else Z
-        n = X.shape[0]
-        
-        if n <= max_samples:
-            return cls._single_conditional_test(X, Y, Z, epsilon)
-            
-        p_vals = []
-        stats = []
-        
-        if sequential_chunks:
-            num_chunks = max(1, math.ceil(n / max_samples))
-            chunks_X = torch.tensor_split(X, num_chunks)
-            chunks_Y = torch.tensor_split(Y, num_chunks)
-            chunks_Z = torch.tensor_split(Z, num_chunks)
-            
-            for cX, cY, cZ in zip(chunks_X, chunks_Y, chunks_Z):
-                if cX.shape[0] < 6: 
-                    continue
-                s, p = cls._single_conditional_test(cX, cY, cZ, epsilon)
-                p_vals.append(p)
-                stats.append(s)
-                
-            if not p_vals: 
-                return 0.0, 1.0
-        else:
-            for _ in range(n_ensembles):
-                idx = torch.randperm(n, device=X.device)[:max_samples]
-                s, p = cls._single_conditional_test(X[idx], Y[idx], Z[idx], epsilon)
-                p_vals.append(p)
-                stats.append(s)
-            
-        return sum(stats) / len(stats), statistics.median(p_vals)
 
     @classmethod
-    def _single_conditional_test(cls, X: torch.Tensor, Y: torch.Tensor, Z: torch.Tensor, epsilon: float = 1e-3) -> tuple[float, float]:
+    def _single_conditional_test(cls, X: torch.Tensor, Y: torch.Tensor,
+                                 Z: torch.Tensor, epsilon: float = 1e-3) -> tuple[float, float]:
         n = X.shape[0]
         if n < 6:
-            return 0.0, 1.0 
+            return 0.0, 1.0
 
         wx = cls.get_kernel_width(X)
         wy = cls.get_kernel_width(Y)
@@ -207,9 +127,9 @@ class HSIC_Test(ConditionalIndependence_base):
 
         eig_x = torch.linalg.eigh(K_xz)[0]
         eig_y = torch.linalg.eigh(K_yz)[0]
-        
+
         max_x, max_y = torch.max(eig_x), torch.max(eig_y)
-        
+
         if max_x <= 0 or max_y <= 0:
             return float(test_stat), 1.0
 
@@ -220,12 +140,12 @@ class HSIC_Test(ConditionalIndependence_base):
             return float(test_stat), 1.0
 
         mean_approx = (1 / n) * torch.sum(eig_x).item() * torch.sum(eig_y).item()
-        var_approx = (2 / n**2) * torch.sum(eig_x**2).item() * torch.sum(eig_y**2).item()
+        var_approx = (2 / n ** 2) * torch.sum(eig_x ** 2).item() * torch.sum(eig_y ** 2).item()
 
         if var_approx <= 0 or mean_approx <= 0:
             return float(test_stat), 1.0
 
-        alpha = (mean_approx**2) / var_approx
+        alpha = (mean_approx ** 2) / var_approx
         beta = var_approx / mean_approx
         p_val = gamma.sf(test_stat, alpha, scale=beta)
 

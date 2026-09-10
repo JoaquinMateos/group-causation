@@ -3,7 +3,7 @@ from types import MappingProxyType
 import numpy as np
 import itertools
 import math
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Mapping
 from scipy.stats import chi2
 import logging
 import torch
@@ -23,15 +23,15 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
     def __init__(self,
                     data: np.ndarray,
                     groups: list[set[int]],
-                    u: Union[np.ndarray, str, None] = 'time_index',
+                    u: np.ndarray | str | None = 'time_index',
                     conditional_independence_test: str = 'max_corr',
-                    num_chunks_of_time_index: Union[int, None] = None,
+                    num_chunks_of_time_index: int | None = None,
                     apply_adag_optimization: bool = False,
                     target_c_ind: float = 0.85,
                     fallback_latent_dims_fraction: float = 0.33,
-                    ivae_params: Union[dict[str, Any], None] = None,
-                    pcmci_params: Union[dict[str, Any], None] = None,
-                    non_stationarity_info: Optional[dict[str, Any]] = None,
+                    ivae_params: dict[str, Any] | None = None,
+                    pcmci_params: dict[str, Any] | None = None,
+                    non_stationarity_info: dict[str, Any] | None = None,
                     verbose: int = 0,
                     **kwargs):
             
@@ -208,7 +208,8 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             group_data = self._data[:, list(group)]
             
             group_params = dict(self._ivae_params)
-            group_latents, _, _, _ = IVAEWrapper(group_data, self.u, latent_dims[idx], **group_params)
+            wrapper = IVAEWrapper(latent_dim=latent_dims[idx], **group_params)
+            group_latents = wrapper.fit_transform(group_data, self.u)
             group_latents = group_latents.detach().clone().to(dtype=torch.float32, device=self.device)
             group_embeddings.append(group_latents)
             

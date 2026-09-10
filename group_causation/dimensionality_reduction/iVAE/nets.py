@@ -7,7 +7,7 @@ Streamlined and refactored for clarity, keeping only the core iVAE and VAE model
 
 import math
 from numbers import Number
-from typing import List, Optional, Tuple, Union
+from typing import List
 
 import numpy as np
 import torch
@@ -26,7 +26,7 @@ def weights_init(m: nn.Module):
         nn.init.xavier_uniform_(m.weight.data)
 
 
-def reparameterize_gaussian(mean: torch.Tensor, var: Optional[torch.Tensor] = None, logvar: Optional[torch.Tensor] = None) -> torch.Tensor:
+def reparameterize_gaussian(mean: torch.Tensor, var: torch.Tensor | None = None, logvar: torch.Tensor | None = None) -> torch.Tensor:
     """
     Standard reparameterization trick for Gaussian distributions: z = mean + eps * std
     Accepts either variance (`var`) or log-variance (`logvar`).
@@ -42,7 +42,7 @@ def reparameterize_gaussian(mean: torch.Tensor, var: Optional[torch.Tensor] = No
     return mean + eps * std
 
 
-def _check_inputs(size: Optional[torch.Size], mu: Optional[torch.Tensor], v: Optional[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+def _check_inputs(size: torch.Size | None, mu: torch.Tensor | None, v: torch.Tensor | None) -> tuple[torch.Tensor, torch.Tensor]:
     """Helper function to ensure distribution inputs are compatible and correctly broadcasted."""
     if size is None and mu is None and v is None:
         raise ValueError("Inputs can't all be None")
@@ -85,7 +85,7 @@ class Dist:
 
 class Normal(Dist):
     """ Isotropic Gaussian Distribution wrapper """
-    def __init__(self, device: Union[str, torch.device] = 'cpu'):
+    def __init__(self, device: str | torch.device = 'cpu'):
         super().__init__()
         self.device = device
         self.c = torch.tensor(2 * np.pi).to(self.device)
@@ -94,7 +94,7 @@ class Normal(Dist):
     def sample(self, mu: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         return reparameterize_gaussian(mu, var=v)
 
-    def log_pdf(self, x: torch.Tensor, mu: torch.Tensor, v: torch.Tensor, reduce: bool = True, param_shape: Optional[Tuple] = None) -> torch.Tensor:
+    def log_pdf(self, x: torch.Tensor, mu: torch.Tensor, v: torch.Tensor, reduce: bool = True, param_shape: tuple | None = None) -> torch.Tensor:
         if param_shape is not None:
             mu, v = mu.view(param_shape), v.view(param_shape)
         lpdf = -0.5 * (torch.log(self.c) + v.log() + (x - mu).pow(2).div(v))
@@ -107,9 +107,9 @@ class Normal(Dist):
 
 class MLP(nn.Module):
     """ Multi-Layer Perceptron used as the primary building block for Encoders and Decoders. """
-    def __init__(self, input_dim: int, output_dim: int, hidden_dim: Union[int, List[int]], 
-                 n_layers: int, activation: Union[str, List[str]] = 'none', 
-                 slope: float = 0.1, device: Union[str, torch.device] = 'cpu'):
+    def __init__(self, input_dim: int, output_dim: int, hidden_dim: int | list[int], 
+                 n_layers: int, activation: str | list[str] = 'none', 
+                 slope: float = 0.1, device: str | torch.device = 'cpu'):
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -186,7 +186,7 @@ class iVAE(nn.Module):
     """ Identifiable Variational Autoencoder leveraging an auxiliary variable 'u'. """
     def __init__(self, latent_dim: int, data_dim: int, aux_dim: int, prior=None, decoder=None, encoder=None,
                  n_layers: int = 3, hidden_dim: int = 50, activation: str = 'lrelu', slope: float = 0.1, 
-                 device: Union[str, torch.device] = 'cpu', anneal: bool = False):
+                 device: str | torch.device = 'cpu', anneal: bool = False):
         super().__init__()
         
         self.data_dim = data_dim
@@ -219,7 +219,7 @@ class iVAE(nn.Module):
         # Hyperparameters for ELBO decomposition/annealing: [a, b, c, d, N]
         self._training_hyperparams = [1.0, 1.0, 1.0, 1.0, 1]
 
-    def encoder_params(self, x: torch.Tensor, u: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def encoder_params(self, x: torch.Tensor, u: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         xu = torch.cat((x, u), 1)
         enc_mean = self.g(xu)
         enc_logvar = self.logv(xu)
@@ -227,15 +227,15 @@ class iVAE(nn.Module):
         enc_var = torch.clamp(enc_logvar.exp(), min=1e-5)
         return enc_mean, enc_var
 
-    def decoder_params(self, z: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def decoder_params(self, z: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         recon_mean = self.f(z)
         return recon_mean, self.decoder_logvar.exp()
 
-    def prior_params(self, u: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def prior_params(self, u: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         prior_logvar = self.logl(u)
         return self.prior_mean, prior_logvar.exp()
 
-    def forward(self, x: torch.Tensor, u: torch.Tensor) -> Tuple[Tuple, Tuple, torch.Tensor, Tuple]:
+    def forward(self, x: torch.Tensor, u: torch.Tensor) -> tuple[tuple, tuple, torch.Tensor, tuple]:
         prior_params = self.prior_params(u)
         encoder_params = self.encoder_params(x, u)
         
@@ -244,7 +244,7 @@ class iVAE(nn.Module):
         
         return decoder_params, encoder_params, z, prior_params
 
-    def elbo(self, x: torch.Tensor, u: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def elbo(self, x: torch.Tensor, u: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         decoder_params, encoder_params, z, prior_params = self.forward(x, u)
         
         # Extract individual parameters for calculating probabilities
@@ -306,7 +306,7 @@ class VAE(nn.Module):
     """ Standard Variational Autoencoder. """
     def __init__(self, latent_dim: int, data_dim: int, decoder=None, encoder=None,
                  n_layers: int = 3, hidden_dim: int = 50, activation: str = 'lrelu', slope: float = 0.1, 
-                 device: Union[str, torch.device] = 'cpu'):
+                 device: str | torch.device = 'cpu'):
         super().__init__()
         
         self.data_dim = data_dim
@@ -333,24 +333,24 @@ class VAE(nn.Module):
 
         self.apply(weights_init)
 
-    def encoder_params(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def encoder_params(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         enc_mean = self.g(x)
         enc_logvar = self.logv(x)
         enc_logvar = torch.clamp(enc_logvar, min=-15.0, max=5.0)
         return enc_mean, enc_logvar.exp()
 
-    def decoder_params(self, z: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def decoder_params(self, z: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         recon_mean = self.f(z)
         return recon_mean, self.decoder_logvar.exp()
 
-    def forward(self, x: torch.Tensor) -> Tuple[Tuple, Tuple, torch.Tensor, Tuple]:
+    def forward(self, x: torch.Tensor) -> tuple[tuple, tuple, torch.Tensor, tuple]:
         encoder_params = self.encoder_params(x)
         z = self.encoder_dist.sample(*encoder_params)
         decoder_params = self.decoder_params(z)
         
         return decoder_params, encoder_params, z, (self.prior_mean, self.prior_var)
 
-    def elbo(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def elbo(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         decoder_params, encoder_params, z, prior_params = self.forward(x)
         
         log_p_x_given_z = self.decoder_dist.log_pdf(x, *decoder_params)

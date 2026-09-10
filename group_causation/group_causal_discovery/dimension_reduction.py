@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.decomposition import PCA
-from typing import Any, Union
+from typing import Any
 
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.micro_causal_discovery.causal_discovery_causalnex import DynotearsWrapper
@@ -28,7 +28,7 @@ class DimensionReductionGroupCausalDiscovery(GroupCausalDiscovery):
                     groups: list[set[int]],
                     dimensionality_reduction: str = 'pca',
                     node_causal_discovery_alg: str = 'pcmci',
-                    node_causal_discovery_params: Union[dict[Any, Any], None] = None,
+                    node_causal_discovery_params: dict[Any, Any] | None = None,
                     **kwargs):
         super().__init__(data, groups, **kwargs)
         

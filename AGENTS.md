@@ -3,15 +3,15 @@
 ## Setup
 
 ```sh
-pip install -e .
+uv sync
 ```
 
-Python 3.9 only (`requires-python = ">=3.9,<3.10"` in pyproject.toml).
+Python 3.14+ (`requires-python = ">=3.14"` in pyproject.toml). uv manages the Python version and virtualenv automatically.
 
 ## Run tests
 
 ```sh
-pytest
+uv run pytest
 ```
 
 No lint, typecheck, or formatter is configured for this repo.
@@ -24,6 +24,7 @@ Slow tests (PyTorch model training) are marked with `@pytest.mark.slow`.
 
 ## Structure
 
+- `group_causation/shared_mixins.py` — `StandardizationMixin` + `MemoryMonitorMixin` (shared by all ABCs)
 - `group_causation/causal_discovery_base.py` — `CausalDiscovery` ABC (leaf-level)
 - `group_causation/group_causal_discovery/` — group-level algorithms (subclasses of `GroupCausalDiscovery` which extends `CausalDiscovery`)
 - `group_causation/benchmark/` — benchmark harness; entry point is `BenchmarkGroupCausalDiscovery`

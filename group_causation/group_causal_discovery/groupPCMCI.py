@@ -4,7 +4,7 @@ import logging
 import torch
 import math
 from scipy.stats import chi2
-from typing import Any, Union, Optional
+from typing import Any
 
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.independence_tests import conditional_independence_tests
@@ -22,11 +22,11 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
                  tau_max: int,
                  pc_alpha: float = 0.05,
                  max_conds_dim: int = 2,
-                 u: Union[np.ndarray, str, None] = 'time_index',
+                 u: np.ndarray | str | None = 'time_index',
                  conditional_independence_test: str = 'max_corr',
-                 num_chunks_of_time_index: Union[int, None] = None,
-                 pcmci_params: Union[dict[str, Any], None] = None,
-                 non_stationarity_info: Optional[dict[str, Any]] = None,
+                 num_chunks_of_time_index: int | None = None,
+                 pcmci_params: dict[str, Any] | None = None,
+                 non_stationarity_info: dict[str, Any] | None = None,
                  verbose: int = 0,
                  **kwargs):
         

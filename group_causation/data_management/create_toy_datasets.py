@@ -1,415 +1,75 @@
-'''
-Module with the different functions that are necessary to generate toy time series datasets
-from causal processes, which are defined by ts DAGs.
-'''
+"""Toy dataset generation and persistence for causal time series."""
 
-
-
-from collections import deque
+import ast
 import logging
 import os
 import random
-from typing import Any, Callable, Union
-import warnings
+from collections import deque
+from typing import Any
+
 import numpy as np
 import pandas as pd
-from tigramite.toymodels.structural_causal_processes import generate_structural_causal_process, structural_causal_process
-from group_causation.data_management.time_series_generator import generate_group_causal_process_structure, generate_data_from_causal_process_structure
 from tigramite import plotting as tp
 from tigramite.graphs import Graphs
+from tigramite.toymodels.structural_causal_processes import (
+    generate_structural_causal_process,
+    structural_causal_process,
+)
 
+from group_causation.data_management.time_series_generator import (
+    generate_group_causal_process_structure,
+    generate_data_from_causal_process_structure,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Standalone helpers
+# ---------------------------------------------------------------------------
 
 def get_parents_dict(causal_process) -> dict[int, list[tuple[int, int]]]:
-    '''
-    Extracts parents dict. Supports both Tigramite's format and the Multivariate format.
-    '''
-    parents_dict = {}
+    """Extract a parents dict from a Tigramite or multivariate causal process."""
+    parents_dict: dict[int, list[tuple[int, int]]] = {}
     for key, links in causal_process.items():
         parents_dict[key] = []
         for link in links:
             parents_info = link[0]
-            # If it's the multivariate format (tuple of tuples)
+            # Multivariate format: ((parent, lag), ...) tuple of tuples
             if isinstance(parents_info[0], tuple):
                 for p, lag in parents_info:
                     if (p, lag) not in parents_dict[key]:
                         parents_dict[key].append((p, lag))
-            # If it's the Tigramite format ((parent, lag), coeff, func)
-            else: 
+            # Tigramite format: ((parent, lag), coeff, func)
+            else:
                 p, lag = parents_info
                 if (p, lag) not in parents_dict[key]:
                     parents_dict[key].append((p, lag))
     return parents_dict
 
-class CausalDataset:
-    def __init__(self, time_series=None, parents_dict=None, groups=None, max_value_threshold=1e10):
-        '''
-        Initialize the CausalDataset object.
-        
-        Args:
-            time_series : np.ndarray with shape (n_samples, n_variables)
-            parents_dict : dictionary whose keys are each node, and values are the lists of parents, [... (i, -tau) ...].
-            groups : List of lists, where each list is a group of variables. Just is used in case of group-based datasets.
-            max_value_threshold : Maximum value of the time series. If a value is greater than this, generation will be repeated.
-        '''
-        self.time_series: Union[np.ndarray, None] = time_series
-        self.parents_dict: Union[dict[int, list[tuple[int, int]]], None] = parents_dict
-        self._groups: Union[list[list[int]], None] = groups
-        self.node_parents_dict: dict[int, list[tuple[int, int]]] = {}
-        self.max_value_threshold = max_value_threshold
-        self.non_stationarity_info: dict[str, Union[bool, list[int], list[float]]] = {'applied': False}
 
-    @property
-    def groups(self) -> Union[list[list[int]], None]:
-        return self._groups
+def _extract_subgraph(parents: dict[int, list[tuple[int, int]]],
+                      chosen_nodes: list[int]) -> dict[int, list[tuple[int, int]]]:
+    """Return the subgraph induced by *chosen_nodes*.
 
-    @groups.setter
-    def groups(self, value: Union[list[list[int]], None]) -> None:
-        self._groups = value
-    
-    dependency_funcs_dict = {
-        'linear': lambda x: x,
-        'negative-exponential': lambda x: 1 - np.exp(-abs(x)),
-        'sin': lambda x: np.sin(x),
-        'cos': lambda x: np.cos(x),
-        'step': lambda x: 1 if x > 0 else -1,
-    }
-    
-    def generate_toy_data(self, name, T=100, N_vars=10, crosslinks_density=0.75,
-                      confounders_density = 0, min_lag=1, max_lag=3, contemp_fraction=0,
-                      dependency_funcs=['nonlinear'], datasets_folder = None, maximum_tries=100,
-                      **kw_generation_args) \
-                            -> tuple[np.ndarray, dict[int, list[tuple[int, int]]]]:
-        r"""
-        Generate a toy dataset with a causal process and time series data.
-        Node-level links are modeled as a linear combination of the parents, in the following way:
-        
-        .. math:: X_i^t = \sum_{j \in \\text{parents}(i)} \\beta_{ij} X_j^{t - \\tau_{ij}} + \epsilon_i(t)
-        
-        Where the scalar coefficients are takien from kw_generation_args 'dependency_coeffs' and 'auto_coeffs' parameters,
-        and the noise :math:`\epsilon_i(t)` is taken from kw_generation_args 'noise_dists' and 'noise_sigmas' parameters.
-        
-        Args:
-            name : Name of the dataset
-            T : Number of time points
-            N : Number of variables
-            crosslinks_density : Fraction of links that are cross-links
-            confounders_density : Fraction of confounders in the dataset
-            max_lag : Maximum lag of the causal process
-            dependency_funcs : List of dependency functions (in {'linear', 'nonlinear'}, or a function :math:`f:\mathbb R \\rightarrow\mathbb R`)
-            dataset_folder : Name of the folder where datasets and parents will be saved. By default they are not saved.
-            
-        Returns:
-            time_series : np.ndarray with shape (n_samples, n_variables)
-            parents_dict: dictionary whose keys are each node, and values are the lists of parents, [... (i, -tau) ...].
-        """
-        if min_lag > 0 and contemp_fraction > 1e-6:
-            raise ValueError('If min_lag > 0, then contemp_fraction must be 0')
-        elif min_lag == 0 and contemp_fraction < 1e-6:
-            raise ValueError('If min_lag is 0, then contemp_fraction can not be 0.')
-        
-        # Convert dependency_funcs names to functions
-        dependency_funcs = [self.dependency_funcs_dict[func] if func in self.dependency_funcs_dict else func
-                                for func in dependency_funcs ]
-        
-        L = N_vars * crosslinks_density / (1 - crosslinks_density) # Forcing crosslinks_density = L / (N + L)
-        L = int(L//(1-contemp_fraction)) # So that the contemp links are not counted in L
-        total_generating_vars = int(N_vars * (1 + confounders_density))
-        
-        # Try to generate data until there are no NaNs
-        for it in range(1, maximum_tries+1):
-            # Generate random causal process
-            causal_process, noise = generate_structural_causal_process(N=total_generating_vars,
-                                                                L=L,
-                                                                max_lag=max_lag,
-                                                                contemp_fraction=contemp_fraction,
-                                                                dependency_funcs=dependency_funcs,
-                                                                **kw_generation_args)
-            self.parents_dict = get_parents_dict(causal_process)
-            # Generate time series data from the causal process
-            self.time_series, _ = structural_causal_process(causal_process, T=T, noises=noise)
-            if confounders_density > 1e-6:
-                # Now we choose what variables will be kept and studied (the rest are hidden confounders)
-                chosen_nodes = random.sample(range(total_generating_vars), N_vars)
-                self.time_series = self.time_series[:, chosen_nodes]
-                self.parents_dict = _extract_subgraph(self.parents_dict, chosen_nodes)
-            # If dataset has no NaNs nor infinites, use it
-            if np.all(np.isfinite(self.time_series)) and \
-                np.all(np.abs(self.time_series) < self.max_value_threshold) and \
-                not np.any(np.isnan(self.time_series)):
-                break
-            else:
-                logging.debug(f'Dataset has NaNs or infinites, trying again... {it}/{maximum_tries}')
-        
-        # If the maximum number of tries is reached, raise an error
-        if it == maximum_tries:
-            raise ValueError('Current Could not generate a dataset without NaNs')
-            
-        if datasets_folder is not None:
-            # If the folder does not exist, create it
-            if not os.path.exists(datasets_folder):
-                os.makedirs(datasets_folder)
-            # Save the dataset
-            self._save(name, datasets_folder)
-                
-        assert self.time_series is not None
-        assert self.parents_dict is not None
-        return self.time_series, self.parents_dict
-    
-    def _save(self, name, dataset_folder):
-        # Save the time series data to a csv file
-        df = pd.DataFrame(self.time_series)
-        df.to_csv(f'{dataset_folder}/{name}_data.csv', index=False, header=True)
-        # Save parents to a txt file
-        with open(f'{dataset_folder}/{name}_parents.txt', 'w') as f:
-            parents_representation = repr(self.parents_dict)
-            f.write(parents_representation)
-    
-    def generate_group_toy_data(self, name, T=100, N_vars=20, N_groups=3,
-                                inner_group_crosslinks_density=0.5, outer_group_crosslinks_density=0.5,
-                                latent_confounding_fraction=0.0,
-                                maximum_of_nodes_confounded=4,
-                                n_node_links_per_group_link=2, contemp_fraction=.0,
-                                cross_terms_fraction=0.2,
-                                max_lag=3, min_lag=1, dependency_funcs=['linear'],
-                                multivariate_funcs=[lambda x, y: x * y],
-                                dependency_coeffs=[-0.5, 0.5], auto_coeffs=[0.5, 0.7],
-                                noise_dists=['gaussian'], noise_sigmas=[0.5, 2],
-                                datasets_folder = None, maximum_tries=100, 
-                                group_links = None,
-                                non_stationarity_params={},
-                                **kw_generation_args) \
-                            -> tuple[np.ndarray, dict[int,
-                                                    list[tuple[int, int]]],
-                                                    list[list[int]],
-                                                    dict[int, list[tuple[int, int]]],
-                                                    dict[str, Any]]:
-        '''
-        Generate a toy dataset with a group-based causal process and time series data.
-        '''
-        if min_lag > 0 and contemp_fraction > 1e-6:
-            raise ValueError('If there is a fraction of links that are contemporaneous, the minimum lag must be 0')
-        
-        # Convert dependency_funcs names to functions
-        parsed_dependency_funcs = [self.dependency_funcs_dict[func] if func in self.dependency_funcs_dict else func\
-                                for func in dependency_funcs]
-        
-        # Calculate total variables so that the final visible count is exactly N_vars
-        total_vars = int(N_vars * (1 + latent_confounding_fraction))
-        
-        for it in range(1, maximum_tries+1):
-            try:
-                # 1. Set Groups (Distribute ALL variables, including future latents, into the groups)
-                current_groups = self._generate_groups(total_vars, N_groups)
-                
-                # 2. Set the Macro-Graph (Group Links)
-                current_group_links = group_links
-                if current_group_links is None:
-                    current_group_links = self._generate_random_group_links(
-                        N_groups=N_groups,
-                        density=outer_group_crosslinks_density, 
-                        max_lag=max_lag, 
-                        contemp_fraction=contemp_fraction
-                    )
-                
-                # 3. Generate the Micro-Graph structure and obtain the latent nodes
-                global_causal_process, latent_nodes = generate_group_causal_process_structure(
-                    groups=current_groups,
-                    group_links=current_group_links,
-                    n_node_links_per_group_link=n_node_links_per_group_link,
-                    inner_group_density=inner_group_crosslinks_density,
-                    latent_confounding_fraction=latent_confounding_fraction, # <- Pasamos la fracción aquí
-                    max_lag=max_lag,
-                    contemp_fraction=contemp_fraction,
-                    cross_terms_fraction=cross_terms_fraction,
-                    dependency_funcs=parsed_dependency_funcs,
-                    multivariate_funcs=multivariate_funcs,
-                    dependency_coeffs=dependency_coeffs,
-                    auto_coeffs=auto_coeffs,
-                    enforce_stationarity=(non_stationarity_params != {})
-                )
-
-                visible_nodes = [n for n in range(total_vars) if n not in latent_nodes]
-
-
-                # 4. Generate full inflated data
-                full_time_series, nonvalid, self.non_stationarity_info = generate_data_from_causal_process_structure(
-                    links=global_causal_process,
-                    T=T,
-                    noise_dists=noise_dists,
-                    noise_sigmas=noise_sigmas,
-                    non_stationarity_params=non_stationarity_params,
-                )
-                # Backward-compatible alias used by older code paths.
-                self.stationarity_info = self.non_stationarity_info
-                
-                if nonvalid or np.any(np.abs(full_time_series) > self.max_value_threshold):
-                    continue
-                
-                # 5. Extract Visible Subgraph & Filter
-                self.time_series = full_time_series[:, visible_nodes]
-
-                full_node_parents = get_parents_dict(global_causal_process)
-                self.node_parents_dict = _extract_subgraph(full_node_parents, visible_nodes)
-
-                # Remap group indices to match the new contiguous node array (0 to N_vars-1)
-                self._groups = []
-                node_mapping = {old_idx: new_idx for new_idx, old_idx in enumerate(visible_nodes)}
-                
-                for g in current_groups:
-                    new_g = [node_mapping[n] for n in g if n in node_mapping]
-                    if new_g:
-                        self._groups.append(new_g)
-
-                self.parents_dict = self.extract_group_parents(self.node_parents_dict)
-                break
-                
-            except Exception as e:
-                logging.exception(f'Generation attempt {it}/{maximum_tries} failed: {str(e)}')
-                if it == maximum_tries:
-                    raise ValueError(f'Could not generate a dataset after {maximum_tries} tries. Last error: {str(e)}')
-        
-        if datasets_folder is not None:
-            if not os.path.exists(datasets_folder):
-                os.makedirs(datasets_folder)
-            self._save_groups(name, datasets_folder)
-        
-        assert self.time_series is not None
-        assert self.parents_dict is not None
-        assert self._groups is not None
-        
-        return self.time_series, self.parents_dict, self._groups, self.node_parents_dict, self.non_stationarity_info
-    
-    def extract_group_parents(self, node_parents_dict: dict[int, list[tuple[int, int]]]) -> dict[int, list[tuple[int, int]]]:
-        '''
-        Given a dictionary with the parents of each node, return a dictionary with the parents of each group.
-        
-        Args:
-            node_parents_dict : dictionary whose keys are each node, and values are the lists of parents, [... (i_node, -tau) ...].
-            
-        Returns:
-            group_parents_dict: dictionary whose keys are each group, and values are the lists of parent groups, [... (i_group, -tau) ...].
-        '''
-        assert self._groups is not None
-        group_parents_dict: dict[int, list[tuple[int, int]]] = {i: [] for i in range(len(self._groups))}
-        
-        # Iterate over the nodes and their parents
-        for son_node, parents in node_parents_dict.items():
-            [son_group] = [i for i, group in enumerate(self._groups) if son_node in group]
-            for parent, lag in parents:
-                [parent_group] = [i for i, group in enumerate(self._groups) if parent in group]
-                # Add the parent group to the son group
-                group_parents_dict[son_group].append((parent_group, lag))
-            
-            # Remove duplicates
-            group_parents_dict[son_group] = list(set(group_parents_dict[son_group]))
-            # Remove autolinks
-            for son, parents in group_parents_dict.items():
-                group_parents_dict[son] = [(parent,lag) for (parent,lag) in parents\
-                                                if parent!=son or lag!=0]
-        
-        return group_parents_dict
-    
-    def _generate_groups(self, N_vars, N_groups) -> list[list[int]]:
-        '''
-        Generate N_groups groups of variables, with at least 2 nodes each.
-        
-        Args:
-            N_vars : Number of variables
-            N_groups : Number of groups
-        
-        Returns:
-            groups : List of lists, where each list is a group of variables
-        '''
-        if N_groups > N_vars/2:
-            raise ValueError('The number of groups must be less than N_vars / 2')
-        
-        # Generate N_groups groups with 2 nodes each
-        nodes = list( range(N_vars) )
-        groups = [[nodes.pop(), nodes.pop()] for _ in range(N_groups)]
-        
-        # Distribute the remaining nodes randomly
-        while len(nodes) != 0:
-            group = groups[np.random.randint(0, N_groups)]
-            group.append(nodes.pop())
-
-        return groups
-    
-    def _generate_random_group_links(self, N_groups, density, max_lag, contemp_fraction):
-        """Generates a random Macro-Graph if the user does not provide one."""
-        group_links = {i: [] for i in range(N_groups)}
-        for i in range(N_groups):
-            for j in range(N_groups):
-                if i == j: continue
-                if random.random() < density:
-                    # Avoid lag 0 cycles
-                    if j > i and random.random() < contemp_fraction:
-                        lag = 0
-                    else:
-                        lag = -random.randint(1, max_lag) if max_lag > 0 else 0
-                        if lag == 0: continue # Prevent contemporaneous cycles
-                    
-                    if (i, lag) not in group_links[j]:
-                        group_links[j].append((i, lag))
-        return group_links
-    
-    def _save_groups(self, name, dataset_folder):
-        self._save(name, dataset_folder)
-        # Save the groups to a txt file
-        with open(f'{dataset_folder}/{name}_groups.txt', 'w') as f:
-            groups_representation = repr(self._groups)
-            f.write(groups_representation)
-        # Save the groups parents to a txt file
-        with open(f'{dataset_folder}/{name}_node_parents.txt', 'w') as f:
-            node_parents_representation = repr(self.node_parents_dict)
-            f.write(node_parents_representation)
-        with open(f'{dataset_folder}/{name}_non_stationarity_info.txt', 'w') as f:
-            non_stationarity_representation = repr(self.non_stationarity_info)
-            f.write(non_stationarity_representation)
-    
-    
-    
-
-def plot_ts_graph(parents_dict, var_names=None):
-    '''
-    Function to plot the graph structure of the time series
-    '''
-    graph = Graphs.get_graph_from_dict(parents_dict)
-    tp.plot_time_series_graph(
-        graph=graph,
-        var_names=var_names,
-        link_colorbar_label='cross-MCI (edges)',
-    )
-
-
-def _extract_subgraph(parents: dict[int, list[tuple[int,int]]],
-                     chosen_nodes: list[int]
-                    ) -> dict[int, list[tuple[int,int]]]:
-    '''
-    Given a dictionary with the parents of each node in a graph,
-    return a dictionary with the parents of chosen nodes, considering that
-    a variable between the chosen_nodes is son of another if and only if
-    there is a directed path from the parent to the child that only goes
-    through non-chosen nodes.
-    '''    
+    A variable in *chosen_nodes* is a child of another iff there is a
+    directed path from the parent to the child through non-chosen nodes.
+    """
     chosen_set = set(chosen_nodes)
     idx_of = {node: i for i, node in enumerate(chosen_nodes)}
-    
-    new_parents = {idx: [] for idx in idx_of.values()}
-    
+
+    new_parents: dict[int, list[tuple[int, int]]] = {idx: [] for idx in idx_of.values()}
+
     for child in chosen_nodes:
         child_idx = idx_of[child]
-        
-        # BFS queue entries are (current_node, cum_lag)
-        queue = deque([(child, 0)])
-        visited = {child}
-        
+        queue: deque[tuple[int, int]] = deque([(child, 0)])
+        visited: set[int] = {child}
+
         while queue:
             curr, cum_lag = queue.popleft()
-            
+
             for p, lag in parents.get(curr, []):
                 # Keep direct autoregressive links of the chosen node.
-                # Without this, (child, -1) can be dropped by the visited check and
-                # only delayed self-paths (e.g., -2) may remain after marginalization.
                 if curr == child and p == child and lag < 0:
                     edge = (idx_of[p], cum_lag + lag)
                     if edge not in new_parents[child_idx]:
@@ -419,51 +79,383 @@ def _extract_subgraph(parents: dict[int, list[tuple[int,int]]],
                 if p in visited:
                     continue
                 total_lag = cum_lag + lag
-                
+
                 if p in chosen_set:
-                    # avoid trivial self-loop with lag==0
                     if not (p == child and lag == 0):
                         new_parents[child_idx].append((idx_of[p], total_lag))
-                    # do not walk past a chosen node
                 else:
                     visited.add(p)
                     queue.append((p, total_lag))
-        
-        # remove duplicates (in case multiple paths hit the same chosen parent)
-        seen = set()
-        uniq = []
+
+        # Deduplicate
+        seen: set[tuple[int, int]] = set()
+        uniq: list[tuple[int, int]] = []
         for pair in new_parents[child_idx]:
             if pair not in seen:
                 seen.add(pair)
                 uniq.append(pair)
         new_parents[child_idx] = uniq
-    
-    return new_parents             
+
+    return new_parents
 
 
-if __name__ == '__main__':
-    random.seed(0)
-    dataset = CausalDataset()
-    time_series, parents_dict, groups, node_parents_dict, non_stationarity_info = dataset.generate_group_toy_data(name='test', T=1000, N_vars=50, N_groups=10,
-                                inner_group_crosslinks_density=0.2, outer_group_crosslinks_density=0.3,
-                                n_node_links_per_group_link=3, contemp_fraction=.1,
-                                cross_terms_fraction=0.2,
-                                max_lag=3, min_lag=0, dependency_funcs=['linear'],
-                                multivariate_funcs=[lambda x, y: x * y],
-                                dependency_coeffs=[-0.3, 0.3], auto_coeffs=[0.3, 0.5],
-                                noise_dists=['gaussian'], noise_sigmas=[0.2, 1],
-                                datasets_folder = None, maximum_tries=100)
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(12, 6))
-    for i in range(time_series.shape[1]):
-        plt.plot(time_series[:, i] + i*50, label=f'Node {i}')  # Desplazamos cada nodo para visualización
-    plt.title('Series Temporales Sintéticas con Estructura Causal de Grupos')
-    plt.xlabel('Time')
-    plt.ylabel('Value (offset for visibility)')
-    plt.legend()
-    plt.show()
-    
-    logging.debug('Parents dict (group-level):')
-    for group, parents in parents_dict.items():
-        logging.debug(f'Group {group}: {parents}')
-    
+# ---------------------------------------------------------------------------
+# Persistence mixin (safe loading, no eval)
+# ---------------------------------------------------------------------------
+
+class DatasetPersistence:
+    """Save / load helpers for CausalDataset files."""
+
+    def _save(self, name: str, dataset_folder: str) -> None:
+        """Save time_series and parents_dict to CSV + TXT."""
+        df = pd.DataFrame(self.time_series)
+        df.to_csv(f"{dataset_folder}/{name}_data.csv", index=False, header=True)
+        with open(f"{dataset_folder}/{name}_parents.txt", "w") as f:
+            f.write(repr(self.parents_dict))
+
+    def _save_groups(self, name: str, dataset_folder: str) -> None:
+        """Save time_series, parents, groups, node_parents, and NS info."""
+        self._save(name, dataset_folder)
+        with open(f"{dataset_folder}/{name}_groups.txt", "w") as f:
+            f.write(repr(self._groups))
+        with open(f"{dataset_folder}/{name}_node_parents.txt", "w") as f:
+            f.write(repr(self.node_parents_dict))
+        with open(f"{dataset_folder}/{name}_non_stationarity_info.txt", "w") as f:
+            f.write(repr(self.non_stationarity_info))
+
+    @staticmethod
+    def load_parents_dict(filepath: str) -> dict[int, list[tuple[int, int]]]:
+        """Safely load a parents dict from a repr-written text file."""
+        with open(filepath) as f:
+            return ast.literal_eval(f.read())
+
+    @staticmethod
+    def load_groups(filepath: str) -> list[list[int]]:
+        """Safely load groups from a repr-written text file."""
+        with open(filepath) as f:
+            return ast.literal_eval(f.read())
+
+    @staticmethod
+    def load_node_parents_dict(filepath: str) -> dict[int, list[tuple[int, int]]]:
+        """Safely load a node parents dict from a repr-written text file."""
+        with open(filepath) as f:
+            return ast.literal_eval(f.read())
+
+    @staticmethod
+    def load_non_stationarity_info(filepath: str) -> dict[str, Any]:
+        """Safely load non-stationarity info from a repr-written text file."""
+        with open(filepath) as f:
+            return ast.literal_eval(f.read())
+
+
+# ---------------------------------------------------------------------------
+# Graph-transform helpers
+# ---------------------------------------------------------------------------
+
+def extract_group_parents(node_parents_dict: dict[int, list[tuple[int, int]]],
+                          groups: list[list[int]]) -> dict[int, list[tuple[int, int]]]:
+    """Map node-level parents to group-level parents.
+
+    A group is a parent of another group iff any node in the child group
+    has a parent node that belongs to the parent group.
+    """
+    # Pre-build node → group index for O(1) lookups
+    node_to_group: dict[int, int] = {}
+    for group_idx, group in enumerate(groups):
+        for node in group:
+            node_to_group[node] = group_idx
+
+    n_groups = len(groups)
+    group_parents_dict: dict[int, list[tuple[int, int]]] = {i: [] for i in range(n_groups)}
+
+    for son_node, parents in node_parents_dict.items():
+        son_group = node_to_group[son_node]
+        for parent, lag in parents:
+            parent_group = node_to_group[parent]
+            group_parents_dict[son_group].append((parent_group, lag))
+
+        # Deduplicate and remove self-loops (lag 0)
+        group_parents_dict[son_group] = [
+            (p, lag) for p, lag in set(group_parents_dict[son_group])
+            if not (p == son_group and lag == 0)
+        ]
+
+    return group_parents_dict
+
+
+def generate_groups(n_vars: int, n_groups: int) -> list[list[int]]:
+    """Generate *n_groups* groups with at least 2 nodes each."""
+    if n_groups > n_vars / 2:
+        raise ValueError("The number of groups must be less than N_vars / 2")
+
+    nodes = list(range(n_vars))
+    groups = [[nodes.pop(), nodes.pop()] for _ in range(n_groups)]
+
+    while nodes:
+        groups[random.randint(0, n_groups - 1)].append(nodes.pop())
+
+    return groups
+
+
+def generate_random_group_links(n_groups: int, density: float, max_lag: int,
+                                contemp_fraction: float) -> dict[int, list[tuple[int, int]]]:
+    """Generate a random macro-graph (group-level links)."""
+    group_links: dict[int, list[tuple[int, int]]] = {i: [] for i in range(n_groups)}
+    for i in range(n_groups):
+        for j in range(n_groups):
+            if i == j:
+                continue
+            if random.random() < density:
+                if j > i and random.random() < contemp_fraction:
+                    lag = 0
+                else:
+                    lag = -random.randint(1, max_lag) if max_lag > 0 else 0
+                    if lag == 0:
+                        continue
+
+                if (i, lag) not in group_links[j]:
+                    group_links[j].append((i, lag))
+    return group_links
+
+
+# ---------------------------------------------------------------------------
+# Dependency functions registry
+# ---------------------------------------------------------------------------
+
+DEPENDENCY_FUNCS: dict[str, Any] = {
+    "linear": lambda x: x,
+    "negative-exponential": lambda x: 1 - np.exp(-abs(x)),
+    "sin": lambda x: np.sin(x),
+    "cos": lambda x: np.cos(x),
+    "step": lambda x: 1 if x > 0 else -1,
+}
+
+
+# ---------------------------------------------------------------------------
+# Main dataset class
+# ---------------------------------------------------------------------------
+
+class CausalDataset(DatasetPersistence):
+    """Container for causal time series data and its ground-truth graph.
+
+    Can be initialised empty and populated via ``generate_toy_data`` or
+    ``generate_group_toy_data``, or constructed directly from arrays.
+    """
+
+    def __init__(self, time_series=None, parents_dict=None, groups=None,
+                 max_value_threshold: float = 1e10):
+        self.time_series: np.ndarray | None = time_series
+        self.parents_dict: dict[int, list[tuple[int, int]]] | None = parents_dict
+        self._groups: list[list[int]] | None = groups
+        self.node_parents_dict: dict[int, list[tuple[int, int]]] = {}
+        self.max_value_threshold = max_value_threshold
+        self.non_stationarity_info: dict[str, bool | list[int] | list[float]] = {"applied": False}
+
+    @property
+    def groups(self) -> list[list[int]] | None:
+        return self._groups
+
+    @groups.setter
+    def groups(self, value: list[list[int]] | None) -> None:
+        self._groups = value
+
+    # ------------------------------------------------------------------
+    # Node-level toy data generation
+    # ------------------------------------------------------------------
+
+    def generate_toy_data(self, name: str, T: int = 100, N_vars: int = 10,
+                          crosslinks_density: float = 0.75,
+                          confounders_density: float = 0.0,
+                          min_lag: int = 1, max_lag: int = 3,
+                          contemp_fraction: float = 0.0,
+                          dependency_funcs=None,
+                          datasets_folder: str | None = None,
+                          maximum_tries: int = 100,
+                          **kw_generation_args) -> tuple[np.ndarray, dict[int, list[tuple[int, int]]]]:
+        """Generate a node-level toy dataset from a random causal process."""
+        if min_lag > 0 and contemp_fraction > 1e-6:
+            raise ValueError("If min_lag > 0, then contemp_fraction must be 0")
+        if min_lag == 0 and contemp_fraction < 1e-6:
+            raise ValueError("If min_lag is 0, then contemp_fraction can not be 0.")
+
+        if dependency_funcs is None:
+            dependency_funcs = ["nonlinear"]
+        parsed_funcs = [DEPENDENCY_FUNCS.get(f, f) for f in dependency_funcs]
+
+        L = int((N_vars * crosslinks_density / (1 - crosslinks_density)) // (1 - contemp_fraction))
+        total_generating_vars = int(N_vars * (1 + confounders_density))
+
+        for it in range(1, maximum_tries + 1):
+            causal_process, noise = generate_structural_causal_process(
+                N=total_generating_vars, L=L, max_lag=max_lag,
+                contemp_fraction=contemp_fraction,
+                dependency_funcs=parsed_funcs, **kw_generation_args,
+            )
+            self.parents_dict = get_parents_dict(causal_process)
+            self.time_series, _ = structural_causal_process(causal_process, T=T, noises=noise)
+
+            if confounders_density > 1e-6:
+                chosen_nodes = random.sample(range(total_generating_vars), N_vars)
+                self.time_series = self.time_series[:, chosen_nodes]
+                self.parents_dict = _extract_subgraph(self.parents_dict, chosen_nodes)
+
+            if (np.all(np.isfinite(self.time_series))
+                    and np.all(np.abs(self.time_series) < self.max_value_threshold)
+                    and not np.any(np.isnan(self.time_series))):
+                break
+            logger.debug("Dataset has NaNs or infinites, retrying... %d/%d", it, maximum_tries)
+        else:
+            raise ValueError("Could not generate a dataset without NaNs")
+
+        if datasets_folder is not None:
+            os.makedirs(datasets_folder, exist_ok=True)
+            self._save(name, datasets_folder)
+
+        assert self.time_series is not None
+        assert self.parents_dict is not None
+        return self.time_series, self.parents_dict
+
+    # ------------------------------------------------------------------
+    # Group-level toy data generation
+    # ------------------------------------------------------------------
+
+    def generate_group_toy_data(self, name: str, T: int = 100, N_vars: int = 20,
+                                N_groups: int = 3,
+                                inner_group_crosslinks_density: float = 0.5,
+                                outer_group_crosslinks_density: float = 0.5,
+                                latent_confounding_fraction: float = 0.0,
+                                maximum_of_nodes_confounded: int = 4,
+                                n_node_links_per_group_link: int = 2,
+                                contemp_fraction: float = 0.0,
+                                cross_terms_fraction: float = 0.2,
+                                max_lag: int = 3, min_lag: int = 1,
+                                dependency_funcs=None,
+                                multivariate_funcs=None,
+                                dependency_coeffs=None,
+                                auto_coeffs=None,
+                                noise_dists=None,
+                                noise_sigmas=None,
+                                datasets_folder: str | None = None,
+                                maximum_tries: int = 100,
+                                group_links=None,
+                                non_stationarity_params=None,
+                                **kw_generation_args):
+        """Generate a group-level toy dataset with latent confounding support."""
+        if min_lag > 0 and contemp_fraction > 1e-6:
+            raise ValueError("If there is a fraction of contemporaneous links, min_lag must be 0")
+
+        # Defaults
+        if dependency_funcs is None:
+            dependency_funcs = ["linear"]
+        if multivariate_funcs is None:
+            multivariate_funcs = [lambda x, y: x * y]
+        if dependency_coeffs is None:
+            dependency_coeffs = [-0.5, 0.5]
+        if auto_coeffs is None:
+            auto_coeffs = [0.5, 0.7]
+        if noise_dists is None:
+            noise_dists = ["gaussian"]
+        if noise_sigmas is None:
+            noise_sigmas = [0.5, 2]
+        if non_stationarity_params is None:
+            non_stationarity_params = {}
+
+        parsed_funcs = [DEPENDENCY_FUNCS.get(f, f) for f in dependency_funcs]
+        total_vars = int(N_vars * (1 + latent_confounding_fraction))
+
+        for it in range(1, maximum_tries + 1):
+            try:
+                current_groups = generate_groups(total_vars, N_groups)
+
+                if group_links is None:
+                    current_group_links = generate_random_group_links(
+                        N_groups, outer_group_crosslinks_density, max_lag, contemp_fraction
+                    )
+                else:
+                    current_group_links = group_links
+
+                global_causal_process, latent_nodes = generate_group_causal_process_structure(
+                    groups=current_groups,
+                    group_links=current_group_links,
+                    n_node_links_per_group_link=n_node_links_per_group_link,
+                    inner_group_density=inner_group_crosslinks_density,
+                    latent_confounding_fraction=latent_confounding_fraction,
+                    max_lag=max_lag,
+                    contemp_fraction=contemp_fraction,
+                    cross_terms_fraction=cross_terms_fraction,
+                    dependency_funcs=parsed_funcs,
+                    multivariate_funcs=multivariate_funcs,
+                    dependency_coeffs=dependency_coeffs,
+                    auto_coeffs=auto_coeffs,
+                    enforce_stationarity=(non_stationarity_params != {}),
+                )
+
+                visible_nodes = [n for n in range(total_vars) if n not in latent_nodes]
+
+                full_time_series, nonvalid, self.non_stationarity_info = (
+                    generate_data_from_causal_process_structure(
+                        links=global_causal_process, T=T,
+                        noise_dists=noise_dists, noise_sigmas=noise_sigmas,
+                        non_stationarity_params=non_stationarity_params,
+                    )
+                )
+                self.stationarity_info = self.non_stationarity_info
+
+                if nonvalid or np.any(np.abs(full_time_series) > self.max_value_threshold):
+                    continue
+
+                self.time_series = full_time_series[:, visible_nodes]
+
+                full_node_parents = get_parents_dict(global_causal_process)
+                self.node_parents_dict = _extract_subgraph(full_node_parents, visible_nodes)
+
+                # Remap group indices to contiguous 0..N_vars-1
+                node_mapping = {old: new for new, old in enumerate(visible_nodes)}
+                self._groups = []
+                for g in current_groups:
+                    new_g = [node_mapping[n] for n in g if n in node_mapping]
+                    if new_g:
+                        self._groups.append(new_g)
+
+                self.parents_dict = extract_group_parents(self.node_parents_dict, self._groups)
+                break
+
+            except Exception as e:
+                logger.exception("Generation attempt %d/%d failed: %s", it, maximum_tries, e)
+                if it == maximum_tries:
+                    raise ValueError(
+                        f"Could not generate a dataset after {maximum_tries} tries. Last error: {e}"
+                    )
+
+        if datasets_folder is not None:
+            os.makedirs(datasets_folder, exist_ok=True)
+            self._save_groups(name, datasets_folder)
+
+        assert self.time_series is not None
+        assert self.parents_dict is not None
+        assert self._groups is not None
+
+        return self.time_series, self.parents_dict, self._groups, self.node_parents_dict, self.non_stationarity_info
+
+    # ------------------------------------------------------------------
+    # Delegation to module-level function (backward compat)
+    # ------------------------------------------------------------------
+
+    def extract_group_parents(self, node_parents_dict: dict[int, list[tuple[int, int]]]) -> dict[int, list[tuple[int, int]]]:
+        """Delegate to the module-level function using this instance's groups."""
+        assert self._groups is not None
+        return extract_group_parents(node_parents_dict, self._groups)
+
+
+# ---------------------------------------------------------------------------
+# Plotting
+# ---------------------------------------------------------------------------
+
+def plot_ts_graph(parents_dict, var_names=None):
+    """Plot the graph structure of a time series causal process."""
+    graph = Graphs.get_graph_from_dict(parents_dict)
+    tp.plot_time_series_graph(
+        graph=graph,
+        var_names=var_names,
+        link_colorbar_label="cross-MCI (edges)",
+    )

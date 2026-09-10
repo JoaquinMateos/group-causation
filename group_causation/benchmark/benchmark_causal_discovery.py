@@ -78,44 +78,36 @@ class BenchmarkCausalDiscovery(BenchmarkBase):
             time = np.nan
             memory = np.nan
         
-        finally:
-            result = {'time': time, 'memory': memory}
-            actual_parents = causal_dataset.parents_dict
-            actual_parents_summary = window_to_summary_graph(actual_parents)
-            predicted_parents_window = {
-                son: [(parent_to_node(p), -1) for p in parents]
-                for son, parents in predicted_parents.items()
-            }
-            
-            # --- WINDOW GRAPH METRICS ---
-            # Compute the CPDAGs exactly ONCE
-            gt_edges, gt_cpdag = get_cpdag_and_edge_set(actual_parents)
-            pred_edges, pred_cpdag = get_cpdag_and_edge_set(predicted_parents_window)
-            
-            # Calculate metrics instantly using sets
-            n_nodes_window = len(gt_cpdag.nodes)
-            result['precision'] = get_precision(gt_edges, pred_edges)
-            result['recall'] = get_recall(gt_edges, pred_edges)
-            result['f1'] = get_f1(gt_edges, pred_edges)
-            result['fpr'] = get_false_positive_ratio(gt_edges, pred_edges, n_nodes_window)
-            result['shd'] = get_shd(gt_cpdag, pred_cpdag)
-            
-            
-            # --- SUMMARY GRAPH METRICS ---
-            actual_parents_summary = window_to_summary_graph(actual_parents)
-            predicted_parents_summary = window_to_summary_graph(predicted_parents_window)
-            
-            # Compute the summary CPDAGs
-            gt_summary_edges, gt_summary_cpdag = get_cpdag_and_edge_set(actual_parents_summary)
-            pred_summary_edges, pred_summary_cpdag = get_cpdag_and_edge_set(predicted_parents_summary)
-            
-            # Calculate summary metrics instantly
-            n_nodes_summary = len(gt_summary_cpdag.nodes)
-            result['precision_summary'] = get_precision(gt_summary_edges, pred_summary_edges)
-            result['recall_summary'] = get_recall(gt_summary_edges, pred_summary_edges)
-            result['f1_summary'] = get_f1(gt_summary_edges, pred_summary_edges)
-            result['fpr_summary'] = get_false_positive_ratio(gt_summary_edges, pred_summary_edges, n_nodes_summary)
-            result['shd_summary'] = get_shd(gt_summary_cpdag, pred_summary_cpdag)
-            
-            return result
+        result = {'time': time, 'memory': memory}
+        actual_parents = causal_dataset.parents_dict
+        predicted_parents_window = {
+            son: [(parent_to_node(p), -1) for p in parents]
+            for son, parents in predicted_parents.items()
+        }
         
+        # --- WINDOW GRAPH METRICS ---
+        gt_edges, gt_cpdag = get_cpdag_and_edge_set(actual_parents)
+        pred_edges, pred_cpdag = get_cpdag_and_edge_set(predicted_parents_window)
+        
+        n_nodes_window = len(gt_cpdag.nodes)
+        result['precision'] = get_precision(gt_edges, pred_edges)
+        result['recall'] = get_recall(gt_edges, pred_edges)
+        result['f1'] = get_f1(gt_edges, pred_edges)
+        result['fpr'] = get_false_positive_ratio(gt_edges, pred_edges, n_nodes_window)
+        result['shd'] = get_shd(gt_cpdag, pred_cpdag)
+        
+        # --- SUMMARY GRAPH METRICS ---
+        actual_parents_summary = window_to_summary_graph(actual_parents)
+        predicted_parents_summary = window_to_summary_graph(predicted_parents_window)
+        
+        gt_summary_edges, gt_summary_cpdag = get_cpdag_and_edge_set(actual_parents_summary)
+        pred_summary_edges, pred_summary_cpdag = get_cpdag_and_edge_set(predicted_parents_summary)
+        
+        n_nodes_summary = len(gt_summary_cpdag.nodes)
+        result['precision_summary'] = get_precision(gt_summary_edges, pred_summary_edges)
+        result['recall_summary'] = get_recall(gt_summary_edges, pred_summary_edges)
+        result['f1_summary'] = get_f1(gt_summary_edges, pred_summary_edges)
+        result['fpr_summary'] = get_false_positive_ratio(gt_summary_edges, pred_summary_edges, n_nodes_summary)
+        result['shd_summary'] = get_shd(gt_summary_cpdag, pred_cpdag)
+        
+        return result

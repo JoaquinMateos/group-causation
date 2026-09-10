@@ -1,13 +1,14 @@
+import ast
 from abc import ABC, abstractmethod
 import logging
 import os
-from importlib_metadata import files
+from importlib.metadata import files
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import copy
-from typing import Any, Iterator, Mapping, Optional, Union
+from typing import Any, Iterator, Mapping
 from matplotlib.axes import Axes
 from tqdm import tqdm
 import concurrent.futures
@@ -21,7 +22,7 @@ from group_causation.micro_causal_discovery.micro_causal_discovery_base import M
 from group_causation.group_causal_discovery.direction_extraction.direction_extraction_base import DirectionExtractorBase
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 
-AlgorithmCls = Union[type[MicroCausalDiscovery], type[GroupCausalDiscovery], type[CausalGroupsExtractorBase]]
+type AlgorithmCls = type[MicroCausalDiscovery] | type[GroupCausalDiscovery] | type[CausalGroupsExtractorBase]
 
 
 def parent_to_node(parent: tuple[int, int]) -> int:
@@ -390,7 +391,7 @@ class BenchmarkBase(ABC):
         for filename in data_files:
             data_name = filename.split('_')[0]
             with open(f'{folder_name}/{data_name}_parents.txt', 'r') as f:
-                parents_dict = eval(f.read())
+                parents_dict = ast.literal_eval(f.read())
             
             # Plot the time series dataset
             self._plot_ts_dataset(f'{folder_name}/{filename}', parents_dict)
@@ -585,7 +586,7 @@ def _load_micro_datasets(datasets_folder):
                     dataset = pd.read_csv(f'{datasets_folder}/{filename}')
                     parents_filename = f'{datasets_folder}/{filename.split("_")[0]}_parents.txt'
                     with open(parents_filename, 'r') as f:
-                        parents_dict = eval(f.read())
+                        parents_dict = ast.literal_eval(f.read())
                     
                     causal_datasets.append(CausalDataset(time_series=dataset.values,
                                                             parents_dict=parents_dict))

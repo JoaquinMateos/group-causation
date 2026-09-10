@@ -1,14 +1,14 @@
 import numpy as np
 import itertools
 import math
-from typing import Callable, Union, Tuple, List, Dict, cast
+from typing import Callable, cast
 
 # Type alias for the causal links structure.
-# Format: {node_j: [( ((parent1, lag1), (parent2, lag2), ...), coeff, func ), ...]}
-CausalLinks = Dict[int, List[Tuple[Tuple[Tuple[int, int], ...], float, Callable[..., float]]]]
+# Format: {node_j: [(( (parent1, lag1), (parent2, lag2), ...), coeff, func ), ...]}
+type CausalLinks = dict[int, list[tuple[tuple[tuple[int, int], ...], float, Callable[..., float]]]]
 
 
-def _get_topological_order(links: CausalLinks, N: int) -> List[int]:
+def _get_topological_order(links: CausalLinks, N: int) -> list[int]:
     """Computes the topological order of the contemporaneous (lag=0) sub-graph."""
     in_degree = {i: 0 for i in range(N)}
     adj_list = {i: [] for i in range(N)}
@@ -63,8 +63,8 @@ def _check_linear_stationarity(links: CausalLinks, N: int, max_lag: int) -> bool
 
 
 def generate_group_causal_process_structure(
-        groups: List[List[int]],
-        group_links: Dict[int, List[Tuple[int, int]]], 
+        groups: list[list[int]],
+        group_links: dict[int, list[tuple[int, int]]], 
         n_node_links_per_group_link: int = 2,
         inner_group_density: float = 0.3,
         latent_confounding_fraction: float = 0.0,
@@ -72,14 +72,14 @@ def generate_group_causal_process_structure(
         max_lag: int = 2,
         contemp_fraction: float = 0.0,
         cross_terms_fraction: float = 0.2, 
-        dependency_funcs: List[Callable] = [lambda x: x], 
-        multivariate_funcs: List[Callable] = [lambda x, y: x * y], 
-        dependency_coeffs: List[float] = [-0.4, 0.4], 
-        auto_coeffs: List[float] = [0.4], 
+        dependency_funcs: list[Callable] = [lambda x: x], 
+        multivariate_funcs: list[Callable] = [lambda x, y: x * y], 
+        dependency_coeffs: list[float] = [-0.4, 0.4], 
+        auto_coeffs: list[float] = [0.4], 
         enforce_autoregression: bool = True,
-        seed: Union[int, None] = None,
+        seed: int | None = None,
         enforce_stationarity: bool = True
-    ) -> Tuple[dict, set]:
+    ) -> tuple[dict, set]:
     """
     Generates a node-level causal graph strictly derived from a predefined group-level structure.
     
@@ -287,12 +287,12 @@ def _apply_non_stationarity(time_series: np.ndarray, params: dict) -> tuple[np.n
 def generate_data_from_causal_process_structure(
         links: CausalLinks, 
         T: int = 1000, 
-        noise_dists: List[str] = ['gaussian'], 
-        noise_sigmas: List[float] = [0.2], 
+        noise_dists: list[str] = ['gaussian'], 
+        noise_sigmas: list[float] = [0.2], 
         transient_fraction: float = 0.2, 
-        seed: Union[int, None] = None,
+        seed: int | None = None,
         non_stationarity_params: dict = {}
-    ) -> Tuple[np.ndarray, bool, dict]: # MODIFIED RETURN TO PASS BACK INFO
+    ) -> tuple[np.ndarray, bool, dict]: # MODIFIED RETURN TO PASS BACK INFO
     """Unrolls the equations over time to generate the synthetic dataset."""
     rs = np.random.RandomState(seed)
     N = len(links)

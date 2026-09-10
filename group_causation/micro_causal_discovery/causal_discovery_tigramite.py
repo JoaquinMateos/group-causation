@@ -1,4 +1,4 @@
-from typing import Optional, Union, Any
+from typing import Any
 import numpy as np
 import logging
 from scipy.stats import pearsonr
@@ -19,7 +19,7 @@ from group_causation.micro_causal_discovery.micro_causal_discovery_base import M
 class PCMCIWrapper(MicroCausalDiscovery):
     def __init__(self, data: np.ndarray, cond_ind_test='parcorr',
                  min_lag=1, max_lag=3, pc_alpha: float = 0.5, 
-                 non_stationarity_info: Optional[dict[str, Any]] = None, 
+                 non_stationarity_info: dict[str, Any] | None = None, 
                  num_generated_regimes_if_no_shift_info: int=1,
                  **kwargs):
         super().__init__(data, **kwargs)
@@ -96,7 +96,7 @@ class PCMCIWrapper(MicroCausalDiscovery):
 
 
 class LocalizedResidualTest:
-    def __init__(self, data: np.ndarray, u: Optional[np.ndarray] = None, test_type: str = 'hsic'):
+    def __init__(self, data: np.ndarray, u: np.ndarray | None = None, test_type: str = 'hsic'):
         self.data = data
         self.u = u
         self.test_type = test_type
@@ -215,7 +215,7 @@ class LocalizedResidualTest:
         raise NotImplementedError(f"Auto-alpha selection is unsupported for {self.measure}.")
 
 
-def convert_to_tigramite_dataframe(data: Union[TimeSeriesData, np.ndarray]) -> tigramite.data_processing.DataFrame:
+def convert_to_tigramite_dataframe(data: TimeSeriesData | np.ndarray) -> tigramite.data_processing.DataFrame:
     if isinstance(data, TimeSeriesData):
         return tigramite.data_processing.DataFrame(data.data_arrays[0], var_names=data.var_names)
     elif isinstance(data, np.ndarray):

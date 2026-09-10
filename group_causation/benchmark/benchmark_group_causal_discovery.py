@@ -1,3 +1,4 @@
+import ast
 import copy
 import logging
 import os
@@ -410,10 +411,10 @@ def _load_group_datasets(datasets_folder) -> list[CausalDataset]:
             dataset_prefix = filename.split('_')[0]
             parents_filename = f'{datasets_folder}/{dataset_prefix}_parents.txt'
             with open(parents_filename, 'r') as f:
-                parents_dict = eval(f.read())
+                parents_dict = ast.literal_eval(f.read())
             groups_filename = f'{datasets_folder}/{dataset_prefix}_groups.txt'
             with open(groups_filename, 'r') as f:
-                groups = eval(f.read())
+                groups = ast.literal_eval(f.read())
             non_stationarity_filename = f'{datasets_folder}/{dataset_prefix}_non_stationarity_info.txt'
 
             causal_dataset = CausalDataset(
@@ -423,7 +424,7 @@ def _load_group_datasets(datasets_folder) -> list[CausalDataset]:
             )
             if os.path.exists(non_stationarity_filename):
                 with open(non_stationarity_filename, 'r') as f:
-                    causal_dataset.non_stationarity_info = eval(f.read())
+                    causal_dataset.non_stationarity_info = ast.literal_eval(f.read())
 
             causal_datasets.append(causal_dataset)
     else:

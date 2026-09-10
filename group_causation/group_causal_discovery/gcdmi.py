@@ -1,4 +1,4 @@
-from typing import Union, Optional, Any
+from typing import Any
 import logging
 import numpy as np
 from scipy.stats import ks_2samp
@@ -93,8 +93,8 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
     and infers causality via Model Invariance Testing (KS Test).
     Can optionally incorporate background variables to handle non-stationarity.
     '''
-    def __init__(self, data: np.ndarray, groups: Union[list[set[int]], None] = None,
-                 standarize: bool=True, non_stationarity_info: Union[dict, None] = None, 
+    def __init__(self, data: np.ndarray, groups: list[set[int]] | None = None,
+                 standarize: bool=True, non_stationarity_info: dict | None = None, 
                  use_nonstationarity_info: bool = False,
                  verbose: int = 0, **kwargs):
                  
@@ -154,7 +154,7 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
         self.u_dim = self.u.shape[1] if self.u is not None else 0
         self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
-    def _create_windows(self, data: np.ndarray, u_data: Optional[np.ndarray] = None) -> tuple:
+    def _create_windows(self, data: np.ndarray, u_data: np.ndarray | None = None) -> tuple:
         """Creates sliding autoregressive windows for DeepAR forecasting."""
         X, Y = [], []
         U = [] if u_data is not None else None
@@ -265,7 +265,7 @@ class gCDMICausalDiscovery(GroupCausalDiscovery):
         
         return window_residuals.flatten()
 
-    def score_validation_nll(self, validation_data: np.ndarray, validation_u: Optional[np.ndarray] = None) -> float:
+    def score_validation_nll(self, validation_data: np.ndarray, validation_u: np.ndarray | None = None) -> float:
         """Scores the trained DeepAR model on a held-out time-series split using Gaussian NLL."""
         if not hasattr(self, 'model'):
             raise RuntimeError('The gCDMI model must be trained before calling score_validation_nll().')

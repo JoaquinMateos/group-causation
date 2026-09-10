@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from sklearn.decomposition import PCA
-from typing import Any, Union, List, Tuple, Set, Optional
+from typing import Any
 import logging
 
 from group_causation.dimensionality_reduction.adag_wrapper import AdagWrapper, TunablePCA
@@ -22,10 +22,10 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
     def __init__(self, data: np.ndarray,
                  groups: list[set[int]],
                  dimensionality_reduction_params: dict[str, Any],
-                 link_assumptions: Union[dict[int, dict[tuple[int, int], str]], None] = None,
+                 link_assumptions: dict[int, dict[tuple[int, int], str]] | None = None,
                  dimensionality_reduction: str = 'pca',
                  node_causal_discovery_alg: str = 'pcmci',
-                 node_causal_discovery_params: Union[dict[str, Any], None] = None,
+                 node_causal_discovery_params: dict[str, Any] | None = None,
                  apply_adag_optimization: bool = False,
                  conditional_independence_test_for_adag: str = 'max_corr',
                  pc_alpha_for_adag: float = 0.05,
@@ -95,7 +95,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
             last_parents = {}
             
             # 2. Define the callback function for Adag
-            def discovery_func(Z_m: List[torch.Tensor]) -> dict[int, list[tuple[int, int]]]:
+            def discovery_func(Z_m: list[torch.Tensor]) -> dict[int, list[tuple[int, int]]]:
                 nonlocal last_parents
                 
                 # Format Z_m back to the micro_data / micro_groups layout
@@ -133,7 +133,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
             
             return self.micro_level_causal_discovery.extract_parents()
 
-    def _format_z_m_to_micro(self, Z_m: List[torch.Tensor]) -> Tuple[List[Set[int]], np.ndarray]:
+    def _format_z_m_to_micro(self, Z_m: list[torch.Tensor]) -> tuple[list[set[int]], np.ndarray]:
         """Converts the list of aggregated tensors back into the micro_groups/micro_data format."""
         micro_groups = []
         micro_data = []
@@ -163,8 +163,8 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         )
 
     def _prepare_micro_groups_pca(self, explained_variance_threshold: float = 0.5,
-                                  embedding_ratio: Union[float, None] = None,
-                                  embedding_size: Union[int, None] = None,
+                                  embedding_ratio: float | None = None,
+                                  embedding_size: int | None = None,
                                   groups_division_method: str='group_embedding') -> tuple[list[set[int]], np.ndarray]:
         '''
         Execute the PCA dimensionality reduction algorithm to the groups of variables,
@@ -251,7 +251,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
             )
             return first_subgroup + second_subgroup, np.concatenate([first_subgroup_data, second_subgroup_data], axis=1)
     
-    def _get_variance_threshold_from_embedding_ratio_pca(self, embedding_ratio: Union[float, None] = None) -> float:
+    def _get_variance_threshold_from_embedding_ratio_pca(self, embedding_ratio: float | None = None) -> float:
         if embedding_ratio is None:
             raise ValueError('embedding_ratio must be provided when using embedding_ratio mode.')
 
@@ -266,7 +266,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         
         return explained_variance_threshold
     
-    def _get_variance_threshold_from_embedding_size_pca(self, embedding_size: Union[int, None] = None) -> float:
+    def _get_variance_threshold_from_embedding_size_pca(self, embedding_size: int | None = None) -> float:
         if embedding_size is None:
             raise ValueError('embedding_size must be provided when using embedding_size mode.')
 
@@ -284,7 +284,7 @@ class HybridGroupCausalDiscovery(GroupCausalDiscovery):
         
         return explained_variance_threshold
 
-def _convert_link_assumptions(link_assumptions: Union[dict[int, dict[tuple[int, int], str]], None], micro_groups: list[set[int]]) -> Union[dict[int, dict[tuple[int, int], str]], None]:
+def _convert_link_assumptions(link_assumptions: dict[int, dict[tuple[int, int], str]] | None, micro_groups: list[set[int]]) -> dict[int, dict[tuple[int, int], str]] | None:
     if link_assumptions is None:
         return None
     

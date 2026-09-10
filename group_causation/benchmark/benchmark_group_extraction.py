@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import logging
 import os
-from importlib_metadata import files
+from importlib.metadata import files
 import numpy as np
 from typing import Any
 
@@ -84,6 +84,6 @@ class BenchmarkGroupsExtraction(BenchmarkBase):
             result['n_groups'] = len(predicted_groups)
             result['explainability_score'] = np.nan
             result['NMI'] = np.nan
-        finally:
-            return result
+        
+        return result
         

@@ -57,7 +57,7 @@ Tools to learn a Dynamic Bayesian Network which describe the conditional depende
 dataset.
 """
 import warnings
-from typing import Any, List, Optional, Tuple, Union, cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -65,16 +65,16 @@ import scipy.linalg as slin
 import scipy.optimize as sopt
 
 def from_pandas_dynamic(
-    time_series: Union[pd.DataFrame, List[pd.DataFrame]],
+    time_series: pd.DataFrame | list[pd.DataFrame],
         p: int,
         lambda_w: float = 0.1,
         lambda_a: float = 0.1,
         max_iter: int = 100,
         h_tol: float = 1e-8,
         w_threshold: float = 0.0,
-        tabu_edges: Optional[List[Tuple[int, Any, Any]]] = None,
-        tabu_parent_nodes: Optional[List[Any]] = None,
-        tabu_child_nodes: Optional[List[Any]] = None,
+        tabu_edges: list[tuple[int, Any, Any]] | None = None,
+        tabu_parent_nodes: list[Any] | None = None,
+        tabu_child_nodes: list[Any] | None = None,
     ) -> dict[int, list[tuple[int, int]]]:
     """
     Learn the graph structure of a Dynamic Bayesian Network describing conditional dependencies between variables in
@@ -157,9 +157,9 @@ def from_numpy_dynamic(
         max_iter: int = 100,
         h_tol: float = 1e-8,
         w_threshold: float = 0.0,
-        tabu_edges: Optional[List[Tuple[int, int, int]]] = None,
-        tabu_parent_nodes: Optional[List[int]] = None,
-        tabu_child_nodes: Optional[List[int]] = None,
+        tabu_edges: list[tuple[int, int, int]] | None = None,
+        tabu_parent_nodes: list[int] | None = None,
+        tabu_child_nodes: list[int] | None = None,
     ) -> dict[int, list[tuple[int, int]]]:
     """
     Learn the graph structure of a Dynamic Bayesian Network describing conditional dependencies between variables in
@@ -287,7 +287,7 @@ def _matrices_to_parents(
 
 def _reshape_wa(
     wa_vec: np.ndarray, d_vars: int, p_orders: int
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Helper function for `_learn_dynamic_structure`. Transform adjacency vector to matrix form
 
@@ -320,12 +320,12 @@ def _reshape_wa(
 def _learn_dynamic_structure(
     X: np.ndarray,
     Xlags: np.ndarray,
-    bnds: List[Tuple[Any, Any]],
+    bnds: list[tuple[Any, Any]],
     lambda_w: float = 0.1,
     lambda_a: float = 0.1,
     max_iter: int = 100,
     h_tol: float = 1e-8,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Learn the graph structure of a Dynamic Bayesian Network describing conditional dependencies between data variables.
 
@@ -480,8 +480,8 @@ def _learn_dynamic_structure(
 
 
 def convert_to_dynotears_format(
-    time_series: Union[pd.DataFrame, List[pd.DataFrame]], p: int, columns: Optional[List[Any]] = None
-) -> Union[pd.DataFrame, Tuple[np.ndarray, np.ndarray]]:
+    time_series: pd.DataFrame | list[pd.DataFrame], p: int, columns: list[Any] | None = None
+) -> pd.DataFrame | tuple[np.ndarray, np.ndarray]:
     """
     Applies transformation to format the dataframe properly
     
@@ -498,14 +498,14 @@ def convert_to_dynotears_format(
                 Xlags (np.ndarray):
                     Shifted data of X with lag orders stacking horizontally. Xlags=[shift(X,1)|...|shift(X,p)]
     """
-    time_series_list: List[pd.DataFrame] = time_series if isinstance(time_series, list) else [time_series]
+    time_series_list: list[pd.DataFrame] = time_series if isinstance(time_series, list) else [time_series]
 
     if columns is None:
         columns = time_series_list[0].columns.tolist()
     
     _check_input_from_pandas(time_series_list, columns)
 
-    selected_time_series: List[pd.DataFrame] = [cast(pd.DataFrame, t[columns]) for t in time_series_list]
+    selected_time_series: list[pd.DataFrame] = [cast(pd.DataFrame, t[columns]) for t in time_series_list]
     ts_realisations = _cut_dataframes_on_discontinuity_points(selected_time_series)
     X, Xlags = _convert_realisations_into_dynotears_format(
         ts_realisations, p
@@ -514,7 +514,7 @@ def convert_to_dynotears_format(
     return X, Xlags
 
 
-def _check_input_from_pandas(time_series: List[pd.DataFrame], columns: List[Any]):
+def _check_input_from_pandas(time_series: list[pd.DataFrame], columns: list[Any]):
     """
     Check if the input of function `from_pandas_dynamic` is valid
     
@@ -572,8 +572,8 @@ def _check_input_from_pandas(time_series: List[pd.DataFrame], columns: List[Any]
             )
 
 def _cut_dataframes_on_discontinuity_points(
-    time_series: List[pd.DataFrame],
-) -> List[np.ndarray]:
+    time_series: list[pd.DataFrame],
+) -> list[np.ndarray]:
     """
     Helper function for `from_pandas_dynamic`
     Receive a list of dataframes. For each dataframe, cut the points of discontinuity as two different dataframes.
@@ -621,8 +621,8 @@ def _cut_dataframes_on_discontinuity_points(
     return time_series_realisations
 
 def _convert_realisations_into_dynotears_format(
-    realisations: List[np.ndarray], p: int
-) -> Tuple[np.ndarray, np.ndarray]:
+    realisations: list[np.ndarray], p: int
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Given a list of realisations of a time series, convert it to the format received by the dynotears algorithm.
     Each realisation on `realisations` is a realisation of the time series,

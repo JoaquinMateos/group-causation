@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-from typing import Any, Union
+from typing import Any
 
 from group_causation.micro_causal_discovery.micro_causal_discovery_base import MicroCausalDiscovery
 from group_causation.micro_causal_discovery.causal_discovery_causalnex import DynotearsWrapper
@@ -27,7 +27,7 @@ class MicroLevelGroupCausalDiscovery(GroupCausalDiscovery):
     def __init__(self, data: np.ndarray,
                     groups: list[set[int]],
                     node_causal_discovery_alg: str = 'pcmci',
-                    node_causal_discovery_params: Union[dict[str, Any], None] = None,
+                    node_causal_discovery_params: dict[str, Any] | None = None,
                     **kwargs):
         super().__init__(data, groups, **kwargs)
         

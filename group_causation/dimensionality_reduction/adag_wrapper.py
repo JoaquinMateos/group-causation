@@ -3,7 +3,7 @@ import logging
 import torch
 import numpy as np
 from sklearn.decomposition import PCA
-from typing import Any, Callable, List, Tuple, Optional, Dict, Union, Type
+from typing import Any, Callable, Type
 
 from group_causation.dimensionality_reduction.dimensionality_reduction_base import DimensionalityReduction
 from group_causation.dimensionality_reduction.iVAE.wrappers import IVAEWrapper
@@ -16,14 +16,14 @@ class AggregationMap(ABC):
     """Abstract base class for aggregation maps."""
 
     @abstractmethod
-    def aggregate(self, X: torch.Tensor, m: int, U: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def aggregate(self, X: torch.Tensor, m: int, U: torch.Tensor | None = None) -> torch.Tensor:
         """
         Reduces vector variable X to a latent representation of dimension m.
         
         Args:
             X (torch.Tensor): Input tensor of shape (T, d) where T is the number of samples and d is the original dimension.
             m (int): Target latent dimension for the aggregated representation.
-            U (Optional[torch.Tensor]): Optional auxiliary tensor for iVAE-based aggregation.
+            U (torch.Tensor | None): Optional auxiliary tensor for iVAE-based aggregation.
         
         Returns:
             torch.Tensor: Aggregated representation of shape (T, m).
@@ -40,7 +40,7 @@ class TunableDeepLatent(AggregationMap):
         """
         self.model_kwargs = model_kwargs
 
-    def aggregate(self, X: torch.Tensor, m: int, U: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def aggregate(self, X: torch.Tensor, m: int, U: torch.Tensor | None = None) -> torch.Tensor:
         """
         Reduces vector variable X to a latent representation of dimension m.
         """
@@ -60,7 +60,7 @@ class TunableDeepLatent(AggregationMap):
 class TunablePCA(AggregationMap):
     """Tunable aggregation map using PCA to interface with AdagWrapper."""
     
-    def aggregate(self, X: torch.Tensor, m: int, U: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def aggregate(self, X: torch.Tensor, m: int, U: torch.Tensor | None = None) -> torch.Tensor:
         dim = X.shape[1] if X.ndim > 1 else 1
         m = min(m, dim)
         
@@ -77,11 +77,11 @@ class AdagWrapper(DimensionalityReduction):
     """
     def __init__(self, 
                  ci_test_class: type,
-                 groups: List[List[int]], 
+                 groups: list[list[int]], 
                  max_lag: int,
                  discovery_class: type[GroupCausalDiscovery],
                  aggregator: AggregationMap,
-                 discovery_kwargs: Optional[Dict[str, Any]] = None,
+                 discovery_kwargs: dict[str, Any] | None = None,
                  p_val_threshold: float = 0.05, 
                  num_regimes: int = 1,
                  target_alpha_q: float = 0.8,
@@ -119,12 +119,12 @@ class AdagWrapper(DimensionalityReduction):
         self._raw_group_data = None  
         self._cached_Zm = None
 
-    def fit(self, X: List[torch.Tensor], U: Optional[List[torch.Tensor]] = None, **kwargs) -> 'AdagWrapper':
+    def fit(self, X: list[torch.Tensor], U: list[torch.Tensor] | None = None, **kwargs) -> 'AdagWrapper':
         """Fits the aggregator to find optimal dimensions. Use fit_transform to get latents directly."""
         self.fit_transform(X, U, **kwargs)
         return self
 
-    def transform(self, X: List[torch.Tensor], U: Optional[List[torch.Tensor]] = None, **kwargs) -> List[torch.Tensor]:
+    def transform(self, X: list[torch.Tensor], U: list[torch.Tensor] | None = None, **kwargs) -> list[torch.Tensor]:
         """Returns the discovered latent representations."""
         if self._cached_Zm is None:
             raise RuntimeError("AdagWrapper must be fitted before calling transform().")
@@ -133,7 +133,7 @@ class AdagWrapper(DimensionalityReduction):
     def is_independent(self, p_val: float) -> bool:
         return p_val > self.alpha
 
-    def fit_transform(self, X: List[torch.Tensor], U: Optional[List[torch.Tensor]] = None, **kwargs) -> Tuple[List[torch.Tensor], float, List[int]]:
+    def fit_transform(self, X: list[torch.Tensor], U: list[torch.Tensor] | None = None, **kwargs) -> tuple[list[torch.Tensor], float, list[int]]:
         """
         Runs the Adag dimensionality search and transforms the data.
         Returns the latent representations, the achieved score, and the final dimensions.
@@ -205,7 +205,7 @@ class AdagWrapper(DimensionalityReduction):
                     
         return Z_m, current_score, m
 
-    def _compute_c_ind(self, group_parents: Dict[int, List[Tuple[int, int]]]) -> float:
+    def _compute_c_ind(self, group_parents: dict[int, list[tuple[int, int]]]) -> float:
         """
         Evaluates independence consistency (c_ind) on the raw un-aggregated data.
         """
@@ -263,7 +263,7 @@ class AdagWrapper(DimensionalityReduction):
         total = C_ind_count + I_ind_count
         return C_ind_count / total if total > 0 else 1.0
 
-    def _compute_c_dep(self, group_parents: Dict[int, List[Tuple[int, int]]]) -> float:
+    def _compute_c_dep(self, group_parents: dict[int, list[tuple[int, int]]]) -> float:
         """
         Evaluates effective dependence consistency (c_dep_bar) on the raw un-aggregated data.
         Checks if aggregate adjacencies map to true vector-level dependencies.
