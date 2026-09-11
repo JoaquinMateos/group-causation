@@ -284,11 +284,65 @@ def _apply_non_stationarity(time_series: np.ndarray, params: dict) -> tuple[np.n
         
     return mod_ts, non_stationarity_info
 
+def _sample_gaussian(rs: np.random.RandomState, sigma: float, size: int, **_: float) -> np.ndarray:
+    return rs.normal(0.0, sigma, size)
+
+
+def _sample_uniform(rs: np.random.RandomState, sigma: float, size: int, **_: float) -> np.ndarray:
+    return rs.uniform(-sigma, sigma, size)
+
+
+def _sample_weibull(rs: np.random.RandomState, sigma: float, size: int, **_: float) -> np.ndarray:
+    a = 2.0
+    mean_w, var_w = math.gamma(1.5), math.gamma(2.0) - math.gamma(1.5) ** 2
+    return sigma * (rs.weibull(a, size) - mean_w) / np.sqrt(var_w)
+
+
+def _sample_laplace(rs: np.random.RandomState, sigma: float, size: int, **_: float) -> np.ndarray:
+    return rs.laplace(0.0, sigma / np.sqrt(2.0), size)
+
+
+def _sample_generalized_normal(rs: np.random.RandomState, sigma: float, size: int,
+                               beta: float = 3.0, **_: float) -> np.ndarray:
+    """Unit-variance symmetric generalized normal with shape parameter *beta*.
+
+    Sampling uses the representation ``sign(U) * scale * G**(1/beta)`` where
+    ``G ~ Gamma(1/beta, 1)``, which yields a density proportional to
+    ``exp(-(|x| / scale)**beta)``.
+    """
+    if beta <= 0:
+        raise ValueError(f'beta must be positive. Got {beta}.')
+
+    scale = math.sqrt(math.gamma(1.0 / beta) / math.gamma(3.0 / beta))
+    magnitude = rs.gamma(1.0 / beta, 1.0, size) ** (1.0 / beta)
+    signs = rs.choice([-1.0, 1.0], size=size)
+    return sigma * scale * signs * magnitude
+
+
+NOISE_DISTRIBUTIONS: dict[str, Callable[..., np.ndarray]] = {
+    'gaussian': _sample_gaussian,
+    'uniform': _sample_uniform,
+    'weibull': _sample_weibull,
+    'laplace': _sample_laplace,
+    'generalized_normal': _sample_generalized_normal,
+}
+
+
+def _sample_noise(dist: str, rs: np.random.RandomState, sigma: float, size: int,
+                  params: dict[str, float] | None = None) -> np.ndarray:
+    """Draw one noise column from the requested distribution."""
+    sampler = NOISE_DISTRIBUTIONS.get(dist)
+    if sampler is None:
+        raise ValueError(f'Unknown noise distribution: {dist}. Options: {list(NOISE_DISTRIBUTIONS)}')
+    return sampler(rs, sigma, size, **(params or {}))
+
+
 def generate_data_from_causal_process_structure(
         links: CausalLinks, 
         T: int = 1000, 
         noise_dists: list[str] = ['gaussian'], 
-        noise_sigmas: list[float] = [0.2], 
+        noise_sigmas: list[float] = [0.2],
+        noise_dist_params: dict[str, dict[str, float]] | None = None,
         transient_fraction: float = 0.2, 
         seed: int | None = None,
         non_stationarity_params: dict = {}
@@ -311,13 +365,7 @@ def generate_data_from_causal_process_structure(
     for j in range(N):
         dist = rs.choice(noise_dists)
         sigma = rs.choice(noise_sigmas)
-        
-        if dist == 'gaussian': noise_matrix[:, j] = rs.normal(0, sigma, total_T)
-        elif dist == 'uniform': noise_matrix[:, j] = rs.uniform(-sigma, sigma, total_T)
-        elif dist == 'weibull':
-            a = 2.0
-            mean_w, var_w = math.gamma(1.5), math.gamma(2.0) - math.gamma(1.5)**2
-            noise_matrix[:, j] = sigma * (rs.weibull(a, total_T) - mean_w) / np.sqrt(var_w)
+        noise_matrix[:, j] = _sample_noise(dist, rs, sigma, total_T, noise_dist_params)
 
     # 2. Shift the noise if non-stationarity is requested
     non_stationarity_info: dict = {"applied": False}

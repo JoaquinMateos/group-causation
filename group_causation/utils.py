@@ -4,6 +4,8 @@ from typing import Any, Generator, Mapping, Sequence
 # Imports
 import numpy as np
 import pandas as pd
+from scipy.optimize import linear_sum_assignment
+from scipy.stats import rankdata
 
 
 '''
@@ -104,6 +106,49 @@ def changing_non_stationarity_params(
         options['num_shifts'] = non_stationarity_params['num_shifts']
         options['drift_fraction'] = non_stationarity_params['fraction']
         
+        yield algorithms_parameters, options
+
+def changing_T(
+    options: dict[str, Any],
+    algorithms_parameters: dict[str, Any],
+    list_T: list[int] | None = None
+) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
+    if list_T is None:
+        list_T = [200, 1000, 5000]
+
+    for T in list_T:
+        options['T'] = T
+        yield algorithms_parameters, options
+
+def changing_micro_dim(
+    options: dict[str, Any],
+    algorithms_parameters: dict[str, Any],
+    list_micro_dim: list[int] | None = None
+) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
+    if list_micro_dim is None:
+        list_micro_dim = [5, 10, 20]
+
+    for micro_dim in list_micro_dim:
+        options['micro_dim'] = micro_dim
+        yield algorithms_parameters, options
+
+def changing_num_regimes(
+    options: dict[str, Any],
+    algorithms_parameters: dict[str, Any],
+    list_num_regimes: list[int] | None = None
+) -> Generator[tuple[dict[str, Any], dict[str, Any]], None, None]:
+    if list_num_regimes is None:
+        list_num_regimes = [10, 40]
+
+    for num_regimes in list_num_regimes:
+        non_stationarity_params = dict(options.get('non_stationarity_params', {}))
+        non_stationarity_params.update({
+            'type': 'regime_shifts',
+            'fraction': 1.0,
+            'num_shifts': num_regimes - 1,
+        })
+        options['non_stationarity_params'] = non_stationarity_params
+        options['num_regimes'] = num_regimes
         yield algorithms_parameters, options
 
 def increasing_N_vars_per_group(
@@ -296,6 +341,63 @@ def get_global_window_metrics(
         'f1': f1,
         'shd': shd_global
     }
+
+
+def compute_mcc(recovered_latents: np.ndarray, true_latents: np.ndarray, method: str = 'pearson') -> float:
+    """Mean Correlation Coefficient between recovered and true latents.
+
+    Columns are matched by solving the linear sum assignment problem on the
+    absolute cross-correlation matrix, as customary in latent-identifiability
+    evaluation.
+
+    Args:
+        recovered_latents: Estimated latents, shape ``(n_samples, n_recovered)``.
+        true_latents: Ground-truth latents, shape ``(n_samples, n_true)``.
+        method: ``'pearson'`` (default) or ``'spearman'``.
+
+    Returns:
+        Mean absolute correlation of the matched latent pairs.
+    """
+    correlation = _cross_correlation(true_latents, recovered_latents, method)
+    rows, columns = linear_sum_assignment(-np.abs(correlation))
+    return float(np.mean(np.abs(correlation[rows, columns])))
+
+
+def compute_group_mcc(recovered_latents: Sequence[np.ndarray], true_latents: Sequence[np.ndarray],
+                      method: str = 'pearson') -> tuple[float, list[float]]:
+    """Average MCC across groups, returning the mean and the per-group scores."""
+    if len(recovered_latents) != len(true_latents):
+        raise ValueError(f'Expected {len(true_latents)} recovered groups. Got {len(recovered_latents)}.')
+    per_group = [compute_mcc(recovered, true, method) for recovered, true in zip(recovered_latents, true_latents)]
+    return float(np.mean(per_group)), per_group
+
+
+def _cross_correlation(a: np.ndarray, b: np.ndarray, method: str) -> np.ndarray:
+    """Cross-correlation matrix of shape ``(a_columns, b_columns)``."""
+    a, b = _as_2d(a, 'true_latents'), _as_2d(b, 'recovered_latents')
+    if a.shape[0] != b.shape[0]:
+        raise ValueError(f'Latents must share the number of samples. Got {a.shape[0]} and {b.shape[0]}.')
+
+    if method == 'spearman':
+        a, b = rankdata(a, axis=0), rankdata(b, axis=0)
+    elif method != 'pearson':
+        raise ValueError(f"Unknown correlation method: {method}. Options: ['pearson', 'spearman']")
+
+    return _normalized_columns(a).T @ _normalized_columns(b)
+
+
+def _as_2d(array: np.ndarray, name: str) -> np.ndarray:
+    array = np.asarray(array, dtype=float)
+    array = array[:, None] if array.ndim == 1 else array
+    if array.ndim != 2 or array.shape[1] == 0:
+        raise ValueError(f'{name} must be a non-empty 2D array. Got shape {array.shape}.')
+    return array
+
+
+def _normalized_columns(array: np.ndarray) -> np.ndarray:
+    centered = array - array.mean(axis=0, keepdims=True)
+    norm = np.clip(np.linalg.norm(centered, axis=0, keepdims=True), 1e-12, None)
+    return centered / norm
 
 
 '''

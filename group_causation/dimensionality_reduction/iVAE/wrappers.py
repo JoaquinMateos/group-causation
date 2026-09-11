@@ -94,6 +94,7 @@ class _TorchLatentReducer(DimensionalityReduction):
         standardize: bool = True,
         use_auxiliary: bool = True,
         early_stopping_patience: int | None = None,
+        consistency_weight: float = 0.0,
     ):
         """Initializes the _TorchLatentReducer.
         
@@ -131,6 +132,7 @@ class _TorchLatentReducer(DimensionalityReduction):
         self.standardize = standardize
         self.use_auxiliary = use_auxiliary
         self.early_stopping_patience = early_stopping_patience
+        self.consistency_weight = consistency_weight
         self.device = device
 
         # Internal state initialized during `fit`
@@ -418,6 +420,7 @@ class _TorchLatentReducer(DimensionalityReduction):
         return iVAE(
             latent_dim, data_dim, aux_dim, activation=self.activation, device=device,
             n_layers=self.n_layers, hidden_dim=self.hidden_dim, slope=self.slope, anneal=self.anneal,
+            consistency_weight=self.consistency_weight,
         )
 
     def _prepare_x_for_inference(self, X: np.ndarray | torch.Tensor) -> torch.Tensor:
@@ -540,13 +543,14 @@ class IVAEWrapper(_TorchLatentReducer):
                  lr: float = 1e-2, device: str = 'cpu', activation: str = 'lrelu', 
                  slope: float = 0.1, anneal: bool = True, scheduler_tol: int = 3, 
                  standardize: bool = True, val_split: float = 0.0,
-                 early_stopping_patience: int | None = None):
+                 early_stopping_patience: int | None = None, consistency_weight: float = 0.0):
         super().__init__(
             latent_dim=latent_dim, batch_size=batch_size, max_epoch=int(max_epoch),
             seed=seed, n_layers=n_layers, hidden_dim=hidden_dim, lr=lr, device=device,
             activation=activation, slope=slope, anneal=anneal, scheduler_tol=scheduler_tol,
             standardize=standardize, val_split=val_split,
-            early_stopping_patience=early_stopping_patience, use_auxiliary=True
+            early_stopping_patience=early_stopping_patience, use_auxiliary=True,
+            consistency_weight=consistency_weight,
         )
 
 

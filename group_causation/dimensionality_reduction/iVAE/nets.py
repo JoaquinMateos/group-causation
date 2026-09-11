@@ -15,6 +15,8 @@ from torch import distributions as dist
 from torch import nn
 from torch.nn import functional as F
 
+from group_causation.independence_tests.dhsic import pairwise_latent_dhsic
+
 
 # =========================================================================
 # UTILITIES & HELPER FUNCTIONS
@@ -186,7 +188,7 @@ class iVAE(nn.Module):
     """ Identifiable Variational Autoencoder leveraging an auxiliary variable 'u'. """
     def __init__(self, latent_dim: int, data_dim: int, aux_dim: int, prior=None, decoder=None, encoder=None,
                  n_layers: int = 3, hidden_dim: int = 50, activation: str = 'lrelu', slope: float = 0.1, 
-                 device: str | torch.device = 'cpu', anneal: bool = False):
+                 device: str | torch.device = 'cpu', anneal: bool = False, consistency_weight: float = 0.0):
         super().__init__()
         
         self.data_dim = data_dim
@@ -197,6 +199,7 @@ class iVAE(nn.Module):
         self.activation = activation
         self.slope = slope
         self.anneal_params = anneal
+        self.consistency_weight = float(consistency_weight)
 
         self.prior_dist = Normal(device=device) if prior is None else prior
         self.decoder_dist = Normal(device=device) if decoder is None else decoder
@@ -275,10 +278,13 @@ class iVAE(nn.Module):
                 - c * (log_q_z - log_q_z_indep) 
                 - d * (log_q_z_indep - log_p_z_given_u)
             ).mean()
-            return elbo_val, z
         else:
             # Standard ELBO calculation
-            return (log_p_x_given_z + log_p_z_given_u - log_q_z_given_x_u).mean(), z
+            elbo_val = (log_p_x_given_z + log_p_z_given_u - log_q_z_given_x_u).mean()
+
+        if self.consistency_weight > 0.0:
+            elbo_val = elbo_val - self.consistency_weight * pairwise_latent_dhsic(z)
+        return elbo_val, z
 
     def anneal(self, N: int, max_epoch: int, epoch: int):
         """ Updates ELBO weights dynamically over time during training. """

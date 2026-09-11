@@ -46,7 +46,14 @@ class BenchmarkBase(ABC):
         self.log_listener = None
         
     def __enter__(self):
-        # Configure logging only when entering the "with" block
+        # Detach third-party handlers (e.g. an implicit logging.basicConfig call)
+        # so that root DEBUG records only reach the benchmark log files.
+        root_logger = logging.getLogger()
+        self._saved_root_handlers = root_logger.handlers[:]
+        self._saved_root_level = root_logger.level
+        for handler in self._saved_root_handlers:
+            root_logger.removeHandler(handler)
+
         self.log_listener = configure_root_logging(info_file=self.info_file, 
                                                    debug_file=self.debug_file)
         return self
@@ -54,6 +61,13 @@ class BenchmarkBase(ABC):
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.log_listener:
             self.log_listener.stop()
+
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        for handler in getattr(self, '_saved_root_handlers', []):
+            root_logger.addHandler(handler)
+        root_logger.setLevel(getattr(self, '_saved_root_level', logging.WARNING))
     
     @abstractmethod
     def test_particular_algorithm_particular_dataset(self, causal_dataset: CausalDataset,

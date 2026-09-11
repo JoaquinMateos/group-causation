@@ -118,6 +118,11 @@ class TestMaxCorrAggregation:
         assert 0.0 <= global_p <= 1.0
 
 
+class TestMaxCorrCapabilities:
+    def test_regime_testing_is_supported(self):
+        assert MaxCorr_Test.supports_regime_testing is True
+
+
 class TestMaxCorrEdgeCases:
     def test_1d_input_reshaped(self):
         x = torch.randn(100)

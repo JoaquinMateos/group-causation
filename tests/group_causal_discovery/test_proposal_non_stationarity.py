@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import torch
 
+from group_causation.aggregation_consistency import AggregationScore
 from group_causation.group_causal_discovery.proposal_non_stationarity import (
     IVAE_GroupPCMCI_Proposal,
 )
@@ -74,6 +75,27 @@ class TestProposalInit:
                 pcmci_params={"pc_alpha": 0.05, "max_conds_dim": 1},
             )
 
+    def test_explicit_latent_dims_override_fraction(self, data, groups, numpy_u):
+        inst = IVAE_GroupPCMCI_Proposal(
+            data, groups, u=numpy_u, latent_dims=[1, 1, 1],
+            pcmci_params={"tau_max": 1, "pc_alpha": 0.05, "max_conds_dim": 1},
+        )
+        assert inst._fallback_dims == [1, 1, 1]
+
+    def test_latent_dims_wrong_length_raises(self, data, groups, numpy_u):
+        with pytest.raises(ValueError, match="Expected 3 latent dimensions"):
+            IVAE_GroupPCMCI_Proposal(
+                data, groups, u=numpy_u, latent_dims=[1, 1],
+                pcmci_params={"tau_max": 1, "pc_alpha": 0.05, "max_conds_dim": 1},
+            )
+
+    def test_latent_dims_out_of_range_raises(self, data, groups, numpy_u):
+        with pytest.raises(ValueError, match="must be in"):
+            IVAE_GroupPCMCI_Proposal(
+                data, groups, u=numpy_u, latent_dims=[1, 1, 5],
+                pcmci_params={"tau_max": 1, "pc_alpha": 0.05, "max_conds_dim": 1},
+            )
+
     def test_non_stationarity_shift_fallbacks_to_time_index(self, data, groups):
         inst = IVAE_GroupPCMCI_Proposal(
             data, groups,
@@ -110,6 +132,14 @@ class TestProposalExtractParents:
         assert isinstance(parents, dict)
         for node in range(len(groups)):
             assert node in parents
+
+    @pytest.mark.slow
+    def test_extract_parents_with_hsic_and_regimes_falls_back(self, data, groups, numpy_u):
+        inst = _make_proposal(data, groups, numpy_u,
+                              conditional_independence_test="hsic",
+                              pcmci_params={"tau_max": 1, "pc_alpha": 0.99, "max_conds_dim": 1})
+        parents = inst.extract_parents()
+        assert isinstance(parents, dict)
 
 
 class TestProposalInternal:
@@ -156,6 +186,25 @@ class TestProposalInternal:
         matrix = inst.get_effect_val_matrix()
         assert isinstance(matrix, np.ndarray)
         assert matrix.shape == (len(groups), len(groups), 2)
+
+    def test_get_scores_before_run_raises(self, data, groups, numpy_u):
+        inst = IVAE_GroupPCMCI_Proposal(
+            data, groups, u=numpy_u,
+            pcmci_params={"tau_max": 1, "pc_alpha": 0.05, "max_conds_dim": 1},
+        )
+        with pytest.raises(ValueError, match="Aggregation scores are not available"):
+            inst.get_scores()
+
+    @pytest.mark.slow
+    def test_get_scores_after_run(self, data, groups, numpy_u):
+        inst = _make_proposal(data, groups, numpy_u,
+                              pcmci_params={"tau_max": 1, "pc_alpha": 0.5, "max_conds_dim": 1})
+        inst.extract_parents()
+        score = inst.get_scores()
+        assert isinstance(score, AggregationScore)
+        assert 0.0 <= score.c_ind <= 1.0
+        assert 0.0 <= score.c_dep <= 1.0
+        assert score.ac == pytest.approx((score.c_ind + score.c_dep) / 2.0)
 
 
 class TestProposalComputeCInd:

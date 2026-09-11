@@ -151,6 +151,53 @@ class TestGenerateGroupToyData:
         assert (tmp_path / "test_save_groups_groups.txt").exists()
 
 
+class TestGenerateLatentMacroData:
+    def test_populates_ground_truth_attributes(self):
+        ds = CausalDataset()
+        result = ds.generate_latent_macro_data(name="latent", n_groups=3, micro_dim=4, T=200, seed=0)
+        assert ds.time_series.shape == (200, 12)
+        assert ds.latent_true.shape == (200, 3)
+        assert ds.latent_dims == [1, 1, 1]
+        assert ds.parents_dict == result.group_parents
+        assert ds.groups == result.groups
+        assert ds.latent_macro_case is None
+
+    def test_saves_latent_ground_truth_and_regimes(self, tmp_path):
+        ds = CausalDataset()
+        ds.generate_latent_macro_data(
+            name="latent_shift", n_groups=2, micro_dim=3, T=150, seed=0,
+            case="nonstationary_regimes", datasets_folder=str(tmp_path),
+        )
+        assert (tmp_path / "latent_shift_latent_true.csv").exists()
+        assert (tmp_path / "latent_shift_latent_dims.txt").exists()
+        assert (tmp_path / "latent_shift_u.csv").exists()
+        assert (tmp_path / "latent_shift_groups.txt").exists()
+
+    def test_group_toy_data_does_not_save_latent_files(self, tmp_path):
+        ds = CausalDataset()
+        ds.generate_group_toy_data(
+            name="plain", T=100, N_vars=8, N_groups=2, max_lag=2, min_lag=1,
+            datasets_folder=str(tmp_path),
+        )
+        assert not (tmp_path / "plain_latent_true.csv").exists()
+        assert not (tmp_path / "plain_u.csv").exists()
+
+
+class TestLoadArray:
+    def test_round_trip_preserves_2d_shape(self, tmp_path):
+        data = np.arange(12, dtype=float).reshape(6, 2)
+        path = tmp_path / "array.csv"
+        np.savetxt(path, data, delimiter=",")
+        loaded = CausalDataset.load_array(str(path))
+        np.testing.assert_allclose(loaded, data)
+
+    def test_single_column_stays_2d(self, tmp_path):
+        data = np.arange(5, dtype=float).reshape(5, 1)
+        path = tmp_path / "array.csv"
+        np.savetxt(path, data, delimiter=",")
+        assert CausalDataset.load_array(str(path)).shape == (5, 1)
+
+
 class TestExtractGroupParents:
     def test_extract_group_parents(self):
         ds = CausalDataset()

@@ -45,6 +45,19 @@ class TestDimensionReductionInit:
         )
         assert inst.node_causal_discovery_params["max_lag"] == 2
 
+    def test_pca_n_components_controls_embedding_size(self, data: np.ndarray, groups: list[set[int]]):
+        inst = DimensionReductionGroupCausalDiscovery(
+            data, groups, dimensionality_reduction="pca", pca_n_components=2,
+        )
+        assert [latent.shape[1] for latent in inst.get_recovered_latents()] == [2, 2, 2]
+
+    def test_pca_n_components_capped_at_group_size(self, data: np.ndarray):
+        groups = [{0, 1}, {2, 3, 4, 5}]
+        inst = DimensionReductionGroupCausalDiscovery(
+            data, groups, dimensionality_reduction="pca", pca_n_components=10,
+        )
+        assert [latent.shape[1] for latent in inst.get_recovered_latents()] == [2, 4]
+
 
 class TestDimensionReductionExtractParents:
     def test_extract_parents_with_pcmci(
@@ -68,3 +81,23 @@ class TestDimensionReductionExtractParents:
         inst.node_causal_discovery_alg = "nonexistent"
         with pytest.raises(ValueError, match="Invalid node causal discovery algorithm"):
             inst.extract_parents()
+
+    def test_component_parents_are_collapsed_to_groups(self, data: np.ndarray):
+        groups = [{0, 1}, {2, 3}, {4, 5}]
+        inst = DimensionReductionGroupCausalDiscovery(
+            data, groups, dimensionality_reduction="pca", pca_n_components=2,
+        )
+        component_parents = {
+            0: [],
+            1: [(0, -1)],
+            2: [(1, 0)],
+            3: [],
+            4: [(4, -1), (3, -2)],
+            5: [(5, 0)],
+        }
+        result = inst._convert_component_to_group_parents(component_parents)
+        assert result == {
+            0: [(0, -1)],
+            1: [(0, 0)],
+            2: [(2, -1), (1, -2)],
+        }

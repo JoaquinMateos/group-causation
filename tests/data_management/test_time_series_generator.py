@@ -1,12 +1,17 @@
 import numpy as np
 import pytest
+from scipy import stats
 
 from group_causation.data_management.time_series_generator import (
+    NOISE_DISTRIBUTIONS,
     generate_group_causal_process_structure,
     generate_data_from_causal_process_structure,
     _get_topological_order,
     _check_linear_stationarity,
     _apply_non_stationarity,
+    _sample_generalized_normal,
+    _sample_laplace,
+    _sample_noise,
 )
 
 
@@ -158,6 +163,54 @@ class TestGenerateDataFromCausalProcess:
         )
         assert data.shape == (100, 1)
         assert ns_info["applied"]
+
+
+class TestNoiseDistributions:
+    SAMPLE_SIZE = 50_000
+
+    def test_registry_contains_non_gaussian_options(self):
+        assert {'gaussian', 'uniform', 'weibull', 'laplace', 'generalized_normal'} <= set(NOISE_DISTRIBUTIONS)
+
+    def test_laplace_is_unit_variance_and_heavy_tailed(self):
+        rs = np.random.RandomState(42)
+        samples = _sample_laplace(rs, sigma=1.0, size=self.SAMPLE_SIZE)
+        assert samples.var() == pytest.approx(1.0, abs=0.05)
+        assert stats.kurtosis(samples) > 2.0
+
+    def test_generalized_normal_beta_two_matches_gaussian(self):
+        rs = np.random.RandomState(42)
+        samples = _sample_generalized_normal(rs, sigma=1.0, size=self.SAMPLE_SIZE, beta=2.0)
+        assert samples.var() == pytest.approx(1.0, abs=0.05)
+        assert stats.kurtosis(samples) == pytest.approx(0.0, abs=0.3)
+
+    def test_generalized_normal_beta_above_two_is_platykurtic(self):
+        rs = np.random.RandomState(42)
+        samples = _sample_generalized_normal(rs, sigma=1.0, size=self.SAMPLE_SIZE, beta=5.0)
+        assert samples.var() == pytest.approx(1.0, abs=0.05)
+        assert stats.kurtosis(samples) < -0.5
+
+    def test_generalized_normal_rejects_non_positive_beta(self):
+        rs = np.random.RandomState(42)
+        with pytest.raises(ValueError, match='beta must be positive'):
+            _sample_generalized_normal(rs, sigma=1.0, size=10, beta=0.0)
+
+    def test_unknown_distribution_raises(self):
+        rs = np.random.RandomState(42)
+        with pytest.raises(ValueError, match='Unknown noise distribution'):
+            _sample_noise('does-not-exist', rs, sigma=1.0, size=10)
+
+    def test_generator_supports_non_gaussian_innovations(self):
+        links = {0: [(((0, -1),), 0.5, lambda x: x)]}
+        data, nonvalid, _ = generate_data_from_causal_process_structure(
+            links=links,
+            T=500,
+            noise_dists=['laplace', 'generalized_normal'],
+            noise_sigmas=[0.2],
+            noise_dist_params={'generalized_normal': {'beta': 5.0}},
+            seed=42,
+        )
+        assert data.shape == (500, 1)
+        assert not nonvalid
 
 
 class TestApplyNonStationarity:

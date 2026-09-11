@@ -3,11 +3,18 @@ import logging
 import torch
 import numpy as np
 from sklearn.decomposition import PCA
-from typing import Any, Callable, Type
+from typing import TYPE_CHECKING, Any, Callable
 
+from group_causation.aggregation_consistency import (
+    AggregationConsistencyEvaluator,
+    InsufficientDataError,
+    adjacency_statements,
+)
 from group_causation.dimensionality_reduction.dimensionality_reduction_base import DimensionalityReduction
 from group_causation.dimensionality_reduction.iVAE.wrappers import IVAEWrapper
-from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
+
+if TYPE_CHECKING:
+    from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 
 
 class AggregationMap(ABC):
@@ -77,7 +84,7 @@ class AdagWrapper(DimensionalityReduction):
                  ci_test_class: type,
                  groups: list[list[int]], 
                  max_lag: int,
-                 discovery_class: type[GroupCausalDiscovery],
+                 discovery_class: type['GroupCausalDiscovery'],
                  aggregator: AggregationMap,
                  discovery_kwargs: dict[str, Any] | None = None,
                  p_val_threshold: float = 0.05, 
@@ -116,6 +123,7 @@ class AdagWrapper(DimensionalityReduction):
             
         self._raw_group_data = None  
         self._cached_Zm = None
+        self._evaluator = AggregationConsistencyEvaluator(self._test_statement, self.alpha)
 
     def fit(self, X: list[torch.Tensor], U: list[torch.Tensor] | None = None, **kwargs) -> 'AdagWrapper':
         """Fits the aggregator to find optimal dimensions. Use fit_transform to get latents directly."""
@@ -127,9 +135,6 @@ class AdagWrapper(DimensionalityReduction):
         if self._cached_Zm is None:
             raise RuntimeError("AdagWrapper must be fitted before calling transform().")
         return self._cached_Zm
-
-    def is_independent(self, p_val: float) -> bool:
-        return p_val > self.alpha
 
     def fit_transform(self, X: list[torch.Tensor], U: list[torch.Tensor] | None = None, **kwargs) -> tuple[list[torch.Tensor], float, list[int]]:
         """
@@ -204,114 +209,64 @@ class AdagWrapper(DimensionalityReduction):
         return Z_m, current_score, m
 
     def _compute_c_ind(self, group_parents: dict[int, list[tuple[int, int]]]) -> float:
-        """
-        Evaluates independence consistency (c_ind) on the raw un-aggregated data.
-        """
-        if self._raw_group_data is None:
-            raise RuntimeError("Raw group data is missing. AdagWrapper.run() must be called first.")
-            
-        C_ind_count = 0
-        I_ind_count = 0
-        N = len(self._groups)
-        T = self._raw_group_data[0].shape[0]
-        
-        for j in range(N):
-            parents_of_j = group_parents.get(j, [])
-            max_z_lag = max([abs(lag) for _, lag in parents_of_j]) if parents_of_j else 0
-            
-            for i in range(N):
-                for tau in range(0, self.max_lag + 1):
-                    if i == j and tau == 0:
-                        continue  # Skip self-dependency at lag 0
-                    # Test non-adjacencies (conditional independencies)
-                    if (i, -tau) not in parents_of_j:
-                        
-                        safe_max_lag = max(tau, max_z_lag)
-                        start_t = safe_max_lag
-                        end_t = T
-                        
-                        if start_t >= end_t - 5:
-                            pval = 1.0 
-                        else:
-                            X_full = self._raw_group_data[i][start_t - tau : end_t - tau].to(torch.float32)
-                            Y_full = self._raw_group_data[j][start_t : end_t].to(torch.float32)
-                            
-                            Z_full = None
-                            if parents_of_j:
-                                Z_list = [
-                                    self._raw_group_data[z_var][start_t - abs(z_lag) : end_t - abs(z_lag)].to(torch.float32) 
-                                    for z_var, z_lag in parents_of_j
-                                ]
-                                Z_full = torch.cat(Z_list, dim=1)
-                            
-                            if Z_full is not None:
-                                logging.debug(f"Testing observed independence between group {i} (lag {tau}) and group {j} conditioned on parents of {j}.")
-                                _, pval = self.ci_test.conditional_test(X_full, Y_full, Z_full)
-                            else:
-                                logging.debug(f"Testing observed independence between group {i} (lag {tau}) and group {j} with no conditioning set.")
-                                _, pval = self.ci_test.test(X_full, Y_full)
-                                
-                            pval = max(float(pval), 1e-15)
-                            
-                        if self.is_independent(pval):
-                            C_ind_count += 1
-                        else:
-                            I_ind_count += 1
-                            
-        total = C_ind_count + I_ind_count
-        return C_ind_count / total if total > 0 else 1.0
+        """Evaluates independence consistency (c_ind) on the raw un-aggregated data."""
+        self._require_raw_group_data()
+        return self._evaluator.c_ind(self._build_independence_statements(group_parents))
 
     def _compute_c_dep(self, group_parents: dict[int, list[tuple[int, int]]]) -> float:
-        """
-        Evaluates effective dependence consistency (c_dep_bar) on the raw un-aggregated data.
-        Checks if aggregate adjacencies map to true vector-level dependencies.
-        """
+        """Evaluates dependence consistency (c_dep) on the raw un-aggregated data."""
+        self._require_raw_group_data()
+        positive_parents = {
+            target: [(parent, abs(lag)) for parent, lag in parents]
+            for target, parents in group_parents.items()
+        }
+        return self._evaluator.c_dep(adjacency_statements(positive_parents))
+
+    def _require_raw_group_data(self) -> None:
         if self._raw_group_data is None:
             raise RuntimeError("Raw group data is missing. AdagWrapper.run() must be called first.")
-            
-        C_adj_count = 0
-        I_adj_count = 0
-        N = len(self._groups)
-        T = self._raw_group_data[0].shape[0]
 
-        for j in range(N):
-            parents_of_j = group_parents.get(j, [])
-            
-            for (p_var, p_lag) in parents_of_j:
-                # The condition set is all other aggregate parents of j except the one currently being tested
-                cond_set = [p for p in parents_of_j if p != (p_var, p_lag)]
-                max_z_lag = max([abs(lag) for _, lag in cond_set]) if cond_set else 0
-                
-                safe_max_lag = max(abs(p_lag), max_z_lag)
-                start_t = safe_max_lag
-                end_t = T
-                
-                if start_t >= end_t - 5:
-                    pval = 0.0 # Assume dependent to avoid unfairly penalizing with sparse data
-                else:
-                    X_full = self._raw_group_data[p_var][start_t - abs(p_lag) : end_t - abs(p_lag)].to(torch.float32)
-                    Y_full = self._raw_group_data[j][start_t : end_t].to(torch.float32)
-                    
-                    Z_full = None
-                    if cond_set:
-                        Z_list = [
-                            self._raw_group_data[z_var][start_t - abs(z_lag) : end_t - abs(z_lag)].to(torch.float32) 
-                            for z_var, z_lag in cond_set
-                        ]
-                        Z_full = torch.cat(Z_list, dim=1)
-                    
-                    if Z_full is not None:
-                        _, pval = self.ci_test.conditional_test(X_full, Y_full, Z_full)
-                    else:
-                        _, pval = self.ci_test.test(X_full, Y_full)
-                        
-                    pval = max(float(pval), 1e-15)
-                
-                # We expect dependence (pval <= alpha). If it is dependent, it's consistent.
-                if not self.is_independent(pval):
-                    C_adj_count += 1
-                else:
-                    I_adj_count += 1
-                    
-        total = C_adj_count + I_adj_count
-        return C_adj_count / total if total > 0 else 1.0
+    def _build_independence_statements(
+            self, group_parents: dict[int, list[tuple[int, int]]],
+    ) -> list[tuple[int, int, int, int, list[tuple[int, int]]]]:
+        """Statements for every macro non-adjacency, conditioned on the target's parents."""
+        statements: list[tuple[int, int, int, int, list[tuple[int, int]]]] = []
+        n_groups = len(self._groups)
+        for target in range(n_groups):
+            parents = list(group_parents.get(target, []))
+            for parent in range(n_groups):
+                for lag in range(self.max_lag + 1):
+                    if parent == target and lag == 0:
+                        continue
+                    if (parent, -lag) not in parents:
+                        statements.append((parent, lag, target, 0, parents))
+        return statements
+
+    def _test_statement(self, statement: tuple[int, int, int, int, list[tuple[int, int]]]) -> tuple[float, float]:
+        """Test one statement on the raw group tensors with the shared evaluator."""
+        assert self._raw_group_data is not None
+        x_var, x_lag, y_var, _, z_list = statement
+        T = self._raw_group_data[0].shape[0]
+        max_z_lag = max((abs(lag) for _, lag in z_list), default=0)
+        start_t = max(abs(x_lag), max_z_lag)
+        end_t = T
+
+        if start_t >= end_t - 5:
+            raise InsufficientDataError("Not enough samples to test independence on the raw group data.")
+
+        X_full = self._raw_group_data[x_var][start_t - abs(x_lag) : end_t - abs(x_lag)].to(torch.float32)
+        Y_full = self._raw_group_data[y_var][start_t : end_t].to(torch.float32)
+
+        if not z_list:
+            logging.debug(f"Testing independence between group {x_var} (lag {x_lag}) and group {y_var} without conditioning.")
+            return self.ci_test.test(X_full, Y_full)
+
+        logging.debug(f"Testing independence between group {x_var} (lag {x_lag}) and group {y_var} conditioned on {len(z_list)} variables.")
+        Z_full = torch.cat(
+            [
+                self._raw_group_data[z_var][start_t - abs(z_lag) : end_t - abs(z_lag)].to(torch.float32)
+                for z_var, z_lag in z_list
+            ],
+            dim=1,
+        )
+        return self.ci_test.conditional_test(X_full, Y_full, Z_full)

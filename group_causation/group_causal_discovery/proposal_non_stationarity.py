@@ -8,6 +8,12 @@ from scipy.stats import chi2
 import logging
 import torch
 
+from group_causation.aggregation_consistency import (
+    AggregationConsistencyEvaluator,
+    AggregationScore,
+    InsufficientDataError,
+    adjacency_statements,
+)
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
 from group_causation.dimensionality_reduction.iVAE.wrappers import IVAEWrapper
 from group_causation.independence_tests import conditional_independence_tests
@@ -29,6 +35,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                     apply_adag_optimization: bool = False,
                     target_c_ind: float = 0.85,
                     fallback_latent_dims_fraction: float = 0.33,
+                    latent_dims: list[int] | None = None,
                     ivae_params: dict[str, Any] | None = None,
                     pcmci_params: dict[str, Any] | None = None,
                     non_stationarity_info: dict[str, Any] | None = None,
@@ -106,12 +113,14 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                 torch.tensor(self._data[:, list(group)], dtype=torch.float32) 
                 for group in self._groups
             ]
+            self._last_group_embeddings: list[torch.Tensor] | None = None
             
-            # Calculate static fallback dimensions in case Adag is disabled
-            self._fallback_dims = [
+            # Latent dimensions per group: explicit override or a fraction of the group size
+            self._fallback_dims = latent_dims if latent_dims is not None else [
                 max(1, min(int(np.ceil(fallback_latent_dims_fraction * len(group))), len(group)))
                 for group in self._groups
             ]
+            self._validate_latent_dims(self._fallback_dims)
                 
             self.device = self._get_device()
             
@@ -122,6 +131,13 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             
             for i in range(len(self._raw_group_data)):
                 self._raw_group_data[i] = self._raw_group_data[i].to(self.device)
+
+    def _validate_latent_dims(self, latent_dims: list[int]) -> None:
+        if len(latent_dims) != len(self._groups):
+            raise ValueError(f'Expected {len(self._groups)} latent dimensions. Got {len(latent_dims)}.')
+        for dimension, group in zip(latent_dims, self._groups):
+            if not 1 <= dimension <= len(group):
+                raise ValueError(f'Latent dimension for group of size {len(group)} must be in [1, {len(group)}]. Got {dimension}.')
 
     def _get_device(self):
         if torch.cuda.is_available():
@@ -185,22 +201,26 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
 
     def _compute_c_ind(self, independencies: list[tuple[int, int, int, int, list[tuple[int, int]]]]) -> float:
         """Evaluates independence consistency against the raw un-aggregated data."""
-        if not independencies:
-            return 1.0 
-            
-        C_ind_count = 0
-        I_ind_count = 0
-        
-        for (x_var, x_lag, y_var, y_lag, z_list) in independencies:
-            _, pval = self._test_ci(self._raw_group_data, x_var, x_lag, y_var, y_lag, z_list)
-            
-            if pval > self.pc_alpha:
-                C_ind_count += 1
-            else:
-                I_ind_count += 1
-                
-        total = C_ind_count + I_ind_count
-        return C_ind_count / total if total > 0 else 1.0
+        evaluator = AggregationConsistencyEvaluator(self._test_raw_group_statement, self.pc_alpha)
+        return evaluator.c_ind(independencies)
+
+    def get_scores(self) -> AggregationScore:
+        """Return c_ind, c_dep and the joint aggregation consistency (AC).
+
+        Must be called after ``extract_parents()``, which records both the
+        discovered independencies and the final macro-adjacencies.
+        """
+        if not hasattr(self, '_last_independencies'):
+            raise ValueError('Aggregation scores are not available. Run extract_parents() first.')
+
+        evaluator = AggregationConsistencyEvaluator(self._test_raw_group_statement, self.pc_alpha)
+        return evaluator.evaluate(self._last_independencies, adjacency_statements(self._last_positive_parents))
+
+    def _test_raw_group_statement(self, statement: tuple[int, int, int, int, list[tuple[int, int]]]) -> tuple[float, float]:
+        """Test a statement on the raw (un-aggregated) group data."""
+        if 2 * self.tau_max >= self._raw_group_data[0].shape[0] - 5:
+            raise InsufficientDataError('Not enough samples to test independence on the raw group data.')
+        return self._test_ci(self._raw_group_data, *statement)
 
     def _prepare_group_embeddings(self, latent_dims: list[int]) -> list[torch.Tensor]:
         group_embeddings = []
@@ -212,8 +232,15 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             group_latents = wrapper.fit_transform(group_data, self.u)
             group_latents = group_latents.detach().clone().to(dtype=torch.float32, device=self.device)
             group_embeddings.append(group_latents)
-            
+        
+        self._last_group_embeddings = group_embeddings
         return group_embeddings
+
+    def get_recovered_latents(self) -> list[np.ndarray]:
+        """Return the recovered per-group latents as numpy arrays (for MCC evaluation)."""
+        if self._last_group_embeddings is None:
+            raise ValueError('Recovered latents are not available. Run extract_parents() first.')
+        return [embedding.detach().cpu().numpy() for embedding in self._last_group_embeddings]
 
     def _test_ci(self, data_source: list[torch.Tensor], x_var: int, x_lag: int, y_var: int, y_lag: int, z_list: list[tuple[int, int]]) -> tuple[float, float]:
         T = data_source[0].shape[0]
@@ -289,7 +316,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
             return 0.0, 1.0
 
         # Optimal route: Use native regime-wise CCT methods if supported by the test (like MaxCorr_Test)
-        if hasattr(self.conditional_independence_test, 'conditional_test_regimes'):
+        if getattr(self.conditional_independence_test, 'supports_regime_testing', False):
             if Z_data is not None:
                 return self.conditional_independence_test.conditional_test_regimes(X_regimes, Y_regimes, Z_regimes)
             else:
@@ -372,6 +399,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
 
         # Phase 2: MCI Algorithm
         final_parents = {j: [] for j in range(N)}
+        self._last_positive_parents = {j: [] for j in range(N)}
         
         for j in range(N):
             for (i, tau) in parents[j]:
@@ -387,6 +415,7 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                     independencies_found.append((i, tau, j, 0, Z))
                 else:
                     final_parents[j].append((i, -tau))
+                    self._last_positive_parents[j].append((i, tau))
                     
                     # Llenamos la matriz con los valores finales del estadístico
                     self.effect_val_matrix[i, j, tau] = abs(stat)
@@ -394,7 +423,8 @@ class IVAE_GroupPCMCI_Proposal(GroupCausalDiscovery):
                     # Relaciones instantáneas deben ser simétricas en la matriz
                     if tau == 0:
                         self.effect_val_matrix[j, i, 0] = abs(stat)
-                    
+        
+        self._last_independencies = independencies_found
         return final_parents, independencies_found
     
     def get_effect_val_matrix(self) -> np.ndarray:

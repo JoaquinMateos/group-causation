@@ -22,6 +22,11 @@ def dependent_xy() -> tuple[torch.Tensor, torch.Tensor]:
     return x, y
 
 
+class TestHSICCapabilities:
+    def test_regime_testing_is_not_supported(self):
+        assert HSIC_Test.supports_regime_testing is False
+
+
 class TestHSICKernel:
     def test_get_kernel_width(self, X: torch.Tensor):
         width = HSIC_Test.get_kernel_width(X)

@@ -14,6 +14,8 @@ from group_causation.independence_tests.conditional_independence_base import (
 class MaxCorr_Test(ConditionalIndependence_base):
     """Max-Corr conditional independence test with CCT aggregation."""
 
+    supports_regime_testing = True
+
     # ------------------------------------------------------------------
     # Chunk-weight computation — overrides the base default
     # ------------------------------------------------------------------

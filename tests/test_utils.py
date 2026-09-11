@@ -7,6 +7,9 @@ from group_causation.utils import (
     changing_N_groups,
     changing_N_vars_per_group,
     changing_preselection_alpha,
+    changing_T,
+    changing_micro_dim,
+    changing_num_regimes,
     static_parameters,
     get_TP,
     get_FP,
@@ -21,6 +24,8 @@ from group_causation.utils import (
     get_dag_edge_set,
     get_global_window_metrics,
     get_next_filename,
+    compute_mcc,
+    compute_group_mcc,
 )
 
 
@@ -70,6 +75,34 @@ class TestParameterGenerators:
         params = {"alg": {}}
         results = list(changing_N_vars_per_group(opts, params, list_N_vars_per_group=[3, 6]))
         assert len(results) == 2
+
+
+class TestLatentMacroParameterGenerators:
+    """Generators mutate the options dict in place, so values are captured while yielding."""
+
+    def test_changing_T_default_sweep(self):
+        observed = [opt["T"] for _, opt in changing_T({}, {"alg": {}})]
+        assert observed == [200, 1000, 5000]
+
+    def test_changing_T_custom_sweep(self):
+        observed = [opt["T"] for _, opt in changing_T({}, {"alg": {}}, list_T=[50, 100])]
+        assert observed == [50, 100]
+
+    def test_changing_micro_dim_sets_dimension(self):
+        observed = [
+            (opt["micro_dim"], opt["n_groups"])
+            for _, opt in changing_micro_dim({"n_groups": 3}, {"alg": {}}, list_micro_dim=[4, 8])
+        ]
+        assert observed == [(4, 3), (8, 3)]
+
+    def test_changing_num_regimes_translates_to_shifts(self):
+        observed = [
+            (opt["num_regimes"], opt["non_stationarity_params"]["num_shifts"],
+             opt["non_stationarity_params"]["max_mean_mod"])
+            for _, opt in changing_num_regimes(
+                {"non_stationarity_params": {"max_mean_mod": 5.0}}, {"alg": {}}, list_num_regimes=[10, 40])
+        ]
+        assert observed == [(10, 9, 5.0), (40, 39, 5.0)]
 
 
 class TestMetrics:
@@ -123,6 +156,63 @@ class TestMetrics:
         assert result["precision"] == 1.0
         assert result["recall"] == 1.0
         assert result["shd"] == 0
+
+
+class TestLatentMCC:
+    def test_perfect_recovery_scores_near_one(self):
+        true = np.random.randn(500, 3)
+        recovered = true + 0.05 * np.random.randn(500, 3)
+        assert compute_mcc(recovered, true) > 0.99
+
+    def test_permutation_and_scaling_are_invariant(self):
+        true = np.random.randn(500, 3)
+        recovered = true[:, [2, 0, 1]] * np.array([-2.0, 3.0, 0.5])
+        assert compute_mcc(recovered, true) == pytest.approx(1.0, abs=1e-6)
+
+    def test_independent_latents_score_low(self):
+        true = np.random.randn(500, 3)
+        recovered = np.random.randn(500, 3)
+        assert compute_mcc(recovered, true) < 0.2
+
+    def test_extra_recovered_columns_are_matched(self):
+        true = np.random.randn(500, 2)
+        recovered = np.column_stack([true[:, 1], np.random.randn(500), true[:, 0] + 0.01 * np.random.randn(500)])
+        assert compute_mcc(recovered, true) > 0.95
+
+    def test_partially_recovered_latents_average_out(self):
+        true = np.random.randn(500, 2)
+        recovered = np.column_stack([true[:, 0], np.random.randn(500, 2)])
+        assert compute_mcc(recovered, true) == pytest.approx(0.5, abs=0.1)
+
+    def test_spearman_handles_monotone_transformations(self):
+        true = np.random.randn(500, 1)
+        recovered = np.exp(true)
+        assert compute_mcc(recovered, true, method='pearson') < 0.9
+        assert compute_mcc(recovered, true, method='spearman') > 0.99
+
+    def test_single_column_inputs_are_accepted(self):
+        true = np.random.randn(200)
+        assert compute_mcc(true, true) == pytest.approx(1.0)
+
+    def test_mismatched_sample_count_raises(self):
+        with pytest.raises(ValueError, match='share the number of samples'):
+            compute_mcc(np.random.randn(100, 2), np.random.randn(99, 2))
+
+    def test_unknown_method_raises(self):
+        with pytest.raises(ValueError, match='Unknown correlation method'):
+            compute_mcc(np.random.randn(100, 2), np.random.randn(100, 2), method='kendall')
+
+    def test_group_mcc_averages_per_group_scores(self):
+        true = [np.random.randn(300, 2), np.random.randn(300, 1)]
+        recovered = [true[0] + 0.01 * np.random.randn(300, 2), np.random.randn(300, 1)]
+        mean, per_group = compute_group_mcc(recovered, true)
+        assert len(per_group) == 2
+        assert per_group[0] > per_group[1]
+        assert mean == pytest.approx(np.mean(per_group))
+
+    def test_group_mcc_length_mismatch_raises(self):
+        with pytest.raises(ValueError, match='recovered groups'):
+            compute_group_mcc([np.random.randn(10, 1)], [np.random.randn(10, 1), np.random.randn(10, 1)])
 
 
 class TestGraphUtils:

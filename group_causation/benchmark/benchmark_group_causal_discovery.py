@@ -13,6 +13,7 @@ from group_causation.benchmark.benchmark_causal_discovery import BenchmarkCausal
 from group_causation.data_management.create_toy_datasets import CausalDataset
 from group_causation.dimensionality_reduction.iVAE.wrappers import IVAEWrapper
 from group_causation.utils import (
+    compute_group_mcc,
     get_cpdag_and_edge_set,
     get_dag_edge_set,
     get_f1,
@@ -108,13 +109,8 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
                 continue
 
             latent_dim = max(1, min(int(np.ceil(fallback_fraction * len(group_cols))), len(group_cols)))
-            _, _, _, info = IVAEWrapper(
-                train_data[:, group_cols],
-                train_u,
-                inference_dim=latent_dim,
-                **ivae_params,
-            )
-            reducer = info['reducer']
+            reducer = IVAEWrapper(latent_dim=latent_dim, **ivae_params)
+            reducer.fit(train_data[:, group_cols], train_u)
             group_scores.append(reducer.score_elbo(validation_data[:, group_cols], validation_u))
 
         if not group_scores:
@@ -152,6 +148,31 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
             **candidate_parameters,
         )
         return candidate.score_validation_mse(validation_data)
+
+    def _compute_latent_mcc(self, algorithm: Any, causal_dataset: CausalDataset) -> float | None:
+        """Mean Correlation Coefficient between recovered and ground-truth latents.
+
+        Returns ``None`` when the dataset has no latent ground truth or the
+        algorithm does not expose recovered latents.
+        """
+        if algorithm is None or causal_dataset.latent_true is None:
+            return None
+
+        recovered_latents = getattr(algorithm, 'get_recovered_latents', None)
+        if recovered_latents is None:
+            return None
+
+        try:
+            recovered = recovered_latents()
+        except ValueError:
+            return None
+
+        true_latents = _split_true_latents(causal_dataset)
+        if len(recovered) != len(true_latents):
+            return None
+
+        mcc, _ = compute_group_mcc(recovered, true_latents)
+        return mcc
 
     def _optimize_hyperparameters(
         self,
@@ -281,6 +302,7 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
                     f"{causalDiscovery.__name__}: propagated non_stationarity_info={non_stationarity_info}"
                 )
 
+        algorithm = None
         try:
             algorithm = causalDiscovery(
                 data=causal_dataset.time_series,
@@ -320,6 +342,10 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
         result = {'time': time, 'memory': memory}
         if optimization_report:
             result.update(optimization_report)
+
+        latent_mcc = self._compute_latent_mcc(algorithm, causal_dataset)
+        if latent_mcc is not None:
+            result['mcc'] = latent_mcc
 
         actual_parents = {
             son: list(parents)
@@ -378,6 +404,24 @@ class BenchmarkGroupCausalDiscovery(BenchmarkCausalDiscovery):
 
 
 
+def _split_true_latents(causal_dataset: CausalDataset) -> list:
+    """Split the ground-truth latent matrix into one array per group."""
+    latent_true = causal_dataset.latent_true
+    if latent_true is None:
+        return []
+
+    latent_dims = causal_dataset.latent_dims
+    if latent_dims is None:
+        return [latent_true[:, [column]] for column in range(latent_true.shape[1])]
+
+    true_latents = []
+    start = 0
+    for dim in latent_dims:
+        true_latents.append(latent_true[:, start:start + dim])
+        start += dim
+    return true_latents
+
+
 def _generate_group_dataset(iteration, n_datasets, datasets_folder, data_option):
     '''
     Function to generate the datasets for the benchmark
@@ -385,12 +429,24 @@ def _generate_group_dataset(iteration, n_datasets, datasets_folder, data_option)
     Args:
         n_datasets : int The number of datasets to be generated
         datasets_folder : str The folder in which the datasets will be saved
-        data_option : dict[str, Any] The options to generate the datasets
+        data_option : dict[str, Any] The options to generate the datasets.
+            Add ``generator='latent_macro_scm'`` to use the latent-macro SCM
+            generator instead of the default group toy generator.
     '''
+    generator_option = dict(data_option)
+    generator = generator_option.pop('generator', 'group_toy')
+    if generator not in {'group_toy', 'latent_macro_scm'}:
+        raise ValueError(f"Unknown dataset generator: {generator}. Options: ['group_toy', 'latent_macro_scm']")
+
+    generate = {
+        'group_toy': CausalDataset.generate_group_toy_data,
+        'latent_macro_scm': CausalDataset.generate_latent_macro_data,
+    }[generator]
+
     causal_datasets = [CausalDataset() for _ in range(n_datasets)]
     for current_dataset_index, causal_dataset in enumerate(causal_datasets):
         dataset_index = iteration * n_datasets + current_dataset_index
-        causal_dataset.generate_group_toy_data(dataset_index, datasets_folder=datasets_folder, **data_option)
+        generate(causal_dataset, dataset_index, datasets_folder=datasets_folder, **generator_option)
 
     return causal_datasets
 
@@ -425,6 +481,18 @@ def _load_group_datasets(datasets_folder) -> list[CausalDataset]:
             if os.path.exists(non_stationarity_filename):
                 with open(non_stationarity_filename, 'r') as f:
                     causal_dataset.non_stationarity_info = ast.literal_eval(f.read())
+
+            latent_true_filename = f'{datasets_folder}/{dataset_prefix}_latent_true.csv'
+            if os.path.exists(latent_true_filename):
+                causal_dataset.latent_true = CausalDataset.load_array(latent_true_filename)
+
+            latent_dims_filename = f'{datasets_folder}/{dataset_prefix}_latent_dims.txt'
+            if os.path.exists(latent_dims_filename):
+                causal_dataset.latent_dims = CausalDataset.load_literal(latent_dims_filename)
+
+            u_filename = f'{datasets_folder}/{dataset_prefix}_u.csv'
+            if os.path.exists(u_filename):
+                causal_dataset.u = CausalDataset.load_array(u_filename)
 
             causal_datasets.append(causal_dataset)
     else:

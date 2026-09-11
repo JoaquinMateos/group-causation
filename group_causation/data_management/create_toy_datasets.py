@@ -16,6 +16,7 @@ from tigramite.toymodels.structural_causal_processes import (
     structural_causal_process,
 )
 
+from group_causation.data_management.latent_macro_scm import LatentMacroDataset, generate_latent_macro_scm
 from group_causation.data_management.time_series_generator import (
     generate_group_causal_process_structure,
     generate_data_from_causal_process_structure,
@@ -114,7 +115,7 @@ class DatasetPersistence:
             f.write(repr(self.parents_dict))
 
     def _save_groups(self, name: str, dataset_folder: str) -> None:
-        """Save time_series, parents, groups, node_parents, and NS info."""
+        """Save time_series, parents, groups, node_parents, NS info, and latent ground truth."""
         self._save(name, dataset_folder)
         with open(f"{dataset_folder}/{name}_groups.txt", "w") as f:
             f.write(repr(self._groups))
@@ -122,30 +123,44 @@ class DatasetPersistence:
             f.write(repr(self.node_parents_dict))
         with open(f"{dataset_folder}/{name}_non_stationarity_info.txt", "w") as f:
             f.write(repr(self.non_stationarity_info))
+        if self.latent_true is not None:
+            np.savetxt(f"{dataset_folder}/{name}_latent_true.csv", self.latent_true, delimiter=",")
+        if self.latent_dims is not None:
+            with open(f"{dataset_folder}/{name}_latent_dims.txt", "w") as f:
+                f.write(repr(self.latent_dims))
+        if self.u is not None:
+            np.savetxt(f"{dataset_folder}/{name}_u.csv", self.u, delimiter=",")
 
     @staticmethod
-    def load_parents_dict(filepath: str) -> dict[int, list[tuple[int, int]]]:
+    def load_literal(filepath: str) -> Any:
+        """Safely load a repr-written Python literal from a text file."""
+        with open(filepath) as f:
+            return ast.literal_eval(f.read())
+
+    @classmethod
+    def load_parents_dict(cls, filepath: str) -> dict[int, list[tuple[int, int]]]:
         """Safely load a parents dict from a repr-written text file."""
-        with open(filepath) as f:
-            return ast.literal_eval(f.read())
+        return cls.load_literal(filepath)
 
-    @staticmethod
-    def load_groups(filepath: str) -> list[list[int]]:
+    @classmethod
+    def load_groups(cls, filepath: str) -> list[list[int]]:
         """Safely load groups from a repr-written text file."""
-        with open(filepath) as f:
-            return ast.literal_eval(f.read())
+        return cls.load_literal(filepath)
 
-    @staticmethod
-    def load_node_parents_dict(filepath: str) -> dict[int, list[tuple[int, int]]]:
+    @classmethod
+    def load_node_parents_dict(cls, filepath: str) -> dict[int, list[tuple[int, int]]]:
         """Safely load a node parents dict from a repr-written text file."""
-        with open(filepath) as f:
-            return ast.literal_eval(f.read())
+        return cls.load_literal(filepath)
+
+    @classmethod
+    def load_non_stationarity_info(cls, filepath: str) -> dict[str, Any]:
+        """Safely load non-stationarity info from a repr-written text file."""
+        return cls.load_literal(filepath)
 
     @staticmethod
-    def load_non_stationarity_info(filepath: str) -> dict[str, Any]:
-        """Safely load non-stationarity info from a repr-written text file."""
-        with open(filepath) as f:
-            return ast.literal_eval(f.read())
+    def load_array(filepath: str) -> np.ndarray:
+        """Load a 2D numeric array saved with ``np.savetxt``."""
+        return np.loadtxt(filepath, delimiter=",", ndmin=2)
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +265,10 @@ class CausalDataset(DatasetPersistence):
         self.node_parents_dict: dict[int, list[tuple[int, int]]] = {}
         self.max_value_threshold = max_value_threshold
         self.non_stationarity_info: dict[str, bool | list[int] | list[float]] = {"applied": False}
+        self.latent_true: np.ndarray | None = None
+        self.latent_dims: list[int] | None = None
+        self.u: np.ndarray | None = None
+        self.latent_macro_case: str | None = None
 
     @property
     def groups(self) -> list[list[int]] | None:
@@ -436,6 +455,36 @@ class CausalDataset(DatasetPersistence):
         assert self._groups is not None
 
         return self.time_series, self.parents_dict, self._groups, self.node_parents_dict, self.non_stationarity_info
+
+    # ------------------------------------------------------------------
+    # Latent-macro SCM generation
+    # ------------------------------------------------------------------
+
+    def generate_latent_macro_data(self, name: str, datasets_folder: str | None = None,
+                                   **scm_params) -> LatentMacroDataset:
+        """Generate a latent-macro SCM dataset preserving the ground-truth latents.
+
+        See :func:`generate_latent_macro_scm` for the accepted arguments.
+        """
+        dataset = generate_latent_macro_scm(**scm_params)
+        self._apply_latent_macro_dataset(dataset)
+
+        if datasets_folder is not None:
+            os.makedirs(datasets_folder, exist_ok=True)
+            self._save_groups(name, datasets_folder)
+
+        return dataset
+
+    def _apply_latent_macro_dataset(self, dataset: LatentMacroDataset) -> None:
+        self.time_series = dataset.time_series
+        self.parents_dict = dataset.group_parents
+        self._groups = dataset.groups
+        self.node_parents_dict = {}
+        self.non_stationarity_info = dataset.non_stationarity_info
+        self.latent_true = dataset.latent_true
+        self.latent_dims = dataset.latent_dims
+        self.u = dataset.u
+        self.latent_macro_case = dataset.case
 
     # ------------------------------------------------------------------
     # Delegation to module-level function (backward compat)

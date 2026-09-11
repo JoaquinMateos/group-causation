@@ -28,7 +28,13 @@ class ConditionalIndependence_base(ABC):
     dimensional consistency, chunking, ensembling, and aggregation.
     Override ``_aggregate_results`` to change the aggregation strategy
     (the default uses the median p-value and arithmetic mean of stats).
+
+    Subclasses that override ``test_regimes`` / ``conditional_test_regimes``
+    must set ``supports_regime_testing = True`` so callers can distinguish a
+    real implementation from the inherited stubs.
     """
+
+    supports_regime_testing: bool = False
 
     # ------------------------------------------------------------------
     # Hooks — subclasses must implement these
