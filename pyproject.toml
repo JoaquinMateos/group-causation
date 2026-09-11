@@ -27,7 +27,7 @@ dependencies = [
     "lingam>=1.5.5",
     "statsmodels>=0.14",
     "tigramite>=5.2",
-    "pgmpy>=0.1.19,<1",
+    "pgmpy>=1.1.2,<2",
     "causaldag>=0.1a163",
     "causalai @ git+https://github.com/salesforce/causalai.git@v2.0.0",
     "optuna>=4.0",
