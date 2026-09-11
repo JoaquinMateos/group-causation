@@ -27,6 +27,7 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
                  num_chunks_of_time_index: int | None = None,
                  pcmci_params: dict[str, Any] | None = None,
                  non_stationarity_info: dict[str, Any] | None = None,
+                 enforce_causal_input_completeness: bool = False,
                  verbose: int = 0,
                  **kwargs):
         
@@ -39,6 +40,7 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
         self._pcmci_params = pcmci_params if pcmci_params is not None else {}
         self.non_stationarity_info = non_stationarity_info or {}
         self._verbose = verbose
+        self._enforce_cic = enforce_causal_input_completeness
         
         self.tau_max = tau_max
         self.pc_alpha = pc_alpha
@@ -200,5 +202,163 @@ class GroupPCMCICausalDiscovery(GroupCausalDiscovery):
                     independencies_found.append((i, tau, j, 0, Z))
                 else:
                     final_parents[j].append((i, -tau))
+        
+        # Phase 3: Causal Input Completeness Augmentation
+        if self._enforce_cic:
+            independencies_found = self._enforce_causal_input_completeness(
+                final_parents, independencies_found
+            )
                     
         return final_parents, independencies_found
+
+    def _build_time_indexed_graph(
+        self, parents: dict[int, list[tuple[int, int]]]
+    ) -> dict[tuple[int, int], set[tuple[int, int]]]:
+        """
+        Build the time-indexed graph from the discovered parents.
+        
+        Returns:
+            adj: dict mapping (var, lag) → set of (parent_var, parent_lag) 
+                 representing directed edges in the time-indexed graph.
+        """
+        N = len(self._groups)
+        adj: dict[tuple[int, int], set[tuple[int, int]]] = {}
+        
+        # Initialize all nodes (variable, 0) for lag-0 variables
+        for j in range(N):
+            adj[(j, 0)] = set()
+        
+        # Add edges: (parent_var, -parent_lag) -> (child_var, 0)
+        for j in range(N):
+            for (i, tau) in parents.get(j, []):
+                # Edge: X_i(tau) -> X_j(0), stored as (i, -tau) -> (j, 0)
+                parent_node = (i, -tau)
+                child_node = (j, 0)
+                if parent_node not in adj:
+                    adj[parent_node] = set()
+                adj[child_node].add(parent_node)
+        
+        return adj
+
+    def _compute_descendants(
+        self, adj: dict[tuple[int, int], set[tuple[int, int]]]
+    ) -> dict[tuple[int, int], set[tuple[int, int]]]:
+        """
+        Compute descendants for each node via BFS on the time-indexed graph.
+        """
+        descendants: dict[tuple[int, int], set[tuple[int, int]]] = {
+            node: set() for node in adj
+        }
+        
+        for start_node in adj:
+            visited = set()
+            queue = [start_node]
+            while queue:
+                current = queue.pop(0)
+                for parent in adj.get(current, set()):
+                    if parent not in visited:
+                        visited.add(parent)
+                        # parent is a parent of current, so start_node is an ancestor of parent
+                        # We want descendants, so we reverse: if current has parent p,
+                        # then current is a descendant of p
+                        pass
+                # Actually, we need to follow edges forward (from cause to effect)
+                # adj[node] = set of parents of node
+                # So to find descendants, we need to invert the adjacency
+        
+        # Build forward adjacency: node → set of children
+        forward: dict[tuple[int, int], set[tuple[int, int]]] = {
+            node: set() for node in adj
+        }
+        for node, parents_set in adj.items():
+            for parent in parents_set:
+                if parent in forward:
+                    forward[parent].add(node)
+        
+        # BFS from each node following forward edges
+        descendants = {node: set() for node in adj}
+        for start_node in adj:
+            visited = set()
+            queue = [start_node]
+            while queue:
+                current = queue.pop(0)
+                for child in forward.get(current, set()):
+                    if child not in visited:
+                        visited.add(child)
+                        queue.append(child)
+            descendants[start_node] = visited
+        
+        return descendants
+
+    def _enforce_causal_input_completeness(
+        self,
+        final_parents: dict[int, list[tuple[int, int]]],
+        independencies_found: list,
+    ) -> list:
+        """
+        Augment the independence statements to achieve causal input completeness.
+        
+        Tests the local Markov property CI statements that PCMCI may not have
+        tested during edge pruning:
+            X_j(0) ⊥ NonDesc(j) | Parents(j)
+        
+        For each variable j, we test whether j is independent of all its 
+        non-descendants given its parents in the time-indexed graph.
+        
+        Args:
+            final_parents: Discovered parent dict from PCMCI.
+            independencies_found: List of CI statements already tested.
+        
+        Returns:
+            Augmented list of independence statements.
+        """
+        N = len(self._groups)
+        already_tested = set()
+        for item in independencies_found:
+            # item = (x_var, x_lag, y_var, y_lag, z_list)
+            key = (item[0], item[1], item[2], item[3], tuple(tuple(z) for z in item[4]))
+            already_tested.add(key)
+        
+        # Build time-indexed graph
+        adj = self._build_time_indexed_graph(final_parents)
+        descendants = self._compute_descendants(adj)
+        
+        augmented_count = 0
+        
+        for j in range(N):
+            j_node = (j, 0)
+            parents_j = adj.get(j_node, set())
+            desc_j = descendants.get(j_node, set())
+            
+            # Non-descendants = all nodes except j and its descendants
+            all_nodes = set(adj.keys())
+            nondesc_j = all_nodes - desc_j - {j_node}
+            
+            # Build the conditioning set: parents of j at lag 0
+            z_list = [(var, lag) for (var, lag) in parents_j]
+            
+            # Test: X_j(0) ⊥ NonDesc(j) | Parents(j)
+            for (i, tau) in nondesc_j:
+                # Skip if this was already tested during PCMCI
+                test_key = (i, tau, j, 0, tuple(sorted(z_list)))
+                reverse_key = (j, 0, i, tau, tuple(sorted(z_list)))
+                
+                if test_key in already_tested or reverse_key in already_tested:
+                    continue
+                
+                # Test the CI statement
+                _, pval = self._test_ci(i, tau, j, 0, z_list)
+                
+                if pval > self.pc_alpha:
+                    # Independence holds — this is a new consistency statement
+                    independencies_found.append((i, tau, j, 0, z_list))
+                    already_tested.add(test_key)
+                    augmented_count += 1
+        
+        if self._verbose > 0 and augmented_count > 0:
+            logging.info(
+                f"Causal input completeness: augmented {augmented_count} "
+                f"local Markov CI statements."
+            )
+        
+        return independencies_found

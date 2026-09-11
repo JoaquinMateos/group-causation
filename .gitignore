@@ -187,3 +187,4 @@ src/docs
 sphinx-docs
 group_causation/benchmark/example_benchmark_execution.py
 logs.txt
+Papers/

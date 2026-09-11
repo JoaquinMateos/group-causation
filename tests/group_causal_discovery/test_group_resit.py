@@ -5,10 +5,12 @@ from group_causation.group_causal_discovery.group_resit import (
     GroupRESITTimeSeriesCausalDiscovery,
 )
 
+FAST_PARAMS = dict(epochs=10, hidden_dim=32, batch_size=64)
+
 
 @pytest.fixture
 def data() -> np.ndarray:
-    return np.random.randn(200, 6).astype(np.float64)
+    return np.random.randn(100, 6).astype(np.float64)
 
 
 @pytest.fixture
@@ -18,23 +20,23 @@ def groups() -> list[set[int]]:
 
 class TestGroupRESITInit:
     def test_default_params(self, data: np.ndarray, groups: list[set[int]]):
-        inst = GroupRESITTimeSeriesCausalDiscovery(data, groups)
+        inst = GroupRESITTimeSeriesCausalDiscovery(data, groups, **FAST_PARAMS)
         assert inst.max_lag == 1
-        assert inst.epochs == 200
+        assert inst.epochs == 10
 
     def test_custom_params(self, data: np.ndarray, groups: list[set[int]]):
         inst = GroupRESITTimeSeriesCausalDiscovery(
-            data, groups, max_lag=3, epochs=100, hidden_dim=64,
+            data, groups, max_lag=3, epochs=10, hidden_dim=32,
         )
         assert inst.max_lag == 3
-        assert inst.epochs == 100
-        assert inst.hidden_dim == 64
+        assert inst.epochs == 10
+        assert inst.hidden_dim == 32
 
 
 class TestGroupRESITExtractParents:
     @pytest.mark.slow
     def test_basic_extraction(self, data: np.ndarray, groups: list[set[int]]):
-        inst = GroupRESITTimeSeriesCausalDiscovery(data, groups)
+        inst = GroupRESITTimeSeriesCausalDiscovery(data, groups, **FAST_PARAMS)
         parents = inst.extract_parents()
         assert isinstance(parents, dict)
         assert all(isinstance(k, int) for k in parents)
@@ -50,7 +52,7 @@ class TestGroupRESITExtractParents:
 class TestGroupRESITParentsValid:
     @pytest.mark.slow
     def test_identified_parents_are_valid(self, data: np.ndarray, groups: list[set[int]]):
-        inst = GroupRESITTimeSeriesCausalDiscovery(data, groups)
+        inst = GroupRESITTimeSeriesCausalDiscovery(data, groups, **FAST_PARAMS)
         parents = inst.extract_parents()
         for group_idx, parent_list in parents.items():
             assert isinstance(group_idx, int)

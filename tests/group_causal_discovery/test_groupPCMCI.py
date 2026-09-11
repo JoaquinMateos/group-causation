@@ -133,3 +133,55 @@ class TestGroupPCMCIInternal:
         for t in inst._raw_group_data:
             assert isinstance(t, torch.Tensor)
             assert t.shape[0] == data.shape[0]
+
+
+class TestCausalInputCompleteness:
+    def test_cic_returns_valid_parents(self, data: np.ndarray, groups: list[set[int]]):
+        inst = GroupPCMCICausalDiscovery(
+            data, groups, tau_max=2, pc_alpha=0.05, u=None,
+            enforce_causal_input_completeness=True,
+        )
+        parents = inst.extract_parents()
+        assert isinstance(parents, dict)
+        for j in range(len(groups)):
+            assert j in parents
+
+    def test_cic_produces_same_parents_as_vanilla(self, data: np.ndarray, groups: list[set[int]]):
+        inst_vanilla = GroupPCMCICausalDiscovery(
+            data, groups, tau_max=2, pc_alpha=0.05, u=None,
+            enforce_causal_input_completeness=False,
+        )
+        parents_vanilla = inst_vanilla.extract_parents()
+
+        inst_cic = GroupPCMCICausalDiscovery(
+            data, groups, tau_max=2, pc_alpha=0.05, u=None,
+            enforce_causal_input_completeness=True,
+        )
+        parents_cic = inst_cic.extract_parents()
+
+        # Parents should be identical — CIC only augments internal CI records
+        assert parents_vanilla == parents_cic
+
+    def test_cic_builds_time_indexed_graph(self, data: np.ndarray, groups: list[set[int]]):
+        inst = GroupPCMCICausalDiscovery(
+            data, groups, tau_max=2, pc_alpha=0.05, u=None,
+            enforce_causal_input_completeness=True,
+        )
+        parents = inst.extract_parents()
+        adj = inst._build_time_indexed_graph(parents)
+        assert len(adj) > 0
+        # All lag-0 nodes should be present
+        for j in range(len(groups)):
+            assert (j, 0) in adj
+
+    def test_cic_computes_descendants(self, data: np.ndarray, groups: list[set[int]]):
+        inst = GroupPCMCICausalDiscovery(
+            data, groups, tau_max=2, pc_alpha=0.05, u=None,
+            enforce_causal_input_completeness=True,
+        )
+        parents = inst.extract_parents()
+        adj = inst._build_time_indexed_graph(parents)
+        desc = inst._compute_descendants(adj)
+        # No node is a descendant of itself
+        for node in adj:
+            assert node not in desc[node]

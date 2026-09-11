@@ -8,8 +8,6 @@ from typing import Any, Callable, Type
 from group_causation.dimensionality_reduction.dimensionality_reduction_base import DimensionalityReduction
 from group_causation.dimensionality_reduction.iVAE.wrappers import IVAEWrapper
 from group_causation.group_causal_discovery.group_causal_discovery_base import GroupCausalDiscovery
-from group_causation.independence_tests.conditional_independence_base import ConditionalIndependence_base
-from group_causation.causal_discovery_base import CausalDiscovery # Asegúrate de importar GroupCausalDiscovery donde corresponda
 
 
 class AggregationMap(ABC):
